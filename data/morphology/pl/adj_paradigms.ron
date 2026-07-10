@@ -1,0 +1,34 @@
+// Polish adjective paradigms
+
+[
+    (name: "adj_y", rules: [
+        // Masculine singular
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Nominative)], operations: []),
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Genitive)], operations: [ReplaceSuffix(from: "y", to: "ego")]),
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Dative)], operations: [ReplaceSuffix(from: "y", to: "emu")]),
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Accusative)], operations: [ReplaceSuffix(from: "y", to: "y")]),
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Instrumental)], operations: [ReplaceSuffix(from: "y", to: "ym")]),
+        (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Locative)], operations: [ReplaceSuffix(from: "y", to: "ym")]),
+        // Feminine singular
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Nominative)], operations: [ReplaceSuffix(from: "y", to: "a")]),
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Genitive)], operations: [ReplaceSuffix(from: "y", to: "ej")]),
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Dative)], operations: [ReplaceSuffix(from: "y", to: "ej")]),
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Accusative)], operations: [ReplaceSuffix(from: "y", to: "ą")]),
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Instrumental)], operations: [ReplaceSuffix(from: "y", to: "ą")]),
+        (conditions: [GenderIs(Feminine), NumberIs(Singular), CaseIs(Locative)], operations: [ReplaceSuffix(from: "y", to: "ej")]),
+        // Neuter singular
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Nominative)], operations: [ReplaceSuffix(from: "y", to: "e")]),
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Genitive)], operations: [ReplaceSuffix(from: "y", to: "ego")]),
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Dative)], operations: [ReplaceSuffix(from: "y", to: "emu")]),
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Accusative)], operations: [ReplaceSuffix(from: "y", to: "e")]),
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Instrumental)], operations: [ReplaceSuffix(from: "y", to: "ym")]),
+        (conditions: [GenderIs(Neuter), NumberIs(Singular), CaseIs(Locative)], operations: [ReplaceSuffix(from: "y", to: "ym")]),
+        // Plural
+        (conditions: [NumberIs(Plural), CaseIs(Nominative)], operations: [ReplaceSuffix(from: "y", to: "e")]),
+        (conditions: [NumberIs(Plural), CaseIs(Genitive)], operations: [ReplaceSuffix(from: "y", to: "ich")]),
+        (conditions: [NumberIs(Plural), CaseIs(Dative)], operations: [ReplaceSuffix(from: "y", to: "im")]),
+        (conditions: [NumberIs(Plural), CaseIs(Accusative)], operations: [ReplaceSuffix(from: "y", to: "e")]),
+        (conditions: [NumberIs(Plural), CaseIs(Instrumental)], operations: [ReplaceSuffix(from: "y", to: "imi")]),
+        (conditions: [NumberIs(Plural), CaseIs(Locative)], operations: [ReplaceSuffix(from: "y", to: "ich")]),
+    ]),
+]

@@ -1,0 +1,54 @@
+// Polish noun declension paradigms
+
+[
+    // Neuter nouns ending in -o (jabłko)
+    (name: "neuter_o", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "o", to: "a")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "o", to: "u")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "o", to: "iem")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "o", to: "u")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "a")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: [Truncate(1), AddSuffix("ek")]),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "a")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "ach")]),
+    ]),
+
+    // Feminine nouns ending in -a (książka)
+    (name: "feminine_a", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "i")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "e")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "ę")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "ą")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "e")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "i")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "")]),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "i")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "ach")]),
+    ]),
+
+    // Masculine nouns ending in consonant (dom)
+    (name: "masculine_consonant", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [AddSuffix("u")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [AddSuffix("owi")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [AddSuffix("em")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [AddSuffix("u")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [AddSuffix("y")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: []),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [AddSuffix("om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [AddSuffix("y")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [AddSuffix("ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [AddSuffix("ach")]),
+    ]),
+]

@@ -1,0 +1,16 @@
+// Polish language descriptor
+(
+    language: "pl",
+    name: "Polish",
+    morphology: (
+        has_cases: true,
+        cases: [Nominative, Genitive, Dative, Accusative, Instrumental, Locative, Vocative],
+        has_articles: false,
+        aspect_type: Morphological,
+    ),
+    syntax: (
+        word_order: SVO,
+        pro_drop: true,
+        negation_particle: "nie",
+    ),
+)

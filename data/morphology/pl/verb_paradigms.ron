@@ -1,0 +1,72 @@
+// Polish verb conjugation paradigms
+
+[
+    // -ać verbs (czytać)
+    (name: "verb_ac", rules: [
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "am")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "asz")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "a")]),
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "amy")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "acie")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "ają")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ać", to: "ał")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ać", to: "ała")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ać", to: "ało")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "ali")]),
+        (conditions: [TenseIs(Future), PersonIs(Third), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "ać")]),
+    ]),
+
+    // -eć verbs (widzieć)
+    (name: "verb_ec", rules: [
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Singular)], operations: [ReplaceSuffix(from: "eć", to: "ę")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Singular)], operations: [ReplaceSuffix(from: "eć", to: "isz")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [ReplaceSuffix(from: "eć", to: "i")]),
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Plural)], operations: [ReplaceSuffix(from: "eć", to: "imy")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Plural)], operations: [ReplaceSuffix(from: "eć", to: "icie")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Plural)], operations: [ReplaceSuffix(from: "eć", to: "ą")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "eć", to: "ał")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "eć", to: "ała")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "eć", to: "ało")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "eć", to: "eli")]),
+    ]),
+
+    // -ść verbs (jeść, pić)
+    (name: "verb_sc", rules: [
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ść", to: "dł")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ść", to: "dła")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ść", to: "dło")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ść", to: "dli")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ić", to: "ił")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ić", to: "iła")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ić", to: "iło")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ić", to: "ili")]),
+    ]),
+
+    // -ić verbs (iść, kupić)
+    (name: "verb_ic", rules: [
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ić", to: "ę")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ić", to: "isz")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ić", to: "i")]),
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ić", to: "imy")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ić", to: "icie")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ić", to: "ą")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ić", to: "ił")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ić", to: "iła")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ić", to: "iło")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ić", to: "ili")]),
+    ]),
+
+    // dać (irregular)
+    (name: "verb_dac", rules: [
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "am")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "asz")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ać", to: "a")]),
+        (conditions: [TenseIs(Present), PersonIs(First), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "amy")]),
+        (conditions: [TenseIs(Present), PersonIs(Second), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "acie")]),
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "ają")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ać", to: "ał")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ać", to: "ała")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ać", to: "ało")]),
+        (conditions: [TenseIs(Past), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ać", to: "ali")]),
+    ]),
+]

@@ -1,0 +1,324 @@
+// Ontology hierarchy for lexFlex
+// IS_A relations define concept taxonomies
+
+(
+    concepts: {
+        // === TOP-LEVEL CATEGORIES ===
+        "ENTITY": (
+            id: "ENTITY",
+            parent: None,
+            features: (),
+            allowed_roles: [],
+        ),
+        "EVENT": (
+            id: "EVENT",
+            parent: None,
+            features: (),
+            allowed_roles: [],
+        ),
+        "PROPERTY": (
+            id: "PROPERTY",
+            parent: None,
+            features: (),
+            allowed_roles: [],
+        ),
+
+        // === PHYSICAL ENTITIES ===
+        "PHYSICAL_OBJECT": (
+            id: "PHYSICAL_OBJECT",
+            parent: Some("ENTITY"),
+            features: (concreteness: Some(Concrete)),
+            allowed_roles: [],
+        ),
+        "ANIMATE_ENTITY": (
+            id: "ANIMATE_ENTITY",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Experiencer", "Recipient"],
+        ),
+        "INANIMATE_OBJECT": (
+            id: "INANIMATE_OBJECT",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (animacy: Some(Inanimate)),
+            allowed_roles: ["Theme", "Patient", "Instrument"],
+        ),
+
+        // === PERSONS ===
+        "PERSON": (
+            id: "PERSON",
+            parent: Some("ANIMATE_ENTITY"),
+            features: (animacy: Some(Animate), countability: Some(Count)),
+            allowed_roles: ["Agent", "Recipient", "Experiencer"],
+        ),
+        "MOTHER": (
+            id: "MOTHER",
+            parent: Some("PERSON"),
+            features: (gender: Some(Feminine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient"],
+        ),
+        "FATHER": (
+            id: "FATHER",
+            parent: Some("PERSON"),
+            features: (gender: Some(Masculine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient"],
+        ),
+        "FRIEND": (
+            id: "FRIEND",
+            parent: Some("PERSON"),
+            features: (animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient"],
+        ),
+        "CHILD": (
+            id: "CHILD",
+            parent: Some("PERSON"),
+            features: (gender: Some(Neuter), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient", "Theme"],
+        ),
+        "STUDENT": (
+            id: "STUDENT",
+            parent: Some("PERSON"),
+            features: (gender: Some(Masculine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient", "Experiencer"],
+        ),
+        "TEACHER": (
+            id: "TEACHER",
+            parent: Some("PERSON"),
+            features: (gender: Some(Masculine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Recipient"],
+        ),
+
+        // === ANIMALS ===
+        "ANIMAL": (
+            id: "ANIMAL",
+            parent: Some("ANIMATE_ENTITY"),
+            features: (animacy: Some(Animate), countability: Some(Count)),
+            allowed_roles: ["Agent", "Theme"],
+        ),
+        "CAT": (
+            id: "CAT",
+            parent: Some("ANIMAL"),
+            features: (gender: Some(Masculine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Theme"],
+        ),
+        "DOG": (
+            id: "DOG",
+            parent: Some("ANIMAL"),
+            features: (gender: Some(Masculine), animacy: Some(Animate)),
+            allowed_roles: ["Agent", "Theme"],
+        ),
+
+        // === FOOD & SUBSTANCES ===
+        "FOOD": (
+            id: "FOOD",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (countability: Some(Mass)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "FRUIT": (
+            id: "FRUIT",
+            parent: Some("FOOD"),
+            features: (gender: Some(Neuter), countability: Some(Count)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "APPLE": (
+            id: "APPLE",
+            parent: Some("FRUIT"),
+            features: (gender: Some(Neuter), countability: Some(Count)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "BREAD": (
+            id: "BREAD",
+            parent: Some("FOOD"),
+            features: (gender: Some(Neuter), countability: Some(Mass)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "LIQUID": (
+            id: "LIQUID",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (countability: Some(Mass)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "WATER": (
+            id: "WATER",
+            parent: Some("LIQUID"),
+            features: (gender: Some(Neuter), countability: Some(Mass)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "MILK": (
+            id: "MILK",
+            parent: Some("LIQUID"),
+            features: (gender: Some(Neuter), countability: Some(Mass)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+
+        // === OBJECTS ===
+        "ARTIFACT": (
+            id: "ARTIFACT",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (countability: Some(Count)),
+            allowed_roles: ["Theme", "Instrument"],
+        ),
+        "BOOK": (
+            id: "BOOK",
+            parent: Some("ARTIFACT"),
+            features: (gender: Some(Feminine), countability: Some(Count)),
+            allowed_roles: ["Theme", "Patient"],
+        ),
+        "VEHICLE": (
+            id: "VEHICLE",
+            parent: Some("ARTIFACT"),
+            features: (countability: Some(Count)),
+            allowed_roles: ["Theme", "Instrument", "Location"],
+        ),
+        "CAR": (
+            id: "CAR",
+            parent: Some("VEHICLE"),
+            features: (gender: Some(Masculine), countability: Some(Count)),
+            allowed_roles: ["Theme", "Instrument", "Location"],
+        ),
+        "CONTAINER": (
+            id: "CONTAINER",
+            parent: Some("ARTIFACT"),
+            features: (countability: Some(Count)),
+            allowed_roles: ["Theme", "Location"],
+        ),
+
+        // === BUILDINGS & PLACES ===
+        "BUILDING": (
+            id: "BUILDING",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (countability: Some(Count)),
+            allowed_roles: ["Location", "Theme"],
+        ),
+        "HOUSE": (
+            id: "HOUSE",
+            parent: Some("BUILDING"),
+            features: (gender: Some(Masculine), countability: Some(Count)),
+            allowed_roles: ["Location", "Theme"],
+        ),
+        "LOCATION": (
+            id: "LOCATION",
+            parent: Some("PHYSICAL_OBJECT"),
+            features: (countability: Some(Count)),
+            allowed_roles: ["Location", "Goal", "Source"],
+        ),
+        "CITY": (
+            id: "CITY",
+            parent: Some("LOCATION"),
+            features: (gender: Some(Feminine), countability: Some(Count)),
+            allowed_roles: ["Location", "Goal", "Source"],
+        ),
+
+        // === ABSTRACT ENTITIES ===
+        "ABSTRACT_ENTITY": (
+            id: "ABSTRACT_ENTITY",
+            parent: Some("ENTITY"),
+            features: (concreteness: Some(Abstract)),
+            allowed_roles: [],
+        ),
+        "INFORMATION": (
+            id: "INFORMATION",
+            parent: Some("ABSTRACT_ENTITY"),
+            features: (countability: Some(Mass)),
+            allowed_roles: ["Theme", "Content"],
+        ),
+
+        // === PROPERTIES ===
+        "SIZE": (
+            id: "SIZE",
+            parent: Some("PROPERTY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "BIG": (
+            id: "BIG",
+            parent: Some("SIZE"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "SMALL": (
+            id: "SMALL",
+            parent: Some("SIZE"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "QUALITY": (
+            id: "QUALITY",
+            parent: Some("PROPERTY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "GOOD": (
+            id: "GOOD",
+            parent: Some("QUALITY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "BAD": (
+            id: "BAD",
+            parent: Some("QUALITY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "AGE": (
+            id: "AGE",
+            parent: Some("PROPERTY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "NEW": (
+            id: "NEW",
+            parent: Some("AGE"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "OLD": (
+            id: "OLD",
+            parent: Some("AGE"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "COLOR": (
+            id: "COLOR",
+            parent: Some("PROPERTY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "RED": (
+            id: "RED",
+            parent: Some("COLOR"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "BLUE": (
+            id: "BLUE",
+            parent: Some("COLOR"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "GREEN": (
+            id: "GREEN",
+            parent: Some("COLOR"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "TEMPERATURE": (
+            id: "TEMPERATURE",
+            parent: Some("PROPERTY"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "HOT": (
+            id: "HOT",
+            parent: Some("TEMPERATURE"),
+            features: (),
+            allowed_roles: [],
+        ),
+        "COLD": (
+            id: "COLD",
+            parent: Some("TEMPERATURE"),
+            features: (),
+            allowed_roles: [],
+        ),
+    },
+)

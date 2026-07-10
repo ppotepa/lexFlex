@@ -1,0 +1,16 @@
+[package]
+name = "lexflex"
+version = "0.1.0"
+edition = "2021"
+description = "Universal meaning representation framework using Interlingua"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+thiserror = "1"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+insta = "1"

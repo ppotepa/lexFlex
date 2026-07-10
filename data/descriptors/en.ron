@@ -1,0 +1,16 @@
+// English language descriptor
+(
+    language: "en",
+    name: "English",
+    morphology: (
+        has_cases: false,
+        cases: [],
+        has_articles: true,
+        aspect_type: Periphrastic,
+    ),
+    syntax: (
+        word_order: SVO,
+        pro_drop: false,
+        negation_particle: "not",
+    ),
+)

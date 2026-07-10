@@ -1,0 +1,9 @@
+// English verb paradigms
+
+[
+    (name: "verb_regular", rules: [
+        (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [AddSuffix("s")]),
+        (conditions: [TenseIs(Present)], operations: []),
+        (conditions: [TenseIs(Past)], operations: [AddSuffix("ed")]),
+    ]),
+]
