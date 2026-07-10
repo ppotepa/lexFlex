@@ -1,1 +1,23 @@
+# Build artifacts
 /target
+
+# Temporary files
+*.txt
+concat.txt
+benchmark_output.txt
+pl
+
+# Test binaries
+test_passive
+test_passive.rs
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
