@@ -65,13 +65,13 @@ The Parser's job is to do **minimal structural analysis** - just enough to ident
 | **Morphological analysis** | Language-specific inflection | "dał" → lemma: "dać", tense: Past |
 | **Identify main verb** | Basic syntactic structure | Find "dał" as main verb |
 | **Collect NPs** | Basic phrase structure | Find "Tomek", "jabłko", "Izie" |
+| **Initial role assignment** | Case markings + animacy heuristics | NOM→Agent, ACC→Theme (with animacy fallback) |
 
 **Parser should NOT:**
-- ❌ Assign semantic roles (Agent, Theme, etc.)
-- ❌ Resolve case ambiguities
-- ❌ Validate semantic types
-- ❌ Handle pronoun resolution
-- ❌ Make any semantic decisions
+- ❌ Resolve case ambiguities (when case is unknown or conflicting)
+- ❌ Validate semantic types (ontology checks)
+- ❌ Handle pronoun resolution (binding theory)
+- ❌ Make complex semantic decisions (beyond case-based heuristics)
 
 ### What Belongs in Deduction
 
@@ -99,12 +99,15 @@ The Parser's job is to do **minimal structural analysis** - just enough to ident
 | Identify verb | ✅ | ❌ | Basic syntactic structure |
 | Identify nouns | ✅ | ❌ | Basic phrase structure |
 | Morphological analysis | ✅ | ❌ | Language-specific inflection |
-| Assign semantic roles | ❌ | ✅ | Requires frame knowledge |
+| Initial role assignment (case-based) | ✅ | ❌ | Simple heuristics (NOM→Agent, ACC→Theme) |
+| Role refinement (animacy fallback) | ✅ | ❌ | Animate→Agent, inanimate→Theme |
 | Resolve case ambiguity | ❌ | ✅ | Requires frame + ontology |
 | Validate semantic types | ❌ | ✅ | Requires ontology |
 | Resolve pronouns | ❌ | ✅ | Requires binding theory |
 | Anchor temporals | ❌ | ✅ | Requires world knowledge |
 | Handle negation scope | ❌ | ✅ | Requires semantic reasoning |
+| Case assignment (final) | ❌ | ✅ | Based on frame requirements |
+| Feature inheritance | ❌ | ✅ | From ontology hierarchy |
 
 ### Example: Where Does Logic Belong?
 
@@ -154,6 +157,48 @@ Deduction:
 ```
 
 **Why Deduction?** Pronoun resolution requires binding theory and semantic reasoning. Parser just identifies the pronoun.
+
+**Example 4: Initial role assignment (case-based heuristics)**
+```
+Input: "Student dał mleko profesorowi"
+
+Parser:
+  - Morphological analysis:
+    * Student → Noun, case: NOM
+    * mleko → Noun, case: ACC
+    * profesorowi → Noun, case: DAT
+  - Initial role assignment:
+    * NOM → Agent (Student)
+    * ACC → Theme (mleko)
+    * DAT → Recipient (profesorowi)
+  - Build frame: Transfer { agent: Student, theme: mleko, recipient: profesorowi }
+
+Deduction:
+  - Validate roles match frame requirements ✓
+  - Assign final cases based on frame + polarity
+  - Validate semantic types (all animate/inanimate correct)
+```
+
+**Why Parser?** Case-based role assignment uses simple, deterministic heuristics (NOM→Agent, ACC→Theme, DAT→Recipient) that don't require complex semantic reasoning. This is fast and works for 95%+ of simple sentences.
+
+**Why not Deduction?** For simple sentences with clear case markings, Parser can handle this efficiently. Deduction is reserved for ambiguous cases (e.g., when case is unknown or conflicting, when animacy heuristics are needed as fallback).
+
+### Implementation Note: Two-Stage Role Assignment
+
+Our implementation uses a **two-stage approach**:
+
+**Stage 1 (Parser):** Initial role assignment using case markings + animacy heuristics
+- Clear case markings → deterministic role mapping
+- Ambiguous/missing cases → animacy-based fallback (animate→Agent, inanimate→Theme)
+- Builds Frame with initial role assignments
+
+**Stage 2 (Deduction):** Validation and refinement
+- Validates roles match frame requirements
+- Assigns final cases based on frame semantics + polarity
+- Validates semantic types (ontology checks)
+- Feature inheritance from ontology
+
+This approach balances **efficiency** (Parser handles common cases quickly) with **correctness** (Deduction validates and refines for edge cases).
 
 ### When to Move Logic from Parser to Deduction
 

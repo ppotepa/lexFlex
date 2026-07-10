@@ -430,6 +430,11 @@ impl EnglishGenerator {
         needs_article: bool,
     ) -> Result<String, GenerateError> {
         if let Some(ref name) = entity.name {
+            // Check if this is a proper noun (starts with uppercase)
+            if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                return Ok(name.clone());
+            }
+            
             let by_name = self.lexicon.lookup_by_form(&name.to_lowercase())
                 .or_else(|| self.lexicon.lookup_by_lemma(name));
             if let Some(e) = by_name {
@@ -447,10 +452,6 @@ impl EnglishGenerator {
                     }
                 }
                 return Ok(noun_form);
-            }
-            // Proper name not in target lexicon — use as-is
-            if name.chars().next().map_or(false, |c| c.is_uppercase()) {
-                return Ok(name.clone());
             }
         }
 
