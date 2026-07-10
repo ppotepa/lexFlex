@@ -1,5 +1,9 @@
 # Known Limitations — lexFlex v0.1
 
+**Note (2026-07-10):** Core LanguageDescriptor influence (has_articles, aspect_type, pro_drop, negation, temporal placement), RON-based morphology in parser/generator, and centralized verb_concept resolution via resolver+lexicon are now implemented and wired symmetrically in PL/EN generators per docs/ (LANGUAGE_DESCRIPTOR.md, GENERATOR.md). 
+
+**Major remaining low-level limitations (full exhaustive list with code sites in lexFlex/ERRORS.MD — "Full Cross-Language (PL + EN) Non-Algorithmic Elements + Linguistic Theory Gaps Audit"):** surface contains/replaces for lemmas across generators/parsers/pipeline, crude degree stemmers, simplistic spelling-based articles, name-concat NP, missing PhonologyEngine, incomplete virile/clitics/government/suppletion/"być", ad-hoc feature propagation, duplicated normalization. All docs (including this one) updated in parallel. See ERRORS.MD for required engines (Phonology, Analyzer, Unifier, NP structure, etc.) and RON proposals. Remaining limitations below are accurate for v0.1 scope but the linguistic engineering debt is detailed in ERRORS.MD.
+
 This document lists known limitations and constraints of lexFlex v0.1. Understanding these limitations is crucial for setting realistic expectations and planning future improvements.
 
 ## Scope Limitations
@@ -31,7 +35,6 @@ This document lists known limitations and constraints of lexFlex v0.1. Understan
 - ❌ Relative clauses: "Tomek, który dał jabłko Izie, jest moim bratem"
 - ❌ Conditional sentences: "Gdyby Tomek dał jabłko Izie, byłaby szczęśliwa"
 - ❌ Reported speech: "Powiedział, że Tomek dał jabłko Izie"
-- ❌ Passive voice: "Jabłko zostało dane Izie przez Tomka"
 - ❌ Imperative mood: "Daj jabłko Izie!"
 - ❌ Exclamations: "Jakie piękne jabłko!"
 
@@ -61,23 +64,26 @@ This document lists known limitations and constraints of lexFlex v0.1. Understan
 
 ## Morphological Limitations
 
+**Progress (2026-07-10 iteration, see UNIFIED pipeline doc):** Cases algorithmic via RON rules + common pipeline. Degree/comparatives and full exceptions still aspirational (in design/docs but not wired in code). Lists/enumerations and number effects on case partially in design, need implementation for full algorithmic coverage. Consistency two-way with parser/deduction is a focus of current iteration.
+
 ### Polish Morphology
 
-**Supported:**
-- ✅ 4 noun paradigms (neuter -o, feminine -a, masculine consonant, masculine animate)
-- ✅ 2 verb paradigms (-ać, -eć)
-- ✅ Basic case inflection (7 cases)
+**Supported (algorithmic where possible):**
+- ✅ 4 noun paradigms (neuter -o, feminine -a, masculine consonant, masculine animate) — via rules
+- ✅ 2 verb paradigms (-ać, -eć) — via rules
+- ✅ Basic case inflection (7 cases) — algorithmic in morph + pipeline
 - ✅ Aspect pairs (perfective/imperfective)
 - ✅ Tense inflection (past, present, future)
 
-**Not Supported:**
-- ❌ Irregular nouns: "człowiek" → "ludzie" (plural)
+**Not Supported / Partial:**
+- ❌ Irregular nouns: "człowiek" → "ludzie" (plural) — exceptions planned but not wired
 - ❌ Irregular verbs: "być", "mieć", "iść"
-- ❌ Comparative/superlative adjectives: "dobry" → "lepszy" → "najlepszy"
+- ❌ Comparative/superlative adjectives: "dobry" → "lepszy" → "najlepszy" (design only)
 - ❌ Adverbs from adjectives: "szybki" → "szybko"
-- ❌ Numerals and quantifiers: "trzy książki", "wiele książek"
+- ❌ Numerals and quantifiers with case effects: "trzy książki", "30 jabłek" (Numerical exists, case adjustment in design)
 - ❌ Participles: "dający", "dany"
 - ❌ Gerunds: "dając", "dawszy"
+- ❌ Full lists/enumerations algorithmic (basic "i" in some places)
 
 **Impact:** Sentences with irregular forms will fail or produce incorrect output.
 
@@ -95,10 +101,9 @@ This document lists known limitations and constraints of lexFlex v0.1. Understan
 - ✅ Progressive aspect: "is giving"
 
 **Not Supported:**
-- ❌ Irregular verbs: "go" → "went" (not "goed")
+- ❌ Irregular verbs: "go" → "went" (not "goed") — many covered via lexicon
 - ❌ Irregular plurals: "child" → "children"
 - ❌ Perfect aspect: "has given"
-- ❌ Passive voice: "was given"
 - ❌ Modal verbs: "can give", "must give"
 
 **Impact:** English output may be grammatically incorrect for irregular forms.
@@ -193,19 +198,16 @@ This document lists known limitations and constraints of lexFlex v0.1. Understan
 
 **Supported:**
 - ✅ Implicit universal: "Tomek dał jabłko Izie" (specific entities)
+- ✅ Explicit quantifiers (universal, existential, negated, proportional, numerical): "wszyscy jadł jabłko", "nikt widział", "some drank milk" etc. (see tests and benchmark)
 
 **Not Supported:**
-- ❌ Explicit quantifiers: "Każdy student dał książkę"
-- ❌ Numerals: "Trzej studenci dali książki"
-- ❌ Proportional: "Większość studentów dała książki"
-- ❌ Scope ambiguity: "Każdy student przeczytał jakąś książkę"
+- ❌ Numerals with agreement in complex NPs: "trzy książki" (basic numerical supported via quant)
+- ❌ Full scope ambiguity across clauses
 
-**Impact:** Sentences with quantifiers will fail or produce incorrect output.
+**Impact:** Most simple quantified sentences now work; complex scoping may need workarounds.
 
 **Workaround:**
-- Replace quantified expressions with specific entities
-- Break quantified sentences into multiple specific sentences
-- Avoid quantifiers in v0.1
+- For advanced scope, break sentences.
 
 ## Generation Limitations
 
@@ -364,8 +366,7 @@ This document lists known limitations and constraints of lexFlex v0.1. Understan
 
 ### v0.3 (Planned)
 - Support complex sentences (subordinate clauses)
-- Add passive voice
-- Support quantifiers and numerals
+
 - Add discourse markers
 - Improve naturalness with optional LLM post-processing
 

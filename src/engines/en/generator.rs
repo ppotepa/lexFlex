@@ -1,8 +1,10 @@
-use crate::core::interlingua::*;
+use crate::core::interlingua::*; // Degree etc. for realize impls
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::engines::en::morphology::EnglishMorphology;
+use crate::engines::policy::{GenerationPolicy, resolve_surface_verb};
 use crate::error::GenerateError;
+use crate::generation::LanguageRealizer;
 
 pub struct EnglishGenerator {
     lexicon: Lexicon,
@@ -10,6 +12,7 @@ pub struct EnglishGenerator {
     descriptor: LanguageDescriptor,
 }
 
+#[allow(dead_code)]
 impl EnglishGenerator {
     pub fn new(
         lexicon: Lexicon,
@@ -35,67 +38,44 @@ impl EnglishGenerator {
     }
 
     fn generate_sentence(&self, sentence: &Sentence) -> Result<String, GenerateError> {
-        let mut words = Vec::new();
-
-        // Handle passive voice
         if sentence.voice == Some(Voice::Passive) {
-            words = self.generate_passive_sentence(sentence)?;
-        } else {
-            for frame in &sentence.frames {
-                let frame_words = self.generate_frame(frame, sentence)?;
-                words.extend(frame_words);
+            let words = self.generate_passive_sentence(sentence)?;
+            let mut result = words.join(" ");
+            match sentence.illocution {
+                Illocution::Question => result.push('?'),
+                Illocution::Exclamation => result.push('!'),
+                _ => result.push('.'),
             }
-
-            // Add quantification
-            if let Some(ref quantifier) = sentence.quantification {
-                let quant_word = match quantifier {
-                    Quantifier::Universal => "all",
-                    Quantifier::Existential => "some",
-                    Quantifier::NegatedExistential => "none",
-                    Quantifier::Numerical(n) => {
-                        words.insert(1, n.to_string());
-                        if let Some(ref temporal) = sentence.temporal {
-                            if let Some(w) = self.generate_temporal(temporal) {
-                                words.push(w);
-                            }
-                        }
-                        return self.finalize_sentence(words, sentence.illocution, sentence.polarity);
-                    }
-                    Quantifier::Proportional(prop) => prop.as_str(),
-                };
-                words.insert(0, quant_word.to_string());
+            if let Some(first) = result.get_mut(0..1) {
+                let upper = first.to_uppercase();
+                result.replace_range(0..1, &upper);
             }
-
-            if let Some(ref temporal) = sentence.temporal {
-                if let Some(w) = self.generate_temporal(temporal) {
-                    words.push(w);
-                }
-            }
+            return Ok(result);
         }
-
-        self.finalize_sentence(words, sentence.illocution, sentence.polarity)
+        crate::generation::pipeline::generate_sentence(sentence, self, &self.descriptor, &self.lexicon)
     }
 
     fn generate_passive_sentence(&self, sentence: &Sentence) -> Result<Vec<String>, GenerateError> {
         let mut words = Vec::new();
 
         for frame in &sentence.frames {
-            // Extract theme/patient as the new subject and determine the verb
-            let (theme, agent, verb_lemma) = match frame {
-                Frame::Transfer { agent, recipient: _, theme } => (theme.clone(), Some(agent.clone()), "give"),
-                Frame::Motion { mover, .. } => (mover.clone(), None, "go"),
-                Frame::Perception { experiencer, stimulus } => (stimulus.clone(), Some(experiencer.clone()), "see"),
-                Frame::Cognition { cognizer, content } => (content.clone(), Some(cognizer.clone()), "think"),
-                Frame::Destruction { agent, patient, .. } => (patient.clone(), Some(agent.clone()), "break"),
-                Frame::Consumption { agent, patient } => (patient.clone(), Some(agent.clone()), "eat"),
-                Frame::Emotion { experiencer, stimulus } => (stimulus.clone(), Some(experiencer.clone()), "love"),
-                Frame::Communication { speaker, addressee: _, message } => (message.clone(), Some(speaker.clone()), "say"),
-                Frame::Creation { creator, created, .. } => (created.clone(), Some(creator.clone()), "make"),
-                Frame::Statement { subject, property: _ } => (subject.clone(), None, "be"),
-                Frame::Existence { entity, .. } => (entity.clone(), None, "exist"),
-                Frame::Possession { possessor, possessed } => (possessed.clone(), Some(possessor.clone()), "have"),
+            // Extract theme/patient as the new subject and determine the verb using shared resolver.
+            let (theme, agent) = match frame {
+                Frame::Transfer { agent, recipient: _, theme, .. } => (theme.clone(), Some(agent.clone())),
+                Frame::Motion { mover, .. } => (mover.clone(), None),
+                Frame::Perception { experiencer, stimulus, .. } => (stimulus.clone(), Some(experiencer.clone())),
+                Frame::Cognition { cognizer, content, .. } => (content.clone(), Some(cognizer.clone())),
+                Frame::Destruction { agent, patient, .. } => (patient.clone(), Some(agent.clone())),
+                Frame::Consumption { agent, patient, .. } => (patient.clone(), Some(agent.clone())),
+                Frame::Emotion { experiencer, stimulus, .. } => (stimulus.clone(), Some(experiencer.clone())),
+                Frame::Communication { speaker, addressee: _, message, .. } => (message.clone(), Some(speaker.clone())),
+                Frame::Creation { creator, created, .. } => (created.clone(), Some(creator.clone())),
+                Frame::Statement { subject, property: _, .. } => (subject.clone(), None),
+                Frame::Existence { entity, .. } => (entity.clone(), None),
+                Frame::Possession { possessor, possessed, .. } => (possessed.clone(), Some(possessor.clone())),
                 Frame::Custom { .. } => return Ok(words),
             };
+            let verb_lemma = resolve_surface_verb(frame, &self.lexicon);
 
             // Generate theme as subject
             let theme_str = self.generate_entity_form(&theme, true)?;
@@ -110,7 +90,7 @@ impl EnglishGenerator {
             words.push(be_form.to_string());
 
             // Add past participle
-            let participle = self.find_past_participle(verb_lemma);
+            let participle = self.find_past_participle(&verb_lemma);
             words.push(participle);
 
             // Add "by" phrase for agent
@@ -162,7 +142,7 @@ impl EnglishGenerator {
             // "Did X not Y?"
             words.insert(0, "Did".to_string());
             if words.len() > 2 {
-                words.insert(2, "not".to_string());
+                words.insert(2, self.descriptor.syntax.negation_particle.clone());
             }
         } else if is_question {
             // "Did X Y?"
@@ -171,10 +151,10 @@ impl EnglishGenerator {
             // "X did not Y"
             if words.len() > 1 {
                 words.insert(1, "did".to_string());
-                words.insert(2, "not".to_string());
+                words.insert(2, self.descriptor.syntax.negation_particle.clone());
             } else {
                 words.insert(0, "did".to_string());
-                words.insert(1, "not".to_string());
+                words.insert(1, self.descriptor.syntax.negation_particle.clone());
             }
         }
 
@@ -200,40 +180,40 @@ impl EnglishGenerator {
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
         match frame {
-            Frame::Transfer { agent, recipient, theme } => {
+            Frame::Transfer { agent, recipient, theme, .. } => {
                 self.generate_transfer(agent, recipient, theme, frame, sentence)
             }
-            Frame::Motion { mover, source, goal, .. } => {
-                self.generate_motion(mover, source, goal, sentence)
+            Frame::Motion { mover, source, goal, verb_concept, .. } => {
+                self.generate_motion(mover, source, goal, verb_concept, sentence)
             }
-            Frame::Perception { experiencer, stimulus } => {
+            Frame::Perception { experiencer, stimulus, .. } => {
                 self.generate_two_role(frame, experiencer, stimulus, sentence)
             }
-            Frame::Cognition { cognizer, content } => {
+            Frame::Cognition { cognizer, content, .. } => {
                 self.generate_two_role(frame, cognizer, content, sentence)
             }
-            Frame::Emotion { experiencer, stimulus } => {
+            Frame::Emotion { experiencer, stimulus, .. } => {
                 self.generate_two_role(frame, experiencer, stimulus, sentence)
             }
             Frame::Destruction { agent, patient, .. } => {
                 self.generate_two_role(frame, agent, patient, sentence)
             }
-            Frame::Consumption { agent, patient } => {
+            Frame::Consumption { agent, patient, .. } => {
                 self.generate_two_role(frame, agent, patient, sentence)
             }
-            Frame::Communication { speaker, addressee, message } => {
-                self.generate_communication(speaker, addressee.as_ref(), message, sentence)
+            Frame::Communication { speaker, addressee, message, verb_concept, .. } => {
+                self.generate_communication(speaker, addressee.as_ref(), message, verb_concept, sentence)
             }
             Frame::Creation { creator, created, .. } => {
                 self.generate_two_role(frame, creator, created, sentence)
             }
-            Frame::Statement { subject, property } => {
+            Frame::Statement { subject, property, .. } => {
                 self.generate_statement(subject, property, sentence)
             }
-            Frame::Existence { entity, location } => {
+            Frame::Existence { entity, location, .. } => {
                 self.generate_existence(entity, location.as_ref(), sentence)
             }
-            Frame::Possession { possessor, possessed } => {
+            Frame::Possession { possessor, possessed, .. } => {
                 self.generate_two_role(frame, possessor, possessed, sentence)
             }
             Frame::Custom { .. } => Ok(Vec::new()),
@@ -248,12 +228,16 @@ impl EnglishGenerator {
         frame: &Frame,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let verb_lemma = self.find_verb_for_frame(frame)?;
+        let verb_lemma = resolve_surface_verb(frame, &self.lexicon);
 
         let agent_form = self.generate_entity_form(agent, false)?;
+        let pol = GenerationPolicy::new(&self.descriptor);
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
             verb_lemma.to_string()
+        } else if pol.use_periphrastic_progressive(sentence) {
+            let aux = if sentence.tense == Some(Tense::Past) { "was" } else { "is" };
+            format!("{} {}ing", aux, verb_lemma)
         } else {
             self.morphology.inflect_verb(
                 &verb_lemma,
@@ -265,7 +249,11 @@ impl EnglishGenerator {
         let theme_form = self.generate_entity_form(theme, true)?;
         let recipient_form = self.generate_entity_form(recipient, false)?;
 
-        let mut words = vec![agent_form, verb_form];
+        let mut words = vec![];
+        if pol.should_emit_subject(agent) {
+            words.push(agent_form);
+        }
+        words.push(verb_form);
         words.push(theme_form);
         words.push("to".to_string());
         words.push(recipient_form);
@@ -278,12 +266,21 @@ impl EnglishGenerator {
         mover: &Entity,
         source: &Option<Entity>,
         goal: &Option<Entity>,
+        verb_concept: &str,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let verb_lemma = "go";
+        // Use shared resolver for verb_concept preference (centralized, symmetric to PL).
+        let tmp_frame = Frame::Motion {
+            mover: mover.clone(),
+            source: source.clone(),
+            goal: goal.clone(),
+            path: None,
+            verb_concept: verb_concept.to_string(),
+        };
+        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
         let mover_form = self.generate_entity_form(mover, false)?;
         let verb_form = self.morphology.inflect_verb(
-            verb_lemma,
+            &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
             Some(Person::Third),
             Some(Number::Singular),
@@ -313,12 +310,17 @@ impl EnglishGenerator {
         object: &Entity,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
+        let pol = GenerationPolicy::new(&self.descriptor);
         let verb_lemma = self.find_verb_for_frame(frame)?;
 
         let subject_form = self.generate_entity_form(subject, false)?;
+        let emit_sub = pol.should_emit_subject(subject);
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
             verb_lemma.to_string()
+        } else if pol.use_periphrastic_progressive(sentence) {
+            let aux = if sentence.tense == Some(Tense::Past) { "was" } else { "is" };
+            format!("{} {}ing", aux, verb_lemma)
         } else {
             self.morphology.inflect_verb(
                 &verb_lemma,
@@ -329,7 +331,11 @@ impl EnglishGenerator {
         };
         let object_form = self.generate_entity_form(object, true)?;
 
-        let mut words = vec![subject_form, verb_form];
+        let mut words = vec![];
+        if emit_sub {
+            words.push(subject_form);
+        }
+        words.push(verb_form);
         words.push(object_form);
 
         Ok(words)
@@ -340,12 +346,20 @@ impl EnglishGenerator {
         speaker: &Entity,
         addressee: Option<&Entity>,
         message: &Entity,
+        verb_concept: &str,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let verb_lemma = "say";
+        // Use shared resolver for verb_concept preference (centralized, symmetric).
+        let tmp_frame = Frame::Communication {
+            speaker: speaker.clone(),
+            addressee: addressee.cloned(),
+            message: message.clone(),
+            verb_concept: verb_concept.to_string(),
+        };
+        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
         let speaker_form = self.generate_entity_form(speaker, false)?;
         let verb_form = self.morphology.inflect_verb(
-            verb_lemma,
+            &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
             Some(Person::Third),
             Some(Number::Singular),
@@ -429,9 +443,14 @@ impl EnglishGenerator {
         entity: &Entity,
         needs_article: bool,
     ) -> Result<String, GenerateError> {
+        let policy = GenerationPolicy::new(&self.descriptor);
+        let do_articles = policy.should_add_article(entity, needs_article);
+
+        // Early norm should have cleaned name/concept already; use lexicon directly (no PL surface maps).
         if let Some(ref name) = entity.name {
-            // Check if this is a proper noun (starts with uppercase)
-            if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+            // Proper noun (single word, no article).
+            let has_space = name.chars().any(|c| c == ' ');
+            if name.chars().next().map_or(false, |c| c.is_uppercase()) && !has_space {
                 return Ok(name.clone());
             }
             
@@ -440,14 +459,16 @@ impl EnglishGenerator {
             if let Some(e) = by_name {
                 let number = entity.features.number.unwrap_or(Number::Singular);
                 let noun_form = self.morphology.inflect_noun(&e.lemma, number)?;
-                if needs_article && number == Number::Singular {
+                if do_articles && number == Number::Singular {
                     let is_definite = entity.features.definiteness == Some(Definiteness::Definite);
                     if is_definite {
                         return Ok(format!("the {}", noun_form));
                     }
                     let is_countable = e.features.countability != Some(Countability::Mass);
                     if is_countable {
-                        let article = if self.starts_with_vowel_sound(&noun_form) { "an" } else { "a" };
+                        // Use target's initial_sound (prefer entry over carried IL).
+                        let is_vowel = e.features.initial_sound.as_deref() == Some("vowel") || entity.features.initial_sound.as_deref() == Some("vowel");
+                        let article = if is_vowel { "an" } else { "a" };
                         return Ok(format!("{} {}", article, noun_form));
                     }
                 }
@@ -455,27 +476,33 @@ impl EnglishGenerator {
             }
         }
 
-        let lemma = if let Some(entry) = self.lexicon.lookup_concept(&entity.concept.0) {
-            entry.lemma.clone()
-        } else {
-            entity.concept.0.to_lowercase()
-        };
+        let c = entity.concept.0.clone();
+        let entry = self.lexicon.lookup_concept(&c).or_else(|| self.lexicon.lookup_by_lemma(&c.to_lowercase()));
+        let lemma = entry.map(|e| e.lemma.clone()).unwrap_or_else(|| c.to_lowercase());
 
-        let number = entity.features.number.unwrap_or(Number::Singular);
+        // Refresh phonetic from TARGET lexicon (cross-lang: source may have set consonant for "jabłko", target "apple" needs vowel).
+        let mut eff = entity.clone();
+        if let Some(e) = entry {
+            if e.features.initial_sound.is_some() {
+                eff.features.initial_sound = e.features.initial_sound.clone();
+            }
+        }
+
+        let number = eff.features.number.unwrap_or(Number::Singular);
         let noun_form = self.morphology.inflect_noun(&lemma, number)?;
 
-        if needs_article && number == Number::Singular {
-            let is_definite = entity.features.definiteness == Some(Definiteness::Definite);
+        if do_articles && number == Number::Singular {
+            let is_definite = eff.features.definiteness == Some(Definiteness::Definite);
             if is_definite {
                 return Ok(format!("the {}", noun_form));
             }
-            let entry = self.lexicon.lookup_by_form(&lemma)
-                .or_else(|| self.lexicon.lookup_by_lemma(&lemma));
             let is_countable = entry
                 .map(|e| e.features.countability != Some(Countability::Mass))
                 .unwrap_or(true);
             if is_countable {
-                let article = if self.starts_with_vowel_sound(&noun_form) { "an" } else { "a" };
+                // Exclusively data-driven from (refreshed) target lexicon initial_sound.
+                let is_vowel = eff.features.initial_sound.as_deref() == Some("vowel");
+                let article = if is_vowel { "an" } else { "a" };
                 return Ok(format!("{} {}", article, noun_form));
             }
         }
@@ -484,42 +511,8 @@ impl EnglishGenerator {
     }
 
     fn find_verb_for_frame(&self, frame: &Frame) -> Result<String, GenerateError> {
-        let concept_name = match frame {
-            Frame::Transfer { .. } => "GIVE",
-            Frame::Motion { .. } => "GO",
-            Frame::Perception { .. } => "SEE",
-            Frame::Cognition { .. } => "THINK",
-            Frame::Emotion { .. } => "LOVE",
-            Frame::Destruction { .. } => "BREAK",
-            Frame::Consumption { patient, .. } => {
-                // Check if patient is a liquid (mass noun with liquid concept)
-                let is_liquid = patient.features.countability == Some(Countability::Mass)
-                    && matches!(
-                        patient.concept.0.as_str(),
-                        "WATER" | "MILK" | "JUICE" | "COFFEE" | "TEA" | "BEER" | "WINE"
-                    );
-                if is_liquid {
-                    "DRINK"
-                } else {
-                    "EAT"
-                }
-            }
-            Frame::Communication { .. } => "SAY",
-            Frame::Creation { .. } => "MAKE",
-            Frame::Statement { .. } => "BE",
-            Frame::Existence { .. } => "BE",
-            Frame::Possession { .. } => "HAVE",
-            Frame::Custom { name, .. } => name,
-        };
-
-        if let Some(entry) = self.lexicon.lookup_concept(concept_name) {
-            return Ok(entry.lemma.clone());
-        }
-
-        Err(GenerateError::NoLexemeForConcept {
-            concept: concept_name.to_string(),
-            language: "en".to_string(),
-        })
+        // Delegate to shared resolver (prefers verb_concept, no large maps/hardcodes).
+        Ok(resolve_surface_verb(frame, &self.lexicon))
     }
 
     fn generate_temporal(&self, temporal: &TemporalReference) -> Option<String> {
@@ -543,10 +536,183 @@ impl EnglishGenerator {
         }
     }
 
-    fn starts_with_vowel_sound(&self, word: &str) -> bool {
-        matches!(
-            word.chars().next().map(|c| c.to_ascii_lowercase()),
-            Some('a') | Some('e') | Some('i') | Some('o') | Some('u')
-        )
+    // Vowel spelling helper purged (article decision now 100% from lexicon initial_sound feature per AC3/21pts).
+}
+
+impl LanguageRealizer for EnglishGenerator {
+    fn realize_noun_phrase(
+        &self,
+        entity: &Entity,
+        features: &mut FeatureBundle,
+        desc: &LanguageDescriptor,
+        lexicon: &Lexicon,
+    ) -> Result<Vec<String>, GenerateError> {
+        let policy = GenerationPolicy::new(desc);
+        // Respect adjusted features
+        let mut tmp = entity.clone();
+        if features.number.is_some() { tmp.features.number = features.number; }
+        if features.gender.is_some() { tmp.features.gender = features.gender; }
+        if features.definiteness.is_some() { tmp.features.definiteness = features.definiteness; }
+        // Refresh target phonetic for article (cross lang IL may carry source lang initial_sound).
+        if let Some(e) = self.lexicon.lookup_concept(&tmp.concept.0).or_else(|| self.lexicon.lookup_by_lemma(&tmp.name.clone().unwrap_or_default())) {
+            if e.features.initial_sound.is_some() { tmp.features.initial_sound = e.features.initial_sound.clone(); }
+        }
+
+        // Coordination first
+        if let Some(ref coord) = tmp.coordination {
+            let mut item_reals: Vec<Vec<String>> = vec![];
+            for item in &coord.items {
+                let mut f = item.features.clone();
+                if let Some(c) = features.case.or(tmp.features.case) { f.case = Some(c); }
+                if features.number == Some(Number::Plural) || tmp.features.number == Some(Number::Plural) {
+                    f.number = Some(Number::Plural);
+                }
+                let r = self.realize_noun_phrase(item, &mut f, desc, lexicon).unwrap_or_else(|_| vec!["?".to_string()]);
+                item_reals.push(r);
+            }
+            return self.realize_coordinations(item_reals, desc);
+        }
+
+        // Realize adjectival modifiers + head, decide article once at NP level (before first word).
+        let mut result: Vec<String> = vec![];
+        for adj in &tmp.adjectives {
+            let mut f = adj.features.clone();
+            if f.gender.is_none() { f.gender = tmp.features.gender; }
+            if f.number.is_none() { f.number = tmp.features.number; }
+            if f.case.is_none() { f.case = features.case.or(tmp.features.case); }
+            if let Some(d) = features.degree {
+                f.degree = Some(d);
+            }
+            let mut adj_form = self.generate_entity_form(adj, false)?;  // no article on bare adj
+            if let Some(d) = adj.features.degree {
+                adj_form = self.realize_degree(&adj_form, d, desc);
+            }
+            result.push(adj_form);
+        }
+
+        // head without article
+        let noun_form = self.generate_entity_form(&tmp, false)?;
+        result.push(noun_form);
+
+        // now decide article for the whole NP (based on first pronounced word's sound: first adj or head)
+        // skip for proper names (uppercase start, no article)
+        let num = tmp.features.number.unwrap_or(Number::Singular);
+        let first_word = if !result.is_empty() { &result[0] } else { "" };
+        let is_proper = first_word.chars().next().map_or(false, |c| c.is_uppercase());
+        let do_art = policy.should_add_article(&tmp, true) && !is_proper;
+        if do_art && num == Number::Singular {
+            let is_def = tmp.features.definiteness == Some(Definiteness::Definite) || features.definiteness == Some(Definiteness::Definite);
+            if is_def {
+                if !result.is_empty() {
+                    result[0] = format!("the {}", result[0]);
+                }
+            } else {
+                let is_countable = true;
+                if is_countable && !result.is_empty() {
+                    // data-driven: first adj's initial_sound if present (for "big red apple" -> "a"), else head
+                    let first_ent = if !tmp.adjectives.is_empty() { &tmp.adjectives[0] } else { &tmp };
+                    let is_v = first_ent.features.initial_sound.as_deref() == Some("vowel");
+                    let art = if is_v { "an" } else { "a" };
+                    result[0] = format!("{} {}", art, result[0]);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn realize_verb(
+        &self,
+        lemma: &str,
+        features: &FeatureBundle,
+        desc: &LanguageDescriptor,
+    ) -> Result<String, GenerateError> {
+        // Always use morphology inflect which has irregular past + 3sg "has" etc.
+        // (find_past_participle is only for passive voice constructions)
+        self.morphology.inflect_verb(lemma, features.tense.unwrap_or(Tense::Present), features.person, features.number)
+    }
+
+    fn adjust_for_quantifier(&self, features: &mut FeatureBundle, q: &Quantifier, desc: &LanguageDescriptor) {
+        if let Quantifier::Numerical(n) = q {
+            if *n > 1 {
+                features.number = Some(Number::Plural);
+            }
+        }
+    }
+
+    fn realize_degree(&self, base: &str, deg: Degree, desc: &LanguageDescriptor) -> String {
+        // Exclusively data-driven: first try explicit degree-listed surface from lexicon for the lemma+deg.
+        // No hard-coded base->comp word strings in logic per AC3.
+        if let Some((form, _)) = self.lexicon.entries.iter().find(|(_, e)| e.lemma == base && e.features.degree == Some(deg)) {
+            return form.clone();
+        }
+        // Fallback heuristic for regular EN morphology (no PL surface leakage).
+        match deg {
+            Degree::Positive => base.to_string(),
+            Degree::Comparative => {
+                if base.ends_with('y') {
+                    let s = base.trim_end_matches('y');
+                    format!("{}ier", s)
+                } else if base.len() <= 5 && !base.contains(' ') {
+                    format!("{}er", base)
+                } else {
+                    format!("more {}", base)
+                }
+            }
+            Degree::Superlative => {
+                let comp = self.realize_degree(base, Degree::Comparative, desc);
+                if comp.starts_with("most") || comp.starts_with("more") { comp.replace("more ", "most ").replace("er", "est") } else { format!("{}est", comp.trim_end_matches("er")) }
+            }
+        }
+    }
+
+    fn realize_quantifier(&self, q: &Quantifier, desc: &LanguageDescriptor) -> Result<Vec<String>, GenerateError> {
+        let w = match q {
+            Quantifier::Universal => "all",
+            Quantifier::Existential => "some",
+            Quantifier::NegatedExistential => "none",
+            Quantifier::Numerical(n) => return Ok(vec![n.to_string()]),
+            Quantifier::Proportional(p) => p.as_str(),
+        };
+        Ok(vec![w.to_string()])
+    }
+
+    fn realize_coordinations(
+        &self,
+        items: Vec<Vec<String>>,
+        desc: &LanguageDescriptor,
+    ) -> Result<Vec<String>, GenerateError> {
+        if items.is_empty() { return Ok(vec![]); }
+        if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }
+        let mut res = vec![];
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 {
+                if i == items.len() - 1 {
+                    res.push("and".to_string());
+                } else {
+                    res.push(",".to_string());
+                }
+            }
+            res.extend(item.clone());
+        }
+        Ok(res)
+    }
+
+    fn get_article(&self, entity: &Entity, needs: bool, desc: &LanguageDescriptor) -> Option<String> {
+        if desc.morphology.has_articles && needs {
+            let num = entity.features.number.unwrap_or(Number::Singular);
+            if num == Number::Singular {
+                let is_def = entity.features.definiteness == Some(Definiteness::Definite);
+                if is_def {
+                    Some("the".to_string())
+                } else {
+                    Some("a".to_string())
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }

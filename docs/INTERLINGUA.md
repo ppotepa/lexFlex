@@ -28,6 +28,10 @@ Utterance                    ← top-level: a complete communicative act
 ├── Sentence[]               ← one utterance may contain multiple sentences
 │   ├── Frame[]              ← predicate-argument structures
 │   ├── Tense, Aspect, Modality
+```
+
+**2026-07-10 Audit note (synced with ERRORS.MD full PL+EN section):** 
+Entity currently uses flat features + optional `coordination: Option<Coordination>`. No dedicated head + `modifiers: Vec<Entity>` structure yet. FeatureBundle is rich (includes Degree, Gender variants incl. MasculinePersonal for virile potential, Animacy, etc.) but unification/propagation and NP agreement are still ad-hoc (see ERRORS.MD "NP Structure", "Agreement Engine", "Linguistic Theory Gaps"). Future extensions for clitics, government slots, and richer modifier lists must be added here + reflected in ERRORS.MD + UNIFIED + PLAN. Docs kept in sync.
 │   ├── Polarity             ← positive / negative
 │   ├── Illocution           ← statement, question, command, exclamation
 │   ├── Topic                ← what the sentence is about

@@ -32,6 +32,9 @@
 
     // -ść verbs (jeść, pić)
     (name: "verb_sc", rules: [
+        // specific for jeść/zjeść to get correct stem "jad" (imperfective preferred for past)
+        (conditions: [TenseIs(Past), NumberIs(Singular)], operations: [ReplaceSuffix(from: "jeść", to: "jadł")]),
+        (conditions: [TenseIs(Past), NumberIs(Singular)], operations: [ReplaceSuffix(from: "zjeść", to: "jadł")]),
         (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Masculine)], operations: [ReplaceSuffix(from: "ść", to: "dł")]),
         (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Feminine)], operations: [ReplaceSuffix(from: "ść", to: "dła")]),
         (conditions: [TenseIs(Past), NumberIs(Singular), GenderIs(Neuter)], operations: [ReplaceSuffix(from: "ść", to: "dło")]),

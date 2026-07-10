@@ -18,7 +18,7 @@ pub struct MorphologyDescriptor {
     pub aspect_type: AspectType,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AspectType {
     Morphological,
     Periphrastic,
@@ -32,7 +32,7 @@ pub struct SyntaxDescriptor {
     pub negation_particle: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WordOrder {
     SVO,
     SOV,

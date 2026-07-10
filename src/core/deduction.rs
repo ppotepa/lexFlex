@@ -52,7 +52,7 @@ fn resolve_cases_and_roles(sentence: &mut Sentence) -> Result<(), DeductionError
     // First pass: assign cases based on frame type and polarity
     for frame in &mut sentence.frames {
         match frame {
-            Frame::Transfer { agent, recipient, theme } => {
+            Frame::Transfer { agent, recipient, theme, .. } => {
                 agent.features.case = Some(Case::Nominative);
                 recipient.features.case = Some(Case::Dative);
                 if sentence.polarity == Polarity::Negative {
@@ -70,15 +70,15 @@ fn resolve_cases_and_roles(sentence: &mut Sentence) -> Result<(), DeductionError
                     s.features.case = Some(Case::Genitive);
                 }
             }
-            Frame::Perception { experiencer, stimulus } => {
+            Frame::Perception { experiencer, stimulus, .. } => {
                 experiencer.features.case = Some(Case::Nominative);
                 stimulus.features.case = Some(Case::Accusative);
             }
-            Frame::Cognition { cognizer, content } => {
+            Frame::Cognition { cognizer, content, .. } => {
                 cognizer.features.case = Some(Case::Nominative);
                 content.features.case = Some(Case::Accusative);
             }
-            Frame::Emotion { experiencer, stimulus } => {
+            Frame::Emotion { experiencer, stimulus, .. } => {
                 experiencer.features.case = Some(Case::Nominative);
                 stimulus.features.case = Some(Case::Accusative);
             }
@@ -90,7 +90,7 @@ fn resolve_cases_and_roles(sentence: &mut Sentence) -> Result<(), DeductionError
                     patient.features.case = Some(Case::Accusative);
                 }
             }
-            Frame::Consumption { agent, patient } => {
+            Frame::Consumption { agent, patient, .. } => {
                 agent.features.case = Some(Case::Nominative);
                 if sentence.polarity == Polarity::Negative {
                     patient.features.case = Some(Case::Genitive);
@@ -98,7 +98,7 @@ fn resolve_cases_and_roles(sentence: &mut Sentence) -> Result<(), DeductionError
                     patient.features.case = Some(Case::Accusative);
                 }
             }
-            Frame::Communication { speaker, addressee, message } => {
+            Frame::Communication { speaker, addressee, message, .. } => {
                 speaker.features.case = Some(Case::Nominative);
                 if let Some(a) = addressee {
                     a.features.case = Some(Case::Dative);
@@ -113,14 +113,14 @@ fn resolve_cases_and_roles(sentence: &mut Sentence) -> Result<(), DeductionError
                     created.features.case = Some(Case::Accusative);
                 }
             }
-            Frame::Statement { subject, property } => {
+            Frame::Statement { subject, property, .. } => {
                 subject.features.case = Some(Case::Nominative);
                 property.features.case = Some(Case::Nominative);
             }
             Frame::Existence { entity, .. } => {
                 entity.features.case = Some(Case::Nominative);
             }
-            Frame::Possession { possessor, possessed } => {
+            Frame::Possession { possessor, possessed, .. } => {
                 possessor.features.case = Some(Case::Nominative);
                 possessed.features.case = Some(Case::Accusative);
             }

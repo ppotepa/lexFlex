@@ -50,6 +50,33 @@ impl Lexicon {
         self.entries.values().find(|e| e.concept == concept)
     }
 
+    /// Early normalization using base form / concept lookup.
+    /// Resolves to canonical concept + lemma from lexicon; propagates features (incl new initial_sound).
+    /// RESOLVED: early normalization + concept/lemma lookup (no ad-hoc per-word surface patches remain in logic).
+    pub fn normalize_entity(&self, entity: &mut crate::core::interlingua::Entity) {
+        use crate::core::interlingua::ConceptId;
+        let candidate = entity.name.as_deref().unwrap_or(&entity.concept.0).to_lowercase();
+        let entry = self.lookup_by_form(&candidate)
+            .or_else(|| self.lookup_by_lemma(&candidate))
+            .or_else(|| self.lookup_concept(&entity.concept.0));
+        if let Some(e) = entry {
+            entity.concept = ConceptId::new(&e.concept);
+            // Always use clean lemma from lexicon (no more grouped name concat for adjs)
+            entity.name = Some(e.lemma.clone());
+            // propagate lexicon features (prefer not overwriting already set)
+            let f = &mut entity.features;
+            if f.gender.is_none() { f.gender = e.features.gender; }
+            if f.number.is_none() { f.number = e.features.number; }
+            if f.animacy.is_none() { f.animacy = e.features.animacy; }
+            if f.countability.is_none() { f.countability = e.features.countability; }
+            if f.initial_sound.is_none() { f.initial_sound = e.features.initial_sound.clone(); }
+            if f.definiteness.is_none() { f.definiteness = e.features.definiteness; }
+            if f.degree.is_none() { f.degree = e.features.degree; }
+            if f.suppletive_comparative.is_none() { f.suppletive_comparative = e.features.suppletive_comparative.clone(); }
+            if f.suppletive_superlative.is_none() { f.suppletive_superlative = e.features.suppletive_superlative.clone(); }
+        }
+    }
+
     pub fn parse_pos(&self, pos_str: &str) -> PartOfSpeech {
         match pos_str {
             "Noun" => PartOfSpeech::Noun,

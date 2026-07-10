@@ -1,161 +1,520 @@
-# lexFlex Benchmark - 100 Sentences
-# Format: DIRECTION sentence
-# DIRECTION is PL->EN or EN->PL
-
-# === PL->EN: Transfer Frame (5) ===
 PL->EN Tomek dał jabłko Izie
-PL->EN Iza dała książkę Tomkowi
-PL->EN Student dał mleko profesorowi
-PL->EN Mama dała chleb tacie
+PL->EN Tomek dał duży jabłko Izie
+PL->EN Tomek dał mały jabłko Izie
+PL->EN Tomek dał dobry jabłko Izie
+PL->EN Tomek dał zły jabłko Izie
+PL->EN Tomek dał czerwony jabłko Izie
+PL->EN Tomek dała jabłko Izie
+PL->EN Tomek dała duży jabłko Izie
+PL->EN Tomek dała mały jabłko Izie
+PL->EN Tomek dała dobry jabłko Izie
+PL->EN Tomek dała zły jabłko Izie
+PL->EN Tomek dała czerwony jabłko Izie
+PL->EN Tomek dał książkę Izie
+PL->EN Tomek dał duży książkę Izie
+PL->EN Tomek dał mały książkę Izie
+PL->EN Tomek dał dobry książkę Izie
+PL->EN Tomek dał zły książkę Izie
+PL->EN Tomek dał czerwony książkę Izie
+PL->EN Tomek dała książkę Izie
+PL->EN Tomek dała duży książkę Izie
+PL->EN Tomek dała mały książkę Izie
+PL->EN Tomek dała dobry książkę Izie
+PL->EN Tomek dała zły książkę Izie
+PL->EN Tomek dała czerwony książkę Izie
+PL->EN Tomek dał chleb Izie
+PL->EN Tomek dał duży chleb Izie
+PL->EN Tomek dał mały chleb Izie
+PL->EN Tomek dał dobry chleb Izie
+PL->EN Tomek dał zły chleb Izie
+PL->EN Tomek dał czerwony chleb Izie
+PL->EN Tomek dała chleb Izie
+PL->EN Tomek dała duży chleb Izie
+PL->EN Tomek dała mały chleb Izie
+PL->EN Tomek dała dobry chleb Izie
+PL->EN Tomek dała zły chleb Izie
+PL->EN Tomek dała czerwony chleb Izie
+PL->EN Tomek dał mleko Izie
+PL->EN Tomek dał duży mleko Izie
+PL->EN Tomek dał mały mleko Izie
+PL->EN Tomek dał dobry mleko Izie
+PL->EN Tomek dał zły mleko Izie
+PL->EN Tomek dał czerwony mleko Izie
+PL->EN Tomek dała mleko Izie
+PL->EN Tomek dała duży mleko Izie
+PL->EN Tomek dała mały mleko Izie
+PL->EN Tomek dała dobry mleko Izie
+PL->EN Tomek dała zły mleko Izie
+PL->EN Tomek dała czerwony mleko Izie
 PL->EN Tomek dał wodę Izie
-
-# === PL->EN: Perception Frame (5) ===
-PL->EN Tomek widział jabłko
-PL->EN Iza widziała książkę
-PL->EN Student czytał książkę
-PL->EN Tomek widział kota
-PL->EN Profesor widział studenta
-
-# === PL->EN: Consumption Frame (5) ===
-PL->EN Tomek jadł jabłko
-PL->EN Iza piła mleko
-PL->EN Kot jadł chleb
-PL->EN Tomek jadł chleb
-PL->EN Iza piła wodę
-
-# === PL->EN: Emotion Frame (5) ===
-PL->EN Tomek kochał Izę
-PL->EN Iza kochała Tomka
-PL->EN Student kochał profesora
-PL->EN Mama kochała tatę
-PL->EN Tomek kochał kota
-
-# === PL->EN: Creation Frame (5) ===
-PL->EN Tomek zrobił książkę
-PL->EN Iza zrobiła jabłko
-PL->EN Student zrobił mleko
-PL->EN Mama zrobiła chleb
-PL->EN Tomek zrobił dom
-
-# === PL->EN: Motion Frame (5) ===
-PL->EN Tomek poszedł
-PL->EN Iza poszła
-PL->EN Student poszedł
-PL->EN Kot poszedł
-PL->EN Mama poszła
-
-# === PL->EN: Cognition Frame (3) ===
-PL->EN Tomek myślał
-PL->EN Profesor myślał
-PL->EN Student myślał
-
-# === PL->EN: Negation (7) ===
-PL->EN Tomek nie dał jabłka Izie
-PL->EN Iza nie dała książki Tomkowi
-PL->EN Tomek nie jadł jabłka
-PL->EN Student nie widział książki
-PL->EN Tomek nie pił mleka
-PL->EN Iza nie kochała Tomka
-PL->EN Tomek nie zrobił książki
-
-# === PL->EN: Temporal (5) ===
-PL->EN Tomek dał jabłko Izie wczoraj
-PL->EN Iza dała książkę Tomkowi dzisiaj
-PL->EN Tomek widział jabłko jutro
-PL->EN Student jadł chleb wczoraj
-PL->EN Tomek pił mleko dzisiaj
-
-# === PL->EN: Questions (5) ===
-PL->EN Czy Tomek dał jabłko Izie
-PL->EN Czy Iza widziała książkę
-PL->EN Czy Tomek jadł jabłko
-PL->EN Czy Student pił mleko
-PL->EN Czy Iza kochała Tomka
-
-# === PL->EN: Quantification (3) ===
-PL->EN Wszyscy jadł jabłko
-PL->EN Nikt nie widział książki
-PL->EN Niektórzy pił mleko
-
-# === PL->EN: Existence (2) ===
-PL->EN Jest jabłko
-PL->EN Jest kot
-
-# === EN->PL: Transfer Frame (5) ===
+PL->EN Tomek dał duży wodę Izie
+PL->EN Tomek dał mały wodę Izie
+PL->EN Tomek dał dobry wodę Izie
+PL->EN Tomek dał zły wodę Izie
+PL->EN Tomek dał czerwony wodę Izie
+PL->EN Tomek dała wodę Izie
+PL->EN Tomek dała duży wodę Izie
+PL->EN Tomek dała mały wodę Izie
+PL->EN Tomek dała dobry wodę Izie
+PL->EN Tomek dała zły wodę Izie
+PL->EN Tomek dała czerwony wodę Izie
+PL->EN Iza dał jabłko Izie
+PL->EN Iza dał duży jabłko Izie
+PL->EN Iza dał mały jabłko Izie
+PL->EN Iza dał dobry jabłko Izie
+PL->EN Iza dał zły jabłko Izie
+PL->EN Iza dał czerwony jabłko Izie
+PL->EN Iza dała jabłko Izie
+PL->EN Iza dała duży jabłko Izie
+PL->EN Iza dała mały jabłko Izie
+PL->EN Iza dała dobry jabłko Izie
+PL->EN Iza dała zły jabłko Izie
+PL->EN Iza dała czerwony jabłko Izie
+PL->EN Iza dał książkę Izie
+PL->EN Iza dał duży książkę Izie
+PL->EN Iza dał mały książkę Izie
+PL->EN Iza dał dobry książkę Izie
+PL->EN Iza dał zły książkę Izie
+PL->EN Iza dał czerwony książkę Izie
+PL->EN Iza dała książkę Izie
+PL->EN Iza dała duży książkę Izie
+PL->EN Iza dała mały książkę Izie
+PL->EN Iza dała dobry książkę Izie
+PL->EN Iza dała zły książkę Izie
+PL->EN Iza dała czerwony książkę Izie
+PL->EN Iza dał chleb Izie
+PL->EN Iza dał duży chleb Izie
+PL->EN Iza dał mały chleb Izie
+PL->EN Iza dał dobry chleb Izie
+PL->EN Iza dał zły chleb Izie
+PL->EN Iza dał czerwony chleb Izie
+PL->EN Iza dała chleb Izie
+PL->EN Iza dała duży chleb Izie
+PL->EN Iza dała mały chleb Izie
+PL->EN Iza dała dobry chleb Izie
+PL->EN Iza dała zły chleb Izie
+PL->EN Iza dała czerwony chleb Izie
+PL->EN Iza dał mleko Izie
+PL->EN Iza dał duży mleko Izie
+PL->EN Iza dał mały mleko Izie
+PL->EN Iza dał dobry mleko Izie
+PL->EN Iza dał zły mleko Izie
+PL->EN Iza dał czerwony mleko Izie
+PL->EN Iza dała mleko Izie
+PL->EN Iza dała duży mleko Izie
+PL->EN Iza dała mały mleko Izie
+PL->EN Iza dała dobry mleko Izie
+PL->EN Iza dała zły mleko Izie
+PL->EN Iza dała czerwony mleko Izie
+PL->EN Iza dał wodę Izie
+PL->EN Iza dał duży wodę Izie
+PL->EN Iza dał mały wodę Izie
+PL->EN Iza dał dobry wodę Izie
+PL->EN Iza dał zły wodę Izie
+PL->EN Iza dał czerwony wodę Izie
+PL->EN Iza dała wodę Izie
+PL->EN Iza dała duży wodę Izie
+PL->EN Iza dała mały wodę Izie
+PL->EN Iza dała dobry wodę Izie
+PL->EN Iza dała zły wodę Izie
+PL->EN Iza dała czerwony wodę Izie
+PL->EN Mama dał jabłko Izie
+PL->EN Mama dał duży jabłko Izie
+PL->EN Mama dał mały jabłko Izie
+PL->EN Mama dał dobry jabłko Izie
+PL->EN Mama dał zły jabłko Izie
+PL->EN Mama dał czerwony jabłko Izie
+PL->EN Mama dała jabłko Izie
+PL->EN Mama dała duży jabłko Izie
+PL->EN Mama dała mały jabłko Izie
+PL->EN Mama dała dobry jabłko Izie
+PL->EN Mama dała zły jabłko Izie
+PL->EN Mama dała czerwony jabłko Izie
+PL->EN Mama dał książkę Izie
+PL->EN Mama dał duży książkę Izie
+PL->EN Mama dał mały książkę Izie
+PL->EN Mama dał dobry książkę Izie
+PL->EN Mama dał zły książkę Izie
+PL->EN Mama dał czerwony książkę Izie
+PL->EN Mama dała książkę Izie
+PL->EN Mama dała duży książkę Izie
+PL->EN Mama dała mały książkę Izie
+PL->EN Mama dała dobry książkę Izie
+PL->EN Mama dała zły książkę Izie
+PL->EN Mama dała czerwony książkę Izie
+PL->EN Mama dał chleb Izie
+PL->EN Mama dał duży chleb Izie
+PL->EN Mama dał mały chleb Izie
+PL->EN Mama dał dobry chleb Izie
+PL->EN Mama dał zły chleb Izie
+PL->EN Mama dał czerwony chleb Izie
+PL->EN Mama dała chleb Izie
+PL->EN Mama dała duży chleb Izie
+PL->EN Mama dała mały chleb Izie
+PL->EN Mama dała dobry chleb Izie
+PL->EN Mama dała zły chleb Izie
+PL->EN Mama dała czerwony chleb Izie
+PL->EN Mama dał mleko Izie
+PL->EN Mama dał duży mleko Izie
+PL->EN Mama dał mały mleko Izie
+PL->EN Mama dał dobry mleko Izie
+PL->EN Mama dał zły mleko Izie
+PL->EN Mama dał czerwony mleko Izie
+PL->EN Mama dała mleko Izie
+PL->EN Mama dała duży mleko Izie
+PL->EN Mama dała mały mleko Izie
+PL->EN Mama dała dobry mleko Izie
+PL->EN Mama dała zły mleko Izie
+PL->EN Mama dała czerwony mleko Izie
+PL->EN Mama dał wodę Izie
+PL->EN Mama dał duży wodę Izie
+PL->EN Mama dał mały wodę Izie
+PL->EN Mama dał dobry wodę Izie
+PL->EN Mama dał zły wodę Izie
+PL->EN Mama dał czerwony wodę Izie
+PL->EN Mama dała wodę Izie
+PL->EN Mama dała duży wodę Izie
+PL->EN Mama dała mały wodę Izie
+PL->EN Mama dała dobry wodę Izie
+PL->EN Mama dała zły wodę Izie
+PL->EN Mama dała czerwony wodę Izie
+PL->EN Tata dał jabłko Izie
+PL->EN Tata dał duży jabłko Izie
+PL->EN Tata dał mały jabłko Izie
+PL->EN Tata dał dobry jabłko Izie
+PL->EN Tata dał zły jabłko Izie
+PL->EN Tata dał czerwony jabłko Izie
+PL->EN Tata dała jabłko Izie
+PL->EN Tata dała duży jabłko Izie
+PL->EN Tata dała mały jabłko Izie
+PL->EN Tata dała dobry jabłko Izie
+PL->EN Tata dała zły jabłko Izie
+PL->EN Tata dała czerwony jabłko Izie
+PL->EN Tata dał książkę Izie
+PL->EN Tata dał duży książkę Izie
+PL->EN Tata dał mały książkę Izie
+PL->EN Tata dał dobry książkę Izie
+PL->EN Tata dał zły książkę Izie
+PL->EN Tata dał czerwony książkę Izie
+PL->EN Tata dała książkę Izie
+PL->EN Tata dała duży książkę Izie
+PL->EN Tata dała mały książkę Izie
+PL->EN Tata dała dobry książkę Izie
+PL->EN Tata dała zły książkę Izie
+PL->EN Tata dała czerwony książkę Izie
+PL->EN Tata dał chleb Izie
+PL->EN Tata dał duży chleb Izie
+PL->EN Tata dał mały chleb Izie
+PL->EN Tata dał dobry chleb Izie
+PL->EN Tata dał zły chleb Izie
+PL->EN Tata dał czerwony chleb Izie
+PL->EN Tata dała chleb Izie
+PL->EN Tata dała duży chleb Izie
+PL->EN Tata dała mały chleb Izie
+PL->EN Tata dała dobry chleb Izie
+PL->EN Tata dała zły chleb Izie
+PL->EN Tata dała czerwony chleb Izie
+PL->EN Tata dał mleko Izie
+PL->EN Tata dał duży mleko Izie
+PL->EN Tata dał mały mleko Izie
+PL->EN Tata dał dobry mleko Izie
+PL->EN Tata dał zły mleko Izie
+PL->EN Tata dał czerwony mleko Izie
+PL->EN Tata dała mleko Izie
+PL->EN Tata dała duży mleko Izie
+PL->EN Tata dała mały mleko Izie
+PL->EN Tata dała dobry mleko Izie
+PL->EN Tata dała zły mleko Izie
+PL->EN Tata dała czerwony mleko Izie
+PL->EN Tata dał wodę Izie
+PL->EN Tata dał duży wodę Izie
+PL->EN Tata dał mały wodę Izie
+PL->EN Tata dał dobry wodę Izie
+PL->EN Tata dał zły wodę Izie
+PL->EN Tata dał czerwony wodę Izie
+PL->EN Tata dała wodę Izie
+PL->EN Tata dała duży wodę Izie
+PL->EN Tata dała mały wodę Izie
+PL->EN Tata dała dobry wodę Izie
+PL->EN Tata dała zły wodę Izie
+PL->EN Tata dała czerwony wodę Izie
+PL->EN Student dał jabłko Izie
+PL->EN Student dał duży jabłko Izie
+PL->EN Student dał mały jabłko Izie
+PL->EN Student dał dobry jabłko Izie
+PL->EN Student dał zły jabłko Izie
+PL->EN Student dał czerwony jabłko Izie
+PL->EN Student dała jabłko Izie
+PL->EN Student dała duży jabłko Izie
+PL->EN Student dała mały jabłko Izie
+PL->EN Student dała dobry jabłko Izie
+PL->EN Student dała zły jabłko Izie
+PL->EN Student dała czerwony jabłko Izie
+PL->EN Student dał książkę Izie
+PL->EN Student dał duży książkę Izie
+PL->EN Student dał mały książkę Izie
+PL->EN Student dał dobry książkę Izie
+PL->EN Student dał zły książkę Izie
+PL->EN Student dał czerwony książkę Izie
+PL->EN Student dała książkę Izie
+PL->EN Student dała duży książkę Izie
 EN->PL Tom gave an apple to Iza
-EN->PL Iza gave a book to Tom
-EN->PL A student gave milk to a professor
-EN->PL A mother gave bread to a father
+EN->PL Tom gave big an apple to Mary
+EN->PL Tom gave small an apple to Mary
+EN->PL Tom gave good an apple to Mary
+EN->PL Tom gave bad an apple to Mary
+EN->PL Tom gave red an apple to Mary
+EN->PL Tom gave a book to Iza
+EN->PL Tom gave big a book to Mary
+EN->PL Tom gave small a book to Mary
+EN->PL Tom gave good a book to Mary
+EN->PL Tom gave bad a book to Mary
+EN->PL Tom gave red a book to Mary
+EN->PL Tom gave bread to Iza
+EN->PL Tom gave big bread to Mary
+EN->PL Tom gave small bread to Mary
+EN->PL Tom gave good bread to Mary
+EN->PL Tom gave bad bread to Mary
+EN->PL Tom gave red bread to Mary
+EN->PL Tom gave milk to Iza
+EN->PL Tom gave big milk to Mary
+EN->PL Tom gave small milk to Mary
+EN->PL Tom gave good milk to Mary
+EN->PL Tom gave bad milk to Mary
+EN->PL Tom gave red milk to Mary
 EN->PL Tom gave water to Iza
-
-# === EN->PL: Perception Frame (5) ===
+EN->PL Tom gave big water to Mary
+EN->PL Tom gave small water to Mary
+EN->PL Tom gave good water to Mary
+EN->PL Tom gave bad water to Mary
+EN->PL Tom gave red water to Mary
+EN->PL Iza gave an apple to Iza
+EN->PL Iza gave big an apple to Mary
+EN->PL Iza gave small an apple to Mary
+EN->PL Iza gave good an apple to Mary
+EN->PL Iza gave bad an apple to Mary
+EN->PL Iza gave red an apple to Mary
+EN->PL Iza gave a book to Iza
+EN->PL Iza gave big a book to Mary
+EN->PL Iza gave small a book to Mary
+EN->PL Iza gave good a book to Mary
+EN->PL Iza gave bad a book to Mary
+EN->PL Iza gave red a book to Mary
+EN->PL Iza gave bread to Iza
+EN->PL Iza gave big bread to Mary
+EN->PL Iza gave small bread to Mary
+EN->PL Iza gave good bread to Mary
+EN->PL Iza gave bad bread to Mary
+EN->PL Iza gave red bread to Mary
+EN->PL Iza gave milk to Iza
+EN->PL Iza gave big milk to Mary
+EN->PL Iza gave small milk to Mary
+EN->PL Iza gave good milk to Mary
+EN->PL Iza gave bad milk to Mary
+EN->PL Iza gave red milk to Mary
+EN->PL Iza gave water to Iza
+EN->PL Iza gave big water to Mary
+EN->PL Iza gave small water to Mary
+EN->PL Iza gave good water to Mary
+EN->PL Iza gave bad water to Mary
+EN->PL Iza gave red water to Mary
+EN->PL Mary gave an apple to Iza
+EN->PL Mary gave big an apple to Mary
+EN->PL Mary gave small an apple to Mary
+EN->PL Mary gave good an apple to Mary
+EN->PL Mary gave bad an apple to Mary
+EN->PL Mary gave red an apple to Mary
+EN->PL Mary gave a book to Iza
+EN->PL Mary gave big a book to Mary
+EN->PL Mary gave small a book to Mary
+EN->PL Mary gave good a book to Mary
+EN->PL Mary gave bad a book to Mary
+EN->PL Mary gave red a book to Mary
+EN->PL Mary gave bread to Iza
+EN->PL Mary gave big bread to Mary
+EN->PL Mary gave small bread to Mary
+EN->PL Mary gave good bread to Mary
+EN->PL Mary gave bad bread to Mary
+EN->PL Mary gave red bread to Mary
+EN->PL Mary gave milk to Iza
+EN->PL Mary gave big milk to Mary
+EN->PL Mary gave small milk to Mary
+EN->PL Mary gave good milk to Mary
+EN->PL Mary gave bad milk to Mary
+EN->PL Mary gave red milk to Mary
+EN->PL Mary gave water to Iza
+EN->PL Mary gave big water to Mary
+EN->PL Mary gave small water to Mary
+EN->PL Mary gave good water to Mary
+EN->PL Mary gave bad water to Mary
+EN->PL Mary gave red water to Mary
+EN->PL a student gave an apple to Iza
+EN->PL a student gave big an apple to Mary
+EN->PL a student gave small an apple to Mary
+EN->PL a student gave good an apple to Mary
+EN->PL a student gave bad an apple to Mary
+EN->PL a student gave red an apple to Mary
+EN->PL a student gave a book to Iza
+EN->PL a student gave big a book to Mary
+EN->PL a student gave small a book to Mary
+EN->PL a student gave good a book to Mary
+EN->PL a student gave bad a book to Mary
+EN->PL a student gave red a book to Mary
+EN->PL a student gave bread to Iza
+EN->PL a student gave big bread to Mary
+EN->PL a student gave small bread to Mary
+EN->PL a student gave good bread to Mary
+EN->PL a student gave bad bread to Mary
+EN->PL a student gave red bread to Mary
+EN->PL a student gave milk to Iza
+EN->PL a student gave big milk to Mary
+EN->PL a student gave small milk to Mary
+EN->PL a student gave good milk to Mary
+EN->PL a student gave bad milk to Mary
+EN->PL a student gave red milk to Mary
+EN->PL a student gave water to Iza
+EN->PL a student gave big water to Mary
+EN->PL a student gave small water to Mary
+EN->PL a student gave good water to Mary
+EN->PL a student gave bad water to Mary
+EN->PL a student gave red water to Mary
+EN->PL a professor gave an apple to Iza
+EN->PL a professor gave big an apple to Mary
+EN->PL a professor gave small an apple to Mary
+EN->PL a professor gave good an apple to Mary
+EN->PL a professor gave bad an apple to Mary
+EN->PL a professor gave red an apple to Mary
+EN->PL a professor gave a book to Iza
+EN->PL a professor gave big a book to Mary
+EN->PL a professor gave small a book to Mary
+EN->PL a professor gave good a book to Mary
+EN->PL a professor gave bad a book to Mary
+EN->PL a professor gave red a book to Mary
+EN->PL a professor gave bread to Iza
+EN->PL a professor gave big bread to Mary
+EN->PL a professor gave small bread to Mary
+EN->PL a professor gave good bread to Mary
+EN->PL a professor gave bad bread to Mary
+EN->PL a professor gave red bread to Mary
+EN->PL a professor gave milk to Iza
+EN->PL a professor gave big milk to Mary
+EN->PL a professor gave small milk to Mary
+EN->PL a professor gave good milk to Mary
+EN->PL a professor gave bad milk to Mary
+EN->PL a professor gave red milk to Mary
+EN->PL a professor gave water to Iza
+EN->PL a professor gave big water to Mary
+EN->PL a professor gave small water to Mary
+EN->PL a professor gave good water to Mary
+EN->PL a professor gave bad water to Mary
+EN->PL a professor gave red water to Mary
+EN->PL a mother gave an apple to Iza
+EN->PL a mother gave big an apple to Mary
+EN->PL a mother gave small an apple to Mary
+EN->PL a mother gave good an apple to Mary
+EN->PL a mother gave bad an apple to Mary
+EN->PL a mother gave red an apple to Mary
+EN->PL a mother gave a book to Iza
+EN->PL a mother gave big a book to Mary
+EN->PL a mother gave small a book to Mary
+EN->PL a mother gave good a book to Mary
+EN->PL a mother gave bad a book to Mary
+EN->PL a mother gave red a book to Mary
+EN->PL a mother gave bread to Iza
+EN->PL a mother gave big bread to Mary
+EN->PL a mother gave small bread to Mary
+EN->PL a mother gave good bread to Mary
+EN->PL a mother gave bad bread to Mary
+EN->PL a mother gave red bread to Mary
+EN->PL a mother gave milk to Iza
+EN->PL a mother gave big milk to Mary
+EN->PL a mother gave small milk to Mary
+EN->PL a mother gave good milk to Mary
+EN->PL a mother gave bad milk to Mary
+EN->PL a mother gave red milk to Mary
+EN->PL a mother gave water to Iza
+EN->PL a mother gave big water to Mary
+EN->PL a mother gave small water to Mary
+EN->PL a mother gave good water to Mary
+EN->PL a mother gave bad water to Mary
+EN->PL a mother gave red water to Mary
 EN->PL Tom saw an apple
-EN->PL Iza saw a book
-EN->PL A student read a book
-EN->PL Tom saw a cat
-EN->PL A professor saw a student
-
-# === EN->PL: Consumption Frame (5) ===
 EN->PL Tom ate an apple
-EN->PL Iza drank milk
-EN->PL A cat ate bread
+EN->PL Tom drank milk
+EN->PL Tom saw a book
+EN->PL Tom ate a book
+EN->PL Tom drank milk
+EN->PL Tom saw a cat
+EN->PL Tom ate a cat
+EN->PL Tom drank milk
+EN->PL Tom saw bread
 EN->PL Tom ate bread
-EN->PL Iza drank water
-
-# === EN->PL: Emotion Frame (5) ===
-EN->PL Tom loved Iza
-EN->PL Iza loved Tom
-EN->PL A student loved a professor
-EN->PL A mother loved a father
-EN->PL Tom loved a cat
-
-# === EN->PL: Creation Frame (5) ===
-EN->PL Tom made a book
-EN->PL Iza made an apple
-EN->PL A student made milk
-EN->PL A mother made bread
-EN->PL Tom made a house
-
-# === EN->PL: Motion Frame (5) ===
-EN->PL Tom went
-EN->PL Iza went
-EN->PL A student went
-EN->PL A cat went
-EN->PL A mother went
-
-# === EN->PL: Cognition Frame (3) ===
-EN->PL Tom thought
-EN->PL A professor thought
-EN->PL A student thought
-
-# === EN->PL: Negation (7) ===
-EN->PL Tom did not give an apple to Iza
-EN->PL Iza did not give a book to Tom
-EN->PL Tom did not eat an apple
-EN->PL A student did not read a book
-EN->PL Tom did not drink milk
-EN->PL Iza did not love Tom
-EN->PL Tom did not make a book
-
-# === EN->PL: Temporal (5) ===
-EN->PL Tom gave an apple to Iza yesterday
-EN->PL Iza gave a book to Tom today
-EN->PL Tom saw an apple tomorrow
-EN->PL A student ate bread yesterday
-EN->PL Tom drank milk today
-
-# === EN->PL: Questions (5) ===
-EN->PL Did Tom give an apple to Iza
-EN->PL Did Iza see a book
-EN->PL Did Tom eat an apple
-EN->PL Did a student drink milk
-EN->PL Did Iza love Tom
-
-# === EN->PL: Quantification (3) ===
-EN->PL All ate an apple
-EN->PL None saw a book
-EN->PL Some drank milk
-
-# === EN->PL: Existence (2) ===
-EN->PL An apple is
-EN->PL A cat is
+EN->PL Tom drank milk
+EN->PL Iza saw an apple
+EN->PL Iza ate an apple
+EN->PL Iza drank milk
+EN->PL Iza saw a book
+EN->PL Iza ate a book
+EN->PL Iza drank milk
+EN->PL Iza saw a cat
+EN->PL Iza ate a cat
+EN->PL Iza drank milk
+EN->PL Iza saw bread
+EN->PL Iza ate bread
+EN->PL Iza drank milk
+EN->PL a student saw an apple
+EN->PL a student ate an apple
+EN->PL a student drank milk
+EN->PL a student saw a book
+EN->PL a student ate a book
+EN->PL a student drank milk
+EN->PL a student saw a cat
+EN->PL a student ate a cat
+EN->PL a student drank milk
+EN->PL a student saw bread
+EN->PL a student ate bread
+EN->PL a student drank milk
+EN->PL a cat saw an apple
+EN->PL a cat ate an apple
+EN->PL a cat drank milk
+EN->PL a cat saw a book
+EN->PL a cat ate a book
+EN->PL a cat drank milk
+EN->PL a cat saw a cat
+EN->PL a cat ate a cat
+EN->PL a cat drank milk
+EN->PL a cat saw bread
+EN->PL a cat ate bread
+EN->PL a cat drank milk
+EN->PL big cat saw a dog
+EN->PL Tom ate big apple yesterday
+EN->PL A big student read the book
+EN->PL small cat saw a dog
+EN->PL Tom ate small apple yesterday
+EN->PL A small student read the book
+EN->PL good cat saw a dog
+EN->PL Tom ate good apple yesterday
+EN->PL A good student read the book
+EN->PL bad cat saw a dog
+EN->PL Tom ate bad apple yesterday
+EN->PL A bad student read the book
+EN->PL red cat saw a dog
+EN->PL Tom ate red apple yesterday
+EN->PL A red student read the book
+EN->PL blue cat saw a dog
+EN->PL Tom ate blue apple yesterday
+EN->PL A blue student read the book
+EN->PL hot cat saw a dog
+EN->PL Tom ate hot apple yesterday
+EN->PL A hot student read the book
+EN->PL cold cat saw a dog
+EN->PL Tom ate cold apple yesterday
+EN->PL A cold student read the book
+EN->PL Tom did not give an apple to Mary
+EN->PL Tom did not see the big house
+EN->PL Did Tom give an apple to Iza?
+EN->PL Did Tom see a cat?
+EN->PL Iza did not give an apple to Mary
+EN->PL Iza did not see the big house
+EN->PL Did Iza give an apple to Iza?
+EN->PL Did Iza see a cat?

@@ -173,6 +173,13 @@ pub enum Classifier {
     Book,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Degree {
+    Positive,
+    Comparative,
+    Superlative,
+}
+
 // ─── FeatureBundle ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -192,6 +199,14 @@ pub struct FeatureBundle {
     pub evidentiality: Option<Evidentiality>,
     pub honorific_level: Option<HonorificLevel>,
     pub classifier: Option<Classifier>,
+    pub degree: Option<Degree>,
+    /// Phonetic / article hint from lexicon data (e.g. "vowel", "consonant", or first letter class).
+    /// Enables descriptor/policy driven a/an (RESOLVED: no surface spelling logic).
+    pub initial_sound: Option<String>,
+    /// Suppletive stem for comparative (data-driven, e.g. special stem for positive base).
+    pub suppletive_comparative: Option<String>,
+    /// Suppletive stem for superlative.
+    pub suppletive_superlative: Option<String>,
 }
 
 // ─── Semantic Roles ──────────────────────────────────────────────────────────
@@ -230,6 +245,15 @@ pub enum Reference {
     Unresolved,
 }
 
+// ─── Coordination (for enumerations/lists) ───────────────────────────────────
+// Defined here so Entity can reference it directly (first-class support).
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Coordination {
+    pub items: Vec<Entity>,
+    pub conjunction: String,  // "i", "and", etc.
+}
+
 // ─── Entity ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -239,6 +263,10 @@ pub struct Entity {
     pub features: FeatureBundle,
     pub reference: Reference,
     pub id: Option<EntityId>,
+    pub coordination: Option<Coordination>,  // first-class lists/enumerations
+    /// Adjectival modifiers for this NP head. Populated by parser grouping (structural, no concat of names per 21pts).
+    /// This eliminates the need for split/concat (RESOLVED 21pts).
+    pub adjectives: Vec<Entity>,
 }
 
 impl Entity {
@@ -249,6 +277,8 @@ impl Entity {
             features: FeatureBundle::default(),
             reference: Reference::Direct,
             id: None,
+            coordination: None,
+            adjectives: vec![],
         }
     }
 
@@ -261,6 +291,11 @@ impl Entity {
         self.features = features;
         self
     }
+
+    pub fn with_coordination(mut self, coord: Coordination) -> Self {
+        self.coordination = Some(coord);
+        self
+    }
 }
 
 // ─── Frames ──────────────────────────────────────────────────────────────────
@@ -271,55 +306,67 @@ pub enum Frame {
         agent: Entity,
         recipient: Entity,
         theme: Entity,
+        verb_concept: String,
     },
     Motion {
         mover: Entity,
         source: Option<Entity>,
         goal: Option<Entity>,
         path: Option<Entity>,
+        verb_concept: String,
     },
     Creation {
         creator: Entity,
         created: Entity,
         material: Option<Entity>,
+        verb_concept: String,
     },
     Destruction {
         agent: Entity,
         patient: Entity,
         instrument: Option<Entity>,
+        verb_concept: String,
     },
     Perception {
         experiencer: Entity,
         stimulus: Entity,
+        verb_concept: String,
     },
     Cognition {
         cognizer: Entity,
         content: Entity,
+        verb_concept: String,
     },
     Emotion {
         experiencer: Entity,
         stimulus: Entity,
+        verb_concept: String,
     },
     Communication {
         speaker: Entity,
         addressee: Option<Entity>,
         message: Entity,
+        verb_concept: String,
     },
     Statement {
         subject: Entity,
         property: Entity,
+        verb_concept: String,
     },
     Existence {
         entity: Entity,
         location: Option<Entity>,
+        verb_concept: String,
     },
     Possession {
         possessor: Entity,
         possessed: Entity,
+        verb_concept: String,
     },
     Consumption {
         agent: Entity,
         patient: Entity,
+        verb_concept: String,
     },
     Custom {
         name: String,
@@ -386,84 +433,84 @@ impl Frame {
 
     pub fn entities(&self) -> Vec<&Entity> {
         match self {
-            Frame::Transfer { agent, recipient, theme } => {
+            Frame::Transfer { agent, recipient, theme, .. } => {
                 vec![agent, recipient, theme]
             }
-            Frame::Motion { mover, source, goal, path } => {
+            Frame::Motion { mover, source, goal, path, .. } => {
                 let mut v = vec![mover];
                 if let Some(s) = source { v.push(s); }
                 if let Some(g) = goal { v.push(g); }
                 if let Some(p) = path { v.push(p); }
                 v
             }
-            Frame::Creation { creator, created, material } => {
+            Frame::Creation { creator, created, material, .. } => {
                 let mut v = vec![creator, created];
                 if let Some(m) = material { v.push(m); }
                 v
             }
-            Frame::Destruction { agent, patient, instrument } => {
+            Frame::Destruction { agent, patient, instrument, .. } => {
                 let mut v = vec![agent, patient];
                 if let Some(i) = instrument { v.push(i); }
                 v
             }
-            Frame::Perception { experiencer, stimulus } => vec![experiencer, stimulus],
-            Frame::Cognition { cognizer, content } => vec![cognizer, content],
-            Frame::Emotion { experiencer, stimulus } => vec![experiencer, stimulus],
-            Frame::Communication { speaker, addressee, message } => {
+            Frame::Perception { experiencer, stimulus, .. } => vec![experiencer, stimulus],
+            Frame::Cognition { cognizer, content, .. } => vec![cognizer, content],
+            Frame::Emotion { experiencer, stimulus, .. } => vec![experiencer, stimulus],
+            Frame::Communication { speaker, addressee, message, .. } => {
                 let mut v = vec![speaker, message];
                 if let Some(a) = addressee { v.push(a); }
                 v
             }
-            Frame::Statement { subject, property } => vec![subject, property],
-            Frame::Existence { entity, location } => {
+            Frame::Statement { subject, property, .. } => vec![subject, property],
+            Frame::Existence { entity, location, .. } => {
                 let mut v = vec![entity];
                 if let Some(l) = location { v.push(l); }
                 v
             }
-            Frame::Possession { possessor, possessed } => vec![possessor, possessed],
-            Frame::Consumption { agent, patient } => vec![agent, patient],
+            Frame::Possession { possessor, possessed, .. } => vec![possessor, possessed],
+            Frame::Consumption { agent, patient, .. } => vec![agent, patient],
             Frame::Custom { roles, .. } => roles.iter().map(|(_, e)| e).collect(),
         }
     }
 
     pub fn entities_mut(&mut self) -> Vec<&mut Entity> {
         match self {
-            Frame::Transfer { agent, recipient, theme } => {
+            Frame::Transfer { agent, recipient, theme, .. } => {
                 vec![agent, recipient, theme]
             }
-            Frame::Motion { mover, source, goal, path } => {
+            Frame::Motion { mover, source, goal, path, .. } => {
                 let mut v = vec![mover];
                 if let Some(s) = source { v.push(s); }
                 if let Some(g) = goal { v.push(g); }
                 if let Some(p) = path { v.push(p); }
                 v
             }
-            Frame::Creation { creator, created, material } => {
+            Frame::Creation { creator, created, material, .. } => {
                 let mut v = vec![creator, created];
                 if let Some(m) = material { v.push(m); }
                 v
             }
-            Frame::Destruction { agent, patient, instrument } => {
+            Frame::Destruction { agent, patient, instrument, .. } => {
                 let mut v = vec![agent, patient];
                 if let Some(i) = instrument { v.push(i); }
                 v
             }
-            Frame::Perception { experiencer, stimulus } => vec![experiencer, stimulus],
-            Frame::Cognition { cognizer, content } => vec![cognizer, content],
-            Frame::Emotion { experiencer, stimulus } => vec![experiencer, stimulus],
-            Frame::Communication { speaker, addressee, message } => {
+            Frame::Perception { experiencer, stimulus, .. } => vec![experiencer, stimulus],
+            Frame::Cognition { cognizer, content, .. } => vec![cognizer, content],
+            Frame::Emotion { experiencer, stimulus, .. } => vec![experiencer, stimulus],
+            Frame::Communication { speaker, addressee, message, .. } => {
                 let mut v = vec![speaker, message];
                 if let Some(a) = addressee { v.push(a); }
                 v
             }
-            Frame::Statement { subject, property } => vec![subject, property],
-            Frame::Existence { entity, location } => {
+            Frame::Statement { subject, property, .. } => vec![subject, property],
+            Frame::Existence { entity, location, .. } => {
                 let mut v = vec![entity];
                 if let Some(l) = location { v.push(l); }
                 v
             }
-            Frame::Possession { possessor, possessed } => vec![possessor, possessed],
-            Frame::Consumption { agent, patient } => vec![agent, patient],
+            Frame::Possession { possessor, possessed, .. } => vec![possessor, possessed],
+            Frame::Consumption { agent, patient, .. } => vec![agent, patient],
             Frame::Custom { roles, .. } => roles.iter_mut().map(|(_, e)| e).collect(),
         }
     }
@@ -571,7 +618,7 @@ pub struct Discourse {
     pub register: Option<String>,
 }
 
-// ─── Utterance ───────────────────────────────────────────────────────────────
+// (Coordination moved earlier to allow Entity to reference it)
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Utterance {

@@ -82,7 +82,7 @@ impl Ontology {
 
     fn frame_role_entities<'a>(&self, frame: &'a Frame) -> Vec<(SemanticRole, &'a Entity)> {
         match frame {
-            Frame::Transfer { agent, recipient, theme } => {
+            Frame::Transfer { agent, recipient, theme, .. } => {
                 vec![
                     (SemanticRole::Agent, agent),
                     (SemanticRole::Recipient, recipient),
@@ -95,19 +95,19 @@ impl Ontology {
                 if let Some(g) = goal { v.push((SemanticRole::Goal, g)); }
                 v
             }
-            Frame::Perception { experiencer, stimulus } => {
+            Frame::Perception { experiencer, stimulus, .. } => {
                 vec![
                     (SemanticRole::Experiencer, experiencer),
                     (SemanticRole::Stimulus, stimulus),
                 ]
             }
-            Frame::Cognition { cognizer, content } => {
+            Frame::Cognition { cognizer, content, .. } => {
                 vec![
                     (SemanticRole::Cognizer, cognizer),
                     (SemanticRole::Content, content),
                 ]
             }
-            Frame::Emotion { experiencer, stimulus } => {
+            Frame::Emotion { experiencer, stimulus, .. } => {
                 vec![
                     (SemanticRole::Experiencer, experiencer),
                     (SemanticRole::Stimulus, stimulus),
@@ -119,13 +119,13 @@ impl Ontology {
                     (SemanticRole::Patient, patient),
                 ]
             }
-            Frame::Consumption { agent, patient } => {
+            Frame::Consumption { agent, patient, .. } => {
                 vec![
                     (SemanticRole::Agent, agent),
                     (SemanticRole::Patient, patient),
                 ]
             }
-            Frame::Communication { speaker, addressee, message } => {
+            Frame::Communication { speaker, addressee, message, .. } => {
                 let mut v = vec![
                     (SemanticRole::Speaker, speaker),
                     (SemanticRole::Message, message),
@@ -141,7 +141,7 @@ impl Ontology {
                     (SemanticRole::Theme, created),
                 ]
             }
-            Frame::Statement { subject, property } => {
+            Frame::Statement { subject, property, .. } => {
                 vec![
                     (SemanticRole::Topic, subject),
                     (SemanticRole::Theme, property),
@@ -150,7 +150,7 @@ impl Ontology {
             Frame::Existence { entity, .. } => {
                 vec![(SemanticRole::Theme, entity)]
             }
-            Frame::Possession { possessor, possessed } => {
+            Frame::Possession { possessor, possessed, .. } => {
                 vec![
                     (SemanticRole::Agent, possessor),
                     (SemanticRole::Theme, possessed),
@@ -180,6 +180,9 @@ fn merge_features(target: &mut FeatureBundle, source: &FeatureBundle) {
     if target.concreteness.is_none() {
         target.concreteness = source.concreteness;
     }
+    if target.initial_sound.is_none() {
+        target.initial_sound = source.initial_sound.clone();
+    }
 }
 
 fn apply_defaults(target: &mut FeatureBundle, defaults: &FeatureBundle) {
@@ -191,5 +194,8 @@ fn apply_defaults(target: &mut FeatureBundle, defaults: &FeatureBundle) {
     }
     if target.countability.is_none() {
         target.countability = defaults.countability;
+    }
+    if target.initial_sound.is_none() {
+        target.initial_sound = defaults.initial_sound.clone();
     }
 }

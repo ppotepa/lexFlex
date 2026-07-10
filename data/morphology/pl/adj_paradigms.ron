@@ -2,6 +2,11 @@
 
 [
     (name: "adj_y", rules: [
+        // Degree rules FIRST so they match before case/gender when degree present (fixes order bug).
+        // Regular: y -> szy for comp; for super use prefix "naj" + szy.
+        (conditions: [DegreeIs(Comparative)], operations: [ReplaceSuffix(from: "y", to: "szy")]),
+        (conditions: [DegreeIs(Superlative)], operations: [Prefix("naj"), ReplaceSuffix(from: "y", to: "szy")]),
+        // Note: suppletives (dobry->lepszy etc) handled in morphology layer with data-driven map (see extensions in morphology.rs for RON-compatible supplet support).
         // Masculine singular
         (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Nominative)], operations: []),
         (conditions: [GenderIs(Masculine), NumberIs(Singular), CaseIs(Genitive)], operations: [ReplaceSuffix(from: "y", to: "ego")]),

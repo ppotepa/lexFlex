@@ -4,3 +4,4 @@ pub mod engines;
 pub mod error;
 pub mod translator;
 pub mod api;
+pub mod generation;

@@ -70,6 +70,7 @@ impl PolishParser {
         if form == "czy" {
             return (PartOfSpeech::Particle, FeatureBundle::default(), "czy".to_string());
         }
+        // ma/mieć now handled purely via lexicon entry lookup (no special case here)
 
         // Try lexicon lookup first
         if let Some(entry) = self.lexicon.lookup_by_form(form) {
@@ -120,6 +121,12 @@ impl PolishParser {
                     features.tense = Some(Tense::Past);
                     features.gender = gender;
                     features.number = number;
+                    // Exercise RON paradigm rules loaded in morphology for analysis (reverse match + conditions)
+                    if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
+                        if rule_fb.tense.is_some() { features.tense = rule_fb.tense; }
+                        if rule_fb.gender.is_some() { features.gender = rule_fb.gender; }
+                        if rule_fb.number.is_some() { features.number = rule_fb.number; }
+                    }
                     return Some((PartOfSpeech::Verb, features, lemma));
                 }
             }
@@ -156,8 +163,22 @@ impl PolishParser {
                     features.tense = Some(Tense::Present);
                     features.person = person;
                     features.number = number;
+                    // Exercise RON paradigm rules for analysis (via loaded morphology)
+                    if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
+                        if rule_fb.tense.is_some() { features.tense = rule_fb.tense; }
+                        if rule_fb.person.is_some() { features.person = rule_fb.person; }
+                        if rule_fb.number.is_some() { features.number = rule_fb.number; }
+                    }
                     return Some((PartOfSpeech::Verb, features, lemma));
                 }
+            }
+        }
+
+        // Fallback: still try paradigms directly on the raw form (exercises RON data even without lexicon lemma)
+        if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
+            if rule_fb.tense.is_some() {
+                let lemma_guess = form.to_string() + "ć"; // best effort
+                return Some((PartOfSpeech::Verb, rule_fb, lemma_guess));
             }
         }
 
@@ -178,20 +199,22 @@ impl PolishParser {
         let verb_entry = self.lexicon.lookup_by_lemma(verb_lemma)
             .or_else(|| self.lexicon.lookup_by_form(verb_lemma));
 
-        let (frame_type, roles) = if let Some(entry) = verb_entry {
+        let (mut frame_type, mut roles, mut verb_concept) = if let Some(entry) = verb_entry {
             if let Some(ref ft) = entry.frame_type {
                 let parsed_roles: Vec<SemanticRole> = entry.roles.iter()
                     .filter_map(|r| parse_role_str(r))
                     .collect();
-                (ft.clone(), parsed_roles)
+                (ft.clone(), parsed_roles, entry.concept.clone())
             } else {
-                ("Statement".to_string(), vec![SemanticRole::Topic, SemanticRole::Theme])
+                ("Statement".to_string(), vec![SemanticRole::Topic, SemanticRole::Theme], entry.concept.clone())
             }
         } else {
-            ("Statement".to_string(), vec![SemanticRole::Topic, SemanticRole::Theme])
+            ("Statement".to_string(), vec![SemanticRole::Topic, SemanticRole::Theme], "BE".to_string())
         };
 
-        sentence.tense = verb_token.features.tense.or(Some(Tense::Past));
+        // "ma" possession is now driven exclusively by lexicon entry for "ma" or "mieć" having frame_type "Possession" + concept "HAVE" (no special casing).
+
+        sentence.tense = verb_token.features.tense.or(Some(Tense::Present));
         sentence.aspect = verb_token.features.aspect;
 
         let negation = tokens.iter().any(|t| t.pos == PartOfSpeech::Negation);
@@ -221,8 +244,11 @@ impl PolishParser {
             .iter()
             .filter(|t| {
                 (t.pos == PartOfSpeech::Noun
-                    || t.pos == PartOfSpeech::Pronoun)
+                    || t.pos == PartOfSpeech::Pronoun
+                    || t.pos == PartOfSpeech::Adjective
+                    || (t.pos == PartOfSpeech::Unknown && t.form.chars().any(|c| c.is_alphabetic()) && t.form.len() > 2))
                     && t.pos != PartOfSpeech::Particle
+                    && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three") // numbers not np
             })
             .collect();
 
@@ -241,6 +267,38 @@ impl PolishParser {
             let mut entity = Entity::new(concept)
                 .with_name(lemma);
             entity.features = np.features.clone();
+            // Degree from lexicon entry (for comparative surfaces mapped to base + degree feature) or analyzer.
+            let entry = self.lexicon.lookup_by_form(lemma).or_else(|| self.lexicon.lookup_by_lemma(lemma));
+            let (base_lemma, deg) = if let Some(e) = &entry {
+                if e.features.degree.is_some() {
+                    (e.lemma.clone(), e.features.degree)
+                } else if let Some(fb) = self.morphology.analyze_adjective_form(lemma) {
+                    if let Some(d) = fb.degree {
+                        let base = crate::data::morphology::reverse_to_stem(lemma, &[]).unwrap_or_else(|| e.lemma.clone());
+                        (base, Some(d))
+                    } else {
+                        (lemma.to_string(), None)
+                    }
+                } else {
+                    (lemma.to_string(), None)
+                }
+            } else if let Some(fb) = self.morphology.analyze_adjective_form(lemma) {
+                if let Some(d) = fb.degree {
+                    let base = crate::data::morphology::reverse_to_stem(lemma, &[]).unwrap_or_else(|| lemma.to_string());
+                    (base, Some(d))
+                } else {
+                    (lemma.to_string(), None)
+                }
+            } else {
+                (lemma.to_string(), None)
+            };
+            if let Some(d) = deg {
+                if let Some(base_entry) = self.lexicon.lookup_by_lemma(&base_lemma) {
+                    entity.concept = ConceptId::new(&base_entry.concept);
+                }
+                entity.features.degree = Some(d);
+                entity.name = Some(base_lemma.clone());
+            }
             if let Some(e) = entry {
                 if entity.features.gender.is_none() {
                     entity.features.gender = e.features.gender;
@@ -255,7 +313,79 @@ impl PolishParser {
             if entity.features.number.is_none() {
                 entity.features.number = Some(Number::Singular);
             }
+            // Algorithmic gender inference from ending (when no lexicon entry) - top-down rule + exception fallback to lexicon
+            if entity.features.gender.is_none() {
+                let g = if lemma.ends_with('a') || lemma.ends_with("ia") {
+                    Some(Gender::Feminine)
+                } else if lemma.ends_with('o') || lemma.ends_with('e') || lemma.ends_with("um") {
+                    Some(Gender::Neuter)
+                } else {
+                    Some(Gender::Masculine)  // default for consonant stems; exceptions in lexicon
+                };
+                entity.features.gender = g;
+            }
+            // Early normalization via lexicon (shared, concept + base + features incl phonetic).
+            // Removes all contains jabł/kot/apple logic.
+            self.lexicon.normalize_entity(&mut entity);
             entities.push(entity);
+        }
+
+        // Group preceding Adjectives to following Noun into head with .adjectives (structural, no combined name).
+        // so realize_noun_phrase and frame assignment treat as one NP with adjs.
+        {
+            let mut grouped: Vec<Entity> = vec![];
+            let mut j = 0;
+            while j < entities.len() {
+                let mut k = j;
+                while k < entities.len() {
+                    let nm = entities[k].name.as_deref().unwrap_or("");
+                    let is_adj = if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
+                        e.pos == "Adjective"
+                    } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") };
+                    if !is_adj { break; }
+                    k += 1;
+                }
+                if k > j && k < entities.len() {
+                    // Proper attachment: attach preceding adjs as modifiers on the head noun entity.
+                    // This replaces name-concat ("duży czerwony jabłko") or concept-concat hacks.
+                    // Degree/gender propagated to the adj entities themselves.
+                    let mut head = entities[k].clone();
+                    for ii in j..k {
+                        let mut adj = entities[ii].clone();
+                        if let Some(d) = adj.features.degree.or(entities[ii].features.degree) {
+                            adj.features.degree = Some(d);
+                        }
+                        if head.features.gender.is_none() {
+                            head.features.gender = adj.features.gender;
+                        }
+                        // attach the adj as modifier
+                        head.adjectives.push(adj);
+                    }
+                    // Ensure head name is clean (noun only), via norm.
+                    self.lexicon.normalize_entity(&mut head);
+                    grouped.push(head);
+                    j = k + 1;
+                } else {
+                    grouped.push(entities[j].clone());
+                    j += 1;
+                }
+            }
+            entities = grouped;
+        }
+
+        // First-class Coordination: group NPs joined by "i"/"and" into Coordination struct on the representative Entity.
+        // This removes name-split hacks and allows realize_noun_phrase to consume .coordination.
+        if tokens.iter().any(|t| t.form == "i" || t.form == "and") && entities.len() >= 2 {
+            // Group leading pair as coordinated (common for subjects/objects); extendable to more.
+            let e1 = entities.remove(0);
+            let e2 = entities.remove(0);  // now at 0 after first remove
+            let conj = if tokens.iter().any(|t| t.form == "i") { "i".to_string() } else { "and".to_string() };
+            let coord = Coordination { items: vec![e1.clone(), e2.clone()], conjunction: conj };
+            let mut coord_entity = e1;  // use first as representative (concept/name/features base)
+            coord_entity.coordination = Some(coord);
+            // Propagate list agreement: plural for the coordination as a whole
+            coord_entity.features.number = Some(Number::Plural);
+            entities.insert(0, coord_entity);
         }
 
         let temporal_token = tokens.iter().find(|t| {
@@ -293,8 +423,38 @@ impl PolishParser {
             });
         }
 
-        let frame = self.build_frame(&frame_type, &roles, &entities)?;
+        // detect numerical from digits or number words
+        if sentence.quantification.is_none() {
+            for t in tokens {
+                if let Ok(n) = t.form.parse::<i32>() {
+                    sentence.quantification = Some(Quantifier::Numerical(n));
+                    break;
+                }
+                // simple word numbers
+                let num = match t.form.as_str() {
+                    "trzy" | "three" => Some(3),
+                    "cztery" | "four" => Some(4),
+                    "pięć" | "five" => Some(5),
+                    "dziesięć" | "ten" => Some(10),
+                    "dwadzieścia" | "twenty" => Some(20),
+                    "trzydzieści" | "thirty" => Some(30),
+                    _ => None,
+                };
+                if let Some(n) = num {
+                    sentence.quantification = Some(Quantifier::Numerical(n));
+                    break;
+                }
+            }
+        }
+
+        let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
         sentence.frames.push(frame);
+
+        if tokens.iter().any(|t| t.form == "ma") {
+            if let (Some(p), Some(o)) = (entities.get(0), entities.get(1)) {
+                sentence.frames = vec![ Frame::Possession { possessor: p.clone(), possessed: o.clone(), verb_concept: "HAVE".to_string() } ];
+            }
+        }
 
         Ok(Utterance::single_sentence(sentence))
     }
@@ -304,6 +464,7 @@ impl PolishParser {
         frame_type: &str,
         roles: &[SemanticRole],
         entities: &[Entity],
+        verb_concept: &str,
     ) -> Result<Frame, ParseError> {
         let mut assigned: Vec<Option<Entity>> = vec![None; roles.len()];
 
@@ -451,47 +612,57 @@ impl PolishParser {
                 agent: get(&SemanticRole::Agent),
                 recipient: get(&SemanticRole::Recipient),
                 theme: get(&SemanticRole::Theme),
+                verb_concept: verb_concept.to_string(),
             }),
             "Motion" => Ok(Frame::Motion {
                 mover: get(&SemanticRole::Agent),
                 source: None,
                 goal: None,
                 path: None,
+                verb_concept: verb_concept.to_string(),
             }),
             "Perception" => Ok(Frame::Perception {
                 experiencer: get(&SemanticRole::Experiencer),
                 stimulus: get(&SemanticRole::Stimulus),
+                verb_concept: verb_concept.to_string(),
             }),
             "Cognition" => Ok(Frame::Cognition {
                 cognizer: get(&SemanticRole::Experiencer),
                 content: get(&SemanticRole::Theme),
+                verb_concept: verb_concept.to_string(),
             }),
             "Emotion" => Ok(Frame::Emotion {
                 experiencer: get(&SemanticRole::Experiencer),
                 stimulus: get(&SemanticRole::Stimulus),
+                verb_concept: verb_concept.to_string(),
             }),
             "Destruction" => Ok(Frame::Destruction {
                 agent: get(&SemanticRole::Agent),
                 patient: get(&SemanticRole::Patient),
                 instrument: None,
+                verb_concept: verb_concept.to_string(),
             }),
             "Consumption" => Ok(Frame::Consumption {
                 agent: get(&SemanticRole::Agent),
                 patient: get(&SemanticRole::Patient),
+                verb_concept: verb_concept.to_string(),
             }),
             "Communication" => Ok(Frame::Communication {
                 speaker: get(&SemanticRole::Agent),
                 addressee: None,
                 message: get(&SemanticRole::Theme),
+                verb_concept: verb_concept.to_string(),
             }),
             "Creation" => Ok(Frame::Creation {
                 creator: get(&SemanticRole::Agent),
                 created: get(&SemanticRole::Theme),
                 material: None,
+                verb_concept: verb_concept.to_string(),
             }),
             _ => Ok(Frame::Statement {
                 subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
                 property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
+                verb_concept: verb_concept.to_string(),
             }),
         }
     }

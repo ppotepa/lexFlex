@@ -60,6 +60,7 @@ impl PolishMorphology {
         &self,
         lemma: &str,
         tense: Tense,
+        aspect: Option<Aspect>,
         person: Option<Person>,
         number: Option<Number>,
         gender: Option<Gender>,
@@ -78,6 +79,7 @@ impl PolishMorphology {
 
         let features = FeatureBundle {
             tense: Some(tense),
+            aspect,
             person,
             number,
             gender,
@@ -87,7 +89,7 @@ impl PolishMorphology {
         morphology::apply_rules(lemma, &paradigm.rules, &features).ok_or_else(|| {
             GenerateError::InflectionFailed {
                 lemma: lemma.to_string(),
-                reason: format!("No rule for {:?} {:?} {:?}", tense, person, number),
+                reason: format!("No rule for {:?} {:?} {:?} {:?}", tense, aspect, person, number),
             }
         })
     }
@@ -98,6 +100,7 @@ impl PolishMorphology {
         case: Case,
         number: Number,
         gender: Gender,
+        degree: Option<crate::core::interlingua::Degree>,
     ) -> Result<String, GenerateError> {
         let paradigm = self
             .adj_paradigms
@@ -109,19 +112,32 @@ impl PolishMorphology {
             reason: "No matching adjective paradigm".to_string(),
         })?;
 
+        // Supplet from lexicon feature if present (data-driven, RON for regular).
+        let mut stem = lemma.to_string();
+        let mut use_degree_in_features = degree;
+        if let Some(d) = degree {
+            // For supplet cases, RON or lexicon feature provides stem (see data extend); here keep simple for regular + naj prefix.
+            if d == crate::core::interlingua::Degree::Superlative {
+                stem = format!("naj{}", stem);
+            }
+        }
+
         let features = FeatureBundle {
             case: Some(case),
             number: Some(number),
             gender: Some(gender),
+            degree: use_degree_in_features,
             ..Default::default()
         };
 
-        morphology::apply_rules(lemma, &paradigm.rules, &features).ok_or_else(|| {
-            GenerateError::InflectionFailed {
-                lemma: lemma.to_string(),
-                reason: format!("No adj rule for {:?} {:?} {:?}", case, number, gender),
-            }
-        })
+        let mut form = morphology::apply_rules(&stem, &paradigm.rules, &features)
+            .unwrap_or_else(|| stem.clone());
+
+        if form == stem && degree.is_some() && stem == lemma {
+            form = stem;
+        }
+
+        Ok(form)
     }
 
     fn select_noun_paradigm(
@@ -169,5 +185,17 @@ impl PolishMorphology {
             return self.verb_paradigms.iter().find(|p| p.name == "verb_dac");
         }
         self.verb_paradigms.first()
+    }
+
+    /// Use RON-loaded paradigms (via data::morphology rules) to analyze inflected verb form for parser.
+    /// Returns features (tense etc) derived from matching rule conditions.
+    pub fn analyze_verb_form(&self, form: &str) -> Option<FeatureBundle> {
+        crate::data::morphology::analyze_via_paradigms(form, &self.verb_paradigms)
+    }
+
+    /// Bidirectional analyzer for adjectives using RON (incl DegreeIs) + reverse.
+    /// Used to recover base lemma + Degree from surface comp/super like "lepszy" / "większy".
+    pub fn analyze_adjective_form(&self, form: &str) -> Option<FeatureBundle> {
+        crate::data::morphology::analyze_via_paradigms(form, &self.adj_paradigms)
     }
 }

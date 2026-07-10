@@ -10,6 +10,9 @@ The engine reads the descriptor and knows: what morphology exists, what word ord
 
 The Language Descriptor drives generation decisions. Here's how to use it in practice.
 
+**2026-07-10 Parallel Update (with ERRORS.MD iteration):** 
+To achieve "strictly algorithmic" low-level processing (minimal hardcoding), descriptors + RON need extension for phonetic/article rules, default inference, virile, etc. See ERRORS.MD (new "Full Cross-Language (PL + EN)..." comprehensive audit section + "Required Low-Level Algorithmic Engines" + "RON extensions") for the exhaustive list of current leaks (article choice, degree, "ma", cross-lang leakage, NP structure, government) and proposed data extensions (PhoneticInitial, Prefix, surface_mappings.ron, suppletives). Keep in sync with GENERATOR.md, MORPHOLOGY.md, UNIFIED_ALGORITHMIC_GENERATION_PIPELINE.md, PLAN.md. Any descriptor change must trigger audit grep + doc sync.
+
 ### 1. Word Order Determination
 
 ```rust
@@ -189,6 +192,8 @@ fn assign_case(
 ```
 
 ### 5. Verb Form Selection
+
+Integrated into unified pipeline (see UNIFIED_ALGORITHMIC_GENERATION_PIPELINE.md). Descriptor drives common realizer.
 
 ```rust
 fn select_verb_form(

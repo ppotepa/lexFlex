@@ -14,7 +14,31 @@ The Generator is the **hardest component** in lexFlex, especially for Polish. It
 
 ## Critical Design Principle
 
-**The Generator is purely realizational - it makes NO semantic decisions.**
+**The Generator is purely realizational - it makes NO semantic decisions.
+
+**Current State vs Strictly Algorithmic Vision (2026-07-10 audit):**
+Much of the current NP/verb/frame logic is still hardcoded or uses surface hacks (see lexFlex/ERRORS.MD, especially the new "Full Cross-Language (PL + EN) Non-Algorithmic Elements + Linguistic Theory Gaps Audit" section which enumerates every contains/replace/list site in en/generator.rs, pl/generator.rs, pipeline.rs, parsers, etc.). The goal is to move as much as possible into:
+- Lexicon features + concept lookup (no Polish surface in EN paths).
+- RON rules + exceptions (degree, case, gender inference, suppletives).
+- Realizer methods that are thin wrappers over data/rules.
+- Proper NP structure (not name concat for adjs/lists).
+
+**RON/Data extensions proposed** to support this (to be implemented):
+- Phonetic features for article choice.
+- Suppletive stem support and Prefix ops in paradigms.
+- Cross-lang mapping data instead of code contains/replace.
+- See ERRORS.MD (full PL+EN audit + required engines) and UNIFIED... for full list.
+
+Update this doc + ERRORS.MD + MORPHOLOGY.md + UNIFIED... + PLAN.md + STATUS.md in lockstep for any changes. Any edit to generator logic must also expand the audit lists in ERRORS.MD if new leaks are found.
+
+**Algorithmic improvements (top-down review 2026-07-10):**
+
+See lexFlex/ERRORS.MD for the exhaustive list of all remaining hardcoded `contains`/`replace`/per-word-list anti-patterns that must be replaced by proper linguistic algorithms (lexicon features + ending rules + RON paradigms + concept lookup).
+- Article choice (a/an/the): now uses improved starts_with_vowel_sound (spelling + exceptions) on clean EN lemma after lexicon-based mapping. No more hardcoded "a apple".
+- Polish gender/case: ending detection (a→F, o/e→N, else M) in parser + generator as algorithmic rule, lexicon as override, RON paradigms for exceptions.
+- Cross-lang mappings (PL "jabłko"/"kota"/"lepszy" → EN) done early in NP path so downstream (article, degree, morph) are correct.
+- Only fallback to patches/exceptions for truly irregular or data-missing cases.
+- Similar for other morphology: suffix rules primary.**
 
 The Generator's sole responsibility is to faithfully realize the complete `InterlinguaNode` structure produced by the Deduction Engine. It should:
 - ✅ Read features from `InterlinguaNode` and `LanguageDescriptor`
@@ -49,7 +73,17 @@ fn generate(il: &InterlinguaNode) -> String {
 
 ## Architecture
 
-### Three-Phase Approach
+**Unified Algorithmic Pipeline (2026-07-10 iteration):** See [UNIFIED_ALGORITHMIC_GENERATION_PIPELINE.md](./UNIFIED_ALGORITHMIC_GENERATION_PIPELINE.md) for the current spec.
+
+The goal is one common pipeline (in future `src/generation/pipeline.rs`) used by all languages:
+- `generate_sentence(sentence, realizer, desc, morph, lexicon)`
+- `LanguageRealizer` trait with language-specific methods + defaults/empties for unsupported (e.g. `apply_case` no-op for EN, `get_article` returns None for PL).
+- Algorithmic handling of lists/enumerations, quant+num case effects, degree, etc.
+- Driven by Interlingua + LanguageDescriptor.
+
+This replaces duplicated logic in PolishGenerator/EnglishGenerator.
+
+### Three-Phase Approach (historical, now evolving to unified)
 
 **Phase 1: Minimum Viable Generator**
 - Support only `Frame::Transfer`
@@ -65,11 +99,12 @@ fn generate(il: &InterlinguaNode) -> String {
 - Better word order heuristics
 - **Rationale:** Once Transfer works, expand coverage incrementally
 
-**Phase 3: LanguageDescriptor-Driven Generator**
+**Phase 3: LanguageDescriptor-Driven + Unified Pipeline (current target)**
 - Use `LanguageDescriptor` for generation decisions
-- Improved naturalness
-- Register/style awareness
-- **Rationale:** Move from hardcoded to data-driven generation
+- Common pipeline with per-lang Realizer (empty fns for missing features like cases)
+- Algorithmic lists, numbers affecting morphology, degrees
+- Improved naturalness + full roundtrip consistency with parser/deduction
+- **Rationale:** Move from duplicated/hardcoded to data-driven + one pipeline for all languages (see design doc)
 
 ### Generation Pipeline
 

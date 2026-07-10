@@ -78,13 +78,15 @@ fn main() {
             }
         };
 
-        let trunc_source = if sentence.len() > 33 {
-            format!("{}...", &sentence[..30])
+        let trunc_source = if sentence.chars().count() > 33 {
+            let truncated: String = sentence.chars().take(30).collect();
+            format!("{}...", truncated)
         } else {
             sentence.to_string()
         };
-        let trunc_output = if output.len() > 33 {
-            format!("{}...", &output[..30])
+        let trunc_output = if output.chars().count() > 33 {
+            let truncated: String = output.chars().take(30).collect();
+            format!("{}...", truncated)
         } else {
             output.clone()
         };
