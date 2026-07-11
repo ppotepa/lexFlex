@@ -241,6 +241,42 @@
     ("miał", (lemma: "mieć", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: Some("verb_miec"), features: (tense: Some(Past), gender: Some(Masculine), number: Some(Singular), person: Some(Third)))),
     ("miała", (lemma: "mieć", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: Some("verb_miec"), features: (tense: Some(Past), gender: Some(Feminine), number: Some(Singular), person: Some(Third)))),
 
+    // ═══ 1ST PERSON PRESENT FORMS — data-driven exceptions ═══
+    // Common 1st person singular present forms that need explicit lexicon entries
+    // because paradigm reverse matching may not catch all irregular stems
+    ("mam", (lemma: "mieć", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: Some("verb_miec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("jestem", (lemma: "być", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_byc"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("mieszkam", (lemma: "mieszkać", pos: "Verb", concept: "LIVE", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("pracuję", (lemma: "pracować", pos: "Verb", concept: "WORK_VERB", frame_type: Some("Creation"), roles: ["Agent", "Location"], paradigm: Some("verb_ować"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("jem", (lemma: "jeść", pos: "Verb", concept: "EAT", frame_type: Some("Consumption"), roles: ["Agent", "Patient"], paradigm: Some("verb_sc"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("piję", (lemma: "pić", pos: "Verb", concept: "DRINK", frame_type: Some("Consumption"), roles: ["Agent", "Patient"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("idę", (lemma: "iść", pos: "Verb", concept: "GO", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Source"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("jadę", (lemma: "jechać", pos: "Verb", concept: "RIDE", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Instrument"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("wiem", (lemma: "wiedzieć", pos: "Verb", concept: "KNOW", frame_type: Some("Cognition"), roles: ["Cognizer", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("myślę", (lemma: "myśleć", pos: "Verb", concept: "THINK", frame_type: Some("Cognition"), roles: ["Cognizer", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("chcę", (lemma: "chcieć", pos: "Verb", concept: "WANT", frame_type: Some("Emotion"), roles: ["Experiencer", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("mogę", (lemma: "móc", pos: "Verb", concept: "CAN", frame_type: None, roles: ["Agent", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("muszę", (lemma: "musieć", pos: "Verb", concept: "MUST", frame_type: None, roles: ["Agent", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("lubię", (lemma: "lubić", pos: "Verb", concept: "LIKE", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("kocham", (lemma: "kochać", pos: "Verb", concept: "LOVE", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("widzę", (lemma: "widzieć", pos: "Verb", concept: "SEE", frame_type: Some("Perception"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("słyszę", (lemma: "słyszeć", pos: "Verb", concept: "HEAR", frame_type: Some("Perception"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("czytam", (lemma: "czytać", pos: "Verb", concept: "READ", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("piszę", (lemma: "pisać", pos: "Verb", concept: "WRITE", frame_type: Some("Creation"), roles: ["Agent", "Theme", "Instrument"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("kupuję", (lemma: "kupować", pos: "Verb", concept: "BUY", frame_type: Some("Transfer"), roles: ["Agent", "Theme", "Source"], paradigm: Some("verb_ować"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("mówię", (lemma: "mówić", pos: "Verb", concept: "SAY", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("robię", (lemma: "robić", pos: "Verb", concept: "DO_MAKE", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("uczę", (lemma: "uczyć", pos: "Verb", concept: "LEARN", frame_type: Some("Cognition"), roles: ["Agent", "Content"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("wierzę", (lemma: "wierzyć", pos: "Verb", concept: "BELIEVE", frame_type: Some("Cognition"), roles: ["Experiencer", "Content"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("pamiętam", (lemma: "pamiętać", pos: "Verb", concept: "REMEMBER", frame_type: Some("Cognition"), roles: ["Experiencer", "Content"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("zapominam", (lemma: "zapominać", pos: "Verb", concept: "REMEMBER", frame_type: Some("Cognition"), roles: ["Experiencer", "Content"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("boję", (lemma: "bać", pos: "Verb", concept: "FEAR", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("czuję", (lemma: "czuć", pos: "Verb", concept: "FEEL", frame_type: Some("Perception"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("siedzę", (lemma: "siedzieć", pos: "Verb", concept: "SIT", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("stoję", (lemma: "stać", pos: "Verb", concept: "STAND", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("leżę", (lemma: "leżeć", pos: "Verb", concept: "LIE", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("śpię", (lemma: "spać", pos: "Verb", concept: "SLEEP", frame_type: Some("Existence"), roles: ["Agent"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+
     // ═══════════════════════════════════════════
     // ADJECTIVES — lemmas with paradigm class
     // ═══════════════════════════════════════════
