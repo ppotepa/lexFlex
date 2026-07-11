@@ -260,6 +260,32 @@ impl PolishParser {
         sentence.tense = verb_token.features.tense.or(Some(Tense::Present));
         sentence.aspect = verb_token.features.aspect;
 
+        // Pro-drop detection: if verb has 1st/2nd person and no explicit pronoun, add implicit subject
+        let verb_person = verb_token.features.person;
+        let verb_number = verb_token.features.number;
+        let has_explicit_subject = tokens.iter().any(|t| {
+            t.pos == PartOfSpeech::Pronoun && t.features.person == verb_person
+        });
+        
+        let implicit_subject = if !has_explicit_subject && verb_person.is_some() {
+            let (pronoun_name, pronoun_person) = match (verb_person, verb_number) {
+                (Some(Person::First), Some(Number::Singular)) => (Some("I"), Some(Person::First)),
+                (Some(Person::First), Some(Number::Plural)) => (Some("we"), Some(Person::First)),
+                (Some(Person::Second), Some(Number::Singular)) => (Some("you"), Some(Person::Second)),
+                (Some(Person::Second), Some(Number::Plural)) => (Some("you"), Some(Person::Second)),
+                _ => (None, None),
+            };
+            pronoun_name.map(|name| {
+                let mut entity = Entity::new(ConceptId::new("PERSON"))
+                    .with_name(name);
+                entity.features.person = pronoun_person;
+                entity.features.number = verb_number;
+                entity
+            })
+        } else {
+            None
+        };
+
         let negation = tokens.iter().any(|t| t.pos == PartOfSpeech::Negation);
         if negation {
             sentence.polarity = Polarity::Negative;
@@ -285,7 +311,15 @@ impl PolishParser {
 
         let np_tokens: Vec<&Token> = tokens
             .iter()
-            .filter(|t| {
+            .enumerate()
+            .filter(|(idx, t)| {
+                // Exclude tokens that are part of prepositional phrases
+                let is_after_preposition = if *idx > 0 {
+                    tokens[*idx - 1].pos == PartOfSpeech::Preposition
+                } else {
+                    false
+                };
+                
                 (t.pos == PartOfSpeech::Noun
                     || t.pos == PartOfSpeech::Pronoun
                     || t.pos == PartOfSpeech::Adjective
@@ -293,10 +327,18 @@ impl PolishParser {
                     && t.pos != PartOfSpeech::Particle
                     && t.pos != PartOfSpeech::Adverb
                     && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three" | "szybko") // numbers not np, exclude known adverbs
+                    && !is_after_preposition // exclude nouns after prepositions (they're handled in pp_entities)
             })
+            .map(|(_, t)| t)
             .collect();
 
         let mut entities: Vec<Entity> = Vec::new();
+        
+        // Add implicit subject (pro-drop) if detected
+        if let Some(subject) = implicit_subject {
+            entities.push(subject);
+        }
+        
         for np in &np_tokens {
             let lemma = np.lemma.as_deref().unwrap_or(&np.form);
             let entry = self.lexicon.lookup_by_form(&np.form)
@@ -597,10 +639,38 @@ impl PolishParser {
     ) -> Result<Frame, ParseError> {
         let mut assigned: Vec<Option<Entity>> = vec![None; roles.len()];
 
-        // Pass 1: assign entities with explicit case markings
-        // Map case to role, checking which roles are available in the frame
+        // Pass 0: assign entities with explicit person (pro-drop subjects)
+        // Person 1st/2nd → Agent/Experiencer (subject of the verb)
         let mut unassigned: Vec<Entity> = Vec::new();
         for entity in entities {
+            if let Some(person) = entity.features.person {
+                if person == Person::First || person == Person::Second {
+                    // Try to assign to Agent or Experiencer
+                    if roles.contains(&SemanticRole::Agent) {
+                        if let Some(idx) = roles.iter().position(|r| *r == SemanticRole::Agent) {
+                            if assigned[idx].is_none() {
+                                assigned[idx] = Some(entity.clone());
+                                continue;
+                            }
+                        }
+                    }
+                    if roles.contains(&SemanticRole::Experiencer) {
+                        if let Some(idx) = roles.iter().position(|r| *r == SemanticRole::Experiencer) {
+                            if assigned[idx].is_none() {
+                                assigned[idx] = Some(entity.clone());
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            unassigned.push(entity.clone());
+        }
+
+        // Pass 1: assign entities with explicit case markings
+        // Map case to role, checking which roles are available in the frame
+        let mut still_unassigned: Vec<Entity> = Vec::new();
+        for entity in unassigned {
             if let Some(c) = entity.features.case {
                 // Try to map case to available role
                 let target_role = match c {
@@ -670,12 +740,12 @@ impl PolishParser {
                     }
                 }
             }
-            unassigned.push(entity.clone());
+            still_unassigned.push(entity.clone());
         }
 
         // Pass 2: assign remaining entities using animacy heuristics
         // Animate entities prefer Agent/Experiencer, inanimate prefer Theme/Patient
-        for entity in &unassigned {
+        for entity in &still_unassigned {
             let is_animate = entity.features.animacy == Some(Animacy::Animate);
             
             if is_animate {
