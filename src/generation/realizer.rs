@@ -24,21 +24,45 @@ pub trait LanguageRealizer {
     fn realize_coordinations(
         &self,
         items: Vec<Vec<String>>,
+        conjunction: &str,
         desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
-        // Default algorithmic: lang-appropriate conj, basic Oxford for en.
+        // Default algorithmic: use provided conjunction, map to target lang
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }
-        let conj = if desc.language == "pl" { "i" } else { "and" };
+
+        // Map source conjunction to target
+        let target_conj = match conjunction {
+            "i" | "oraz" | "and" => if desc.language == "pl" { "i" } else { "and" },
+            "albo" | "lub" | "or" => if desc.language == "pl" { "albo" } else { "or" },
+            "," => ",",
+            _ => if desc.language == "pl" { "i" } else { "and" },
+        };
+
         let mut res = vec![];
         for (i, item) in items.iter().enumerate() {
             if i > 0 {
-                if desc.language != "pl" && i == items.len() - 1 {
-                    res.push("and".to_string());
-                } else if i < items.len() - 1 && desc.language != "pl" {
-                    res.push(",".to_string());
+                if target_conj == "," {
+                    // Comma-separated list: Oxford comma before last item (EN) or just "i" (PL)
+                    if i == items.len() - 1 {
+                        if desc.language != "pl" {
+                            res.push(",".to_string());
+                        }
+                        res.push(if desc.language == "pl" { "i" } else { "and" }.to_string());
+                    } else {
+                        res.push(",".to_string());
+                    }
+                } else if items.len() > 2 && desc.language != "pl" {
+                    // Oxford comma for 3+ items in EN: "A, B, and C"
+                    if i == items.len() - 1 {
+                        res.push(",".to_string());
+                        res.push(target_conj.to_string());
+                    } else {
+                        res.push(",".to_string());
+                    }
                 } else {
-                    res.push(conj.to_string());
+                    // 2 items or PL: just the conjunction
+                    res.push(target_conj.to_string());
                 }
             }
             res.extend(item.clone());

@@ -208,8 +208,8 @@ impl EnglishGenerator {
             Frame::Statement { subject, property, .. } => {
                 self.generate_statement(subject, property, sentence)
             }
-            Frame::Existence { entity, location, .. } => {
-                self.generate_existence(entity, location.as_ref(), sentence)
+            Frame::Existence { entity, location, verb_concept } => {
+                self.generate_existence(entity, location.as_ref(), sentence, verb_concept)
             }
             Frame::Possession { possessor, possessed, verb_concept } => {
                 // Special handling for HAVE_NAME: "I am called Adam" (possessed is subject)
@@ -435,27 +435,32 @@ impl EnglishGenerator {
         entity: &Entity,
         location: Option<&Entity>,
         sentence: &Sentence,
+        verb_concept: &str,
     ) -> Result<Vec<String>, GenerateError> {
         let entity_form = self.generate_entity_form(entity, true)?;
 
-        let verb = match sentence.tense {
-            Some(Tense::Past) => {
-                if entity.features.number == Some(Number::Plural) {
-                    "were"
-                } else {
-                    "was"
+        // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
+        let verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
+            match sentence.tense {
+                Some(Tense::Past) => {
+                    if entity.features.number == Some(Number::Plural) { "were" } else { "was" }
                 }
-            }
-            _ => {
-                if entity.features.number == Some(Number::Plural) {
-                    "are"
-                } else {
-                    "is"
+                _ => {
+                    if entity.features.number == Some(Number::Plural) { "are" } else { "is" }
                 }
-            }
+            }.to_string()
+        } else {
+            // Look up verb lemma in EN lexicon by concept
+            let lemma = self.lexicon.lookup_concept(verb_concept)
+                .map(|e| e.lemma.clone())
+                .unwrap_or_else(|| verb_concept.to_lowercase());
+            let tense = sentence.tense.unwrap_or(Tense::Present);
+            let person = entity.features.person.unwrap_or(Person::Third);
+            let number = entity.features.number.unwrap_or(Number::Singular);
+            self.morphology.inflect_verb(&lemma, tense, Some(person), Some(number))?
         };
 
-        let mut words = vec![verb.to_string(), entity_form];
+        let mut words = vec![verb, entity_form];
 
         if let Some(loc) = location {
             let loc_form = self.generate_entity_form(loc, false)?;
@@ -474,13 +479,31 @@ impl EnglishGenerator {
         let policy = GenerationPolicy::new(&self.descriptor);
         let do_articles = policy.should_add_article(entity, needs_article);
 
-        // Handle coordination first: expand items and join (fixes "Tomek saw and Iza" mangling for coord subjects).
+        // Handle coordination first: expand items and join with appropriate conjunction
         if let Some(ref coord) = entity.coordination {
             let mut parts: Vec<String> = vec![];
             for item in &coord.items {
                 parts.push(self.generate_entity_form(item, needs_article)?);
             }
-            return Ok(parts.join(" and "));
+            // Map source conjunction to target EN conjunction
+            let conj = match coord.conjunction.as_str() {
+                "i" | "oraz" | "and" => "and",
+                "albo" | "lub" | "or" => "or",
+                "," => ", ",
+                _ => "and",
+            };
+            // For comma-separated lists, use Oxford comma: "A, B, and C"
+            if conj == ", " && parts.len() > 1 {
+                let last = parts.pop().unwrap();
+                return Ok(format!("{}, and {}", parts.join(", "), last));
+            }
+            // For "and"/"or" with 3+ items, use Oxford comma: "A, B, and C"
+            if parts.len() > 2 {
+                let last = parts.pop().unwrap();
+                return Ok(format!("{}, {} {}", parts.join(", "), conj, last));
+            }
+            // 2 items: "A and B" or "A or B"
+            return Ok(parts.join(&format!(" {} ", conj)));
         }
 
         // Clean potential source surface leaks on adjs/nouns for target EN (use concept to target lemma if name looks non-EN).
@@ -511,6 +534,11 @@ impl EnglishGenerator {
                 if e.pos == "Adjective" {
                     return Ok(e.lemma.clone());
                 }
+                
+                // Don't inflect pronouns - return lemma directly
+                if e.pos == "Pronoun" {
+                    return Ok(e.lemma.clone());
+                }
 
                 let number = entity.features.number.unwrap_or(Number::Singular);
                 let noun_form = self.morphology.inflect_noun(&e.lemma, number)?;
@@ -539,6 +567,10 @@ impl EnglishGenerator {
         // Don't add article for adjectives
         if let Some(e) = entry {
             if e.pos == "Adjective" {
+                return Ok(lemma);
+            }
+            // Don't inflect pronouns - return lemma directly
+            if e.pos == "Pronoun" {
                 return Ok(lemma);
             }
         }
@@ -679,7 +711,7 @@ impl LanguageRealizer for EnglishGenerator {
                 let r = self.realize_noun_phrase(item, &mut f, desc, lexicon).unwrap_or_else(|_| vec!["?".to_string()]);
                 item_reals.push(r);
             }
-            return self.realize_coordinations(item_reals, desc);
+            return self.realize_coordinations(item_reals, &coord.conjunction, desc);
         }
 
         // Realize adjectival modifiers + head, decide article once at NP level (before first word).
@@ -807,17 +839,42 @@ impl LanguageRealizer for EnglishGenerator {
     fn realize_coordinations(
         &self,
         items: Vec<Vec<String>>,
+        conjunction: &str,
         desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }
+
+        // Map source conjunction to target
+        let target_conj = match conjunction {
+            "i" | "oraz" | "and" => "and",
+            "albo" | "lub" | "or" => "or",
+            "," => ",",
+            _ => "and",
+        };
+
         let mut res = vec![];
         for (i, item) in items.iter().enumerate() {
             if i > 0 {
-                if i == items.len() - 1 {
-                    res.push("and".to_string());
+                if target_conj == "," {
+                    // Comma-separated list: Oxford comma before last item
+                    if i == items.len() - 1 {
+                        res.push(",".to_string());
+                        res.push("and".to_string());
+                    } else {
+                        res.push(",".to_string());
+                    }
+                } else if items.len() > 2 {
+                    // Oxford comma for 3+ items: "A, B, and C"
+                    if i == items.len() - 1 {
+                        res.push(",".to_string());
+                        res.push(target_conj.to_string());
+                    } else {
+                        res.push(",".to_string());
+                    }
                 } else {
-                    res.push(",".to_string());
+                    // 2 items: just the conjunction
+                    res.push(target_conj.to_string());
                 }
             }
             res.extend(item.clone());

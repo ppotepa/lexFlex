@@ -136,6 +136,9 @@
     ("grass", (lemma: "grass", pos: "Noun", concept: "GRASS", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Mass)))),
     ("evening", (lemma: "evening", pos: "Noun", concept: "EVENING", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
     ("morning", (lemma: "morning", pos: "Noun", concept: "MORNING", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
+    ("family", (lemma: "family", pos: "Noun", concept: "FAMILY", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
+    ("hour", (lemma: "hour", pos: "Noun", concept: "HOUR", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
+    ("board", (lemma: "board", pos: "Noun", concept: "BOARD", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
 
     // ═══ VERBS ═══
     ("give", (lemma: "give", pos: "Verb", concept: "GIVE", frame_type: Some("Transfer"), roles: ["Agent", "Recipient", "Theme"], paradigm: None, features: ())),
@@ -355,6 +358,9 @@
     ("different", (lemma: "different", pos: "Adjective", concept: "DIFFERENT", frame_type: None, roles: [], paradigm: None, features: ())),
     ("colorful", (lemma: "colorful", pos: "Adjective", concept: "COLORFUL", frame_type: None, roles: [], paradigm: None, features: ())),
     ("nearby", (lemma: "nearby", pos: "Adjective", concept: "NEARBY", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("near", (lemma: "near", pos: "Adjective", concept: "NEAR", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("tall", (lemma: "tall", pos: "Adjective", concept: "TALL", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("delicious", (lemma: "delicious", pos: "Adjective", concept: "DELICIOUS", frame_type: None, roles: [], paradigm: None, features: ())),
 
     // ═══ SUPPLETIVE COMPARATIVE/SUPERLATIVE — data-driven exceptions ═══
     ("better", (lemma: "good", pos: "Adjective", concept: "GOOD", frame_type: None, roles: [], paradigm: None, features: (degree: Some(Comparative)))),

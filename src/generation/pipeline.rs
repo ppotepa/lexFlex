@@ -379,8 +379,8 @@ fn generate_frame(
             words.extend(o);
             Ok(words)
         }
-        Frame::Existence { entity, location, .. } => {
-            // Special handling for Existence frame: "I am in Warsaw"
+        Frame::Existence { entity, location, verb_concept } => {
+            // Special handling for Existence frame: "I live in Warsaw" / "There is a cat"
             let mut fe = entity.features.clone();
             fe.case = Some(Case::Nominative);
             if let Some(ref q) = sentence.quantification {
@@ -390,24 +390,32 @@ fn generate_frame(
             lexicon.normalize_entity(&mut entity_for_real);
             let e = realizer.realize_noun_phrase(&entity_for_real, &mut fe, desc, lexicon)?;
 
-            // Generate "be" verb for Existence frame
-            let be_verb = if desc.language == "en" {
-                match (verb_feats.person, verb_feats.number) {
-                    (Some(Person::First), Some(Number::Singular)) => "am".to_string(),
-                    (Some(Person::First), Some(Number::Plural)) => "are".to_string(),
-                    (Some(Person::Second), _) => "are".to_string(),
-                    (_, Some(Number::Plural)) => "are".to_string(),
-                    _ => "is".to_string(),
+            // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
+            let exist_verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
+                if desc.language == "en" {
+                    match (verb_feats.person, verb_feats.number) {
+                        (Some(Person::First), Some(Number::Singular)) => "am".to_string(),
+                        (Some(Person::First), Some(Number::Plural)) => "are".to_string(),
+                        (Some(Person::Second), _) => "are".to_string(),
+                        (_, Some(Number::Plural)) => "are".to_string(),
+                        _ => "is".to_string(),
+                    }
+                } else {
+                    v.clone()
                 }
             } else {
-                v.clone()
+                // Look up verb lemma by concept and inflect
+                let lemma = lexicon.lookup_concept(verb_concept)
+                    .map(|e| e.lemma.clone())
+                    .unwrap_or_else(|| verb_concept.to_lowercase());
+                realizer.realize_verb(&lemma, &verb_feats, desc)?
             };
 
             let mut words = vec![];
             if !e.is_empty() {
                 words.extend(e);
             }
-            words.push(be_verb);
+            words.push(exist_verb);
 
             if let Some(loc) = location {
                 let mut fl = loc.features.clone();
@@ -426,6 +434,63 @@ fn generate_frame(
                     words.push("in".to_string());
                 }
                 words.extend(l);
+            }
+
+            Ok(words)
+        }
+        Frame::Motion { mover, source, goal, .. } => {
+            // Special handling for Motion frame: "I go to X from Y"
+            let mut fm = mover.features.clone();
+            fm.case = Some(Case::Nominative);
+            if let Some(ref q) = sentence.quantification {
+                realizer.adjust_for_quantifier(&mut fm, q, desc);
+            }
+            let mut mover_for_real = mover.clone();
+            lexicon.normalize_entity(&mut mover_for_real);
+            let m = realizer.realize_noun_phrase(&mover_for_real, &mut fm, desc, lexicon)?;
+
+            let mut words = vec![];
+            if !m.is_empty() {
+                words.extend(m);
+            }
+            words.push(v);
+
+            if let Some(g) = goal {
+                let mut fg = g.features.clone();
+                if desc.language == "en" {
+                    // EN uses preposition "to" for goal
+                } else {
+                    fg.case = Some(Case::Accusative);
+                }
+                if let Some(ref q) = sentence.quantification {
+                    realizer.adjust_for_quantifier(&mut fg, q, desc);
+                }
+                let mut goal_for_real = g.clone();
+                lexicon.normalize_entity(&mut goal_for_real);
+                let g_np = realizer.realize_noun_phrase(&goal_for_real, &mut fg, desc, lexicon)?;
+                if desc.language == "en" {
+                    words.push("to".to_string());
+                }
+                words.extend(g_np);
+            }
+
+            if let Some(s) = source {
+                let mut fs = s.features.clone();
+                if desc.language == "en" {
+                    // EN uses preposition "from" for source
+                } else {
+                    fs.case = Some(Case::Genitive);
+                }
+                if let Some(ref q) = sentence.quantification {
+                    realizer.adjust_for_quantifier(&mut fs, q, desc);
+                }
+                let mut source_for_real = s.clone();
+                lexicon.normalize_entity(&mut source_for_real);
+                let s_np = realizer.realize_noun_phrase(&source_for_real, &mut fs, desc, lexicon)?;
+                if desc.language == "en" {
+                    words.push("from".to_string());
+                }
+                words.extend(s_np);
             }
 
             Ok(words)

@@ -231,4 +231,22 @@
     (id: "CALM", frame_type: None, roles: [], inherent_features: ()),
     (id: "CHEAPEST", frame_type: None, roles: [], inherent_features: ()),
     (id: "NICE_WEATHER", frame_type: None, roles: [], inherent_features: ()),
+
+    // ═══ FREQUENCY / SEQUENCE ADVERBS ═══
+    (id: "USUALLY", frame_type: None, roles: [], inherent_features: ()),
+    (id: "RARELY", frame_type: None, roles: [], inherent_features: ()),
+    (id: "ALWAYS", frame_type: None, roles: [], inherent_features: ()),
+    (id: "SOMETIMES", frame_type: None, roles: [], inherent_features: ()),
+    (id: "OFTEN", frame_type: None, roles: [], inherent_features: ()),
+    (id: "FIRST", frame_type: None, roles: [], inherent_features: ()),
+    (id: "THEN", frame_type: None, roles: [], inherent_features: ()),
+
+    // ═══ ADDITIONAL PROPERTIES ═══
+    (id: "NEAR", frame_type: None, roles: [], inherent_features: ()),
+    (id: "TALL", frame_type: None, roles: [], inherent_features: ()),
+    (id: "DELICIOUS", frame_type: None, roles: [], inherent_features: ()),
+
+    // ═══ ADDITIONAL ENTITIES ═══
+    (id: "FAMILY", frame_type: None, roles: ["Agent", "Recipient"], inherent_features: (animacy: Some(Animate), countability: Some(Count))),
+    (id: "HOUR", frame_type: None, roles: ["Theme", "Time"], inherent_features: (gender: Some(Feminine), countability: Some(Count))),
 ]
