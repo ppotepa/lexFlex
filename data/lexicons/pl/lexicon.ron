@@ -621,4 +621,11 @@
     ("obowiązków", (lemma: "obowiązek", pos: "Noun", concept: "DUTY", frame_type: None, roles: [], paradigm: Some("masculine_ec"), features: (gender: Some(Masculine), number: Some(Plural), case: Some(Genitive)))),
     ("czas", (lemma: "czas", pos: "Noun", concept: "TIME", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Mass)))),
     ("porze", (lemma: "pora", pos: "Noun", concept: "TIME", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Locative)))),
+    
+    // Cities
+    ("Warszawa", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate)))),
+    ("Warszawie", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Locative)))),
+    ("Warszawę", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Accusative)))),
+    ("Kraków", (lemma: "Kraków", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
+    ("Gdańsk", (lemma: "Gdańsk", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
 ]

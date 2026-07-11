@@ -730,7 +730,7 @@ impl PolishParser {
                     }
                     _ => None,
                 };
-                
+
                 if let Some(role) = target_role {
                     if let Some(idx) = roles.iter().position(|r| *r == role) {
                         if assigned[idx].is_none() {

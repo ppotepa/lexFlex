@@ -29,8 +29,9 @@ impl Lexicon {
     }
 
     pub fn add_entry(&mut self, key: String, entry: LexEntry) {
-        self.form_to_lemma.insert(key.clone(), entry.lemma.clone());
-        self.entries.insert(key, entry);
+        let lower_key = key.to_lowercase();
+        self.form_to_lemma.insert(lower_key.clone(), entry.lemma.clone());
+        self.entries.insert(lower_key, entry);
     }
 
     pub fn lookup_by_form(&self, form: &str) -> Option<&LexEntry> {

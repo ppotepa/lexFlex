@@ -279,19 +279,24 @@ fn features_match(pronoun: &Entity, candidate: &Entity) -> bool {
         (Some(pg), Some(cg)) => pg == cg,
         (None, _) | (_, None) => true, // If pronoun has no gender specified, any candidate works
     };
-    
+
     // Check number compatibility
     let number_match = match (pronoun.features.number, candidate.features.number) {
         (Some(pn), Some(cn)) => pn == cn,
         (None, _) | (_, None) => true,
     };
-    
+
     // Check person compatibility (3rd person pronouns refer to 3rd person entities)
+    // 1st/2nd person pronouns should NOT match 3rd person entities
     let person_match = match (pronoun.features.person, candidate.features.person) {
-        (Some(pp), Some(cp)) => pp == cp,
+        (Some(Person::First), Some(Person::First)) => true,
+        (Some(Person::Second), Some(Person::Second)) => true,
+        (Some(Person::Third), Some(Person::Third)) => true,
+        (Some(Person::First), _) | (Some(Person::Second), _) => false, // 1st/2nd person pronouns don't refer to 3rd person entities
         (None, _) | (_, None) => true,
+        _ => true,
     };
-    
+
     gender_match && number_match && person_match
 }
 

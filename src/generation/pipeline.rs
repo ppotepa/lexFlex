@@ -379,6 +379,57 @@ fn generate_frame(
             words.extend(o);
             Ok(words)
         }
+        Frame::Existence { entity, location, .. } => {
+            // Special handling for Existence frame: "I am in Warsaw"
+            let mut fe = entity.features.clone();
+            fe.case = Some(Case::Nominative);
+            if let Some(ref q) = sentence.quantification {
+                realizer.adjust_for_quantifier(&mut fe, q, desc);
+            }
+            let mut entity_for_real = entity.clone();
+            lexicon.normalize_entity(&mut entity_for_real);
+            let e = realizer.realize_noun_phrase(&entity_for_real, &mut fe, desc, lexicon)?;
+
+            // Generate "be" verb for Existence frame
+            let be_verb = if desc.language == "en" {
+                match (verb_feats.person, verb_feats.number) {
+                    (Some(Person::First), Some(Number::Singular)) => "am".to_string(),
+                    (Some(Person::First), Some(Number::Plural)) => "are".to_string(),
+                    (Some(Person::Second), _) => "are".to_string(),
+                    (_, Some(Number::Plural)) => "are".to_string(),
+                    _ => "is".to_string(),
+                }
+            } else {
+                v.clone()
+            };
+
+            let mut words = vec![];
+            if !e.is_empty() {
+                words.extend(e);
+            }
+            words.push(be_verb);
+
+            if let Some(loc) = location {
+                let mut fl = loc.features.clone();
+                if desc.language == "en" {
+                    // EN uses preposition "in" for location
+                } else {
+                    fl.case = Some(Case::Locative);
+                }
+                if let Some(ref q) = sentence.quantification {
+                    realizer.adjust_for_quantifier(&mut fl, q, desc);
+                }
+                let mut loc_for_real = loc.clone();
+                lexicon.normalize_entity(&mut loc_for_real);
+                let l = realizer.realize_noun_phrase(&loc_for_real, &mut fl, desc, lexicon)?;
+                if desc.language == "en" {
+                    words.push("in".to_string());
+                }
+                words.extend(l);
+            }
+
+            Ok(words)
+        }
         _ => {
             // Fallback for other frames (perception, emotion, statement, etc.)
             let entities = frame.entities();
