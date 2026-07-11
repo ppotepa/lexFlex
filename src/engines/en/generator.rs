@@ -211,8 +211,22 @@ impl EnglishGenerator {
             Frame::Existence { entity, location, .. } => {
                 self.generate_existence(entity, location.as_ref(), sentence)
             }
-            Frame::Possession { possessor, possessed, .. } => {
-                self.generate_two_role(frame, possessor, possessed, sentence)
+            Frame::Possession { possessor, possessed, verb_concept } => {
+                // Special handling for HAVE_NAME: "I am called Adam" (possessed is subject)
+                if verb_concept == "HAVE_NAME" {
+                    // For HAVE_NAME, generate "I am called [name]"
+                    // possessed is the name, possessor is implicit "I"
+                    let name_form = self.generate_entity_form(possessed, false)?;
+                    let verb_form = self.morphology.inflect_verb(
+                        "be called",
+                        sentence.tense.unwrap_or(Tense::Present),
+                        Some(Person::First),
+                        Some(Number::Singular),
+                    )?;
+                    return Ok(vec!["I".to_string(), verb_form, name_form]);
+                } else {
+                    self.generate_two_role(frame, possessor, possessed, sentence)
+                }
             }
             Frame::Custom { .. } => Ok(Vec::new()),
         }

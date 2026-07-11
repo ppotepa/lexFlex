@@ -158,6 +158,7 @@
     (id: "SAY", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], inherent_features: ()),
     (id: "ASK", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], inherent_features: ()),
     (id: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], inherent_features: ()),
+    (id: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], inherent_features: ()),
     (id: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], inherent_features: ()),
     (id: "LIVE", frame_type: Some("Existence"), roles: ["Agent", "Location"], inherent_features: ()),
     (id: "WORK_VERB", frame_type: Some("Creation"), roles: ["Agent", "Location"], inherent_features: ()),

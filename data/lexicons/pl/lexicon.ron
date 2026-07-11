@@ -10,6 +10,7 @@
     ("iza", (lemma: "Iza", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("mama", (lemma: "mama", pos: "Noun", concept: "MOTHER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("tata", (lemma: "tata", pos: "Noun", concept: "FATHER", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
+    ("adam", (lemma: "Adam", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
     ("żona", (lemma: "żona", pos: "Noun", concept: "WIFE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("córka", (lemma: "córka", pos: "Noun", concept: "DAUGHTER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("syn", (lemma: "syn", pos: "Noun", concept: "SON", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
@@ -240,6 +241,11 @@
     ("było", (lemma: "być", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_byc"), features: (tense: Some(Past), gender: Some(Neuter), number: Some(Singular), person: Some(Third)))),
     ("miał", (lemma: "mieć", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: Some("verb_miec"), features: (tense: Some(Past), gender: Some(Masculine), number: Some(Singular), person: Some(Third)))),
     ("miała", (lemma: "mieć", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: Some("verb_miec"), features: (tense: Some(Past), gender: Some(Feminine), number: Some(Singular), person: Some(Third)))),
+
+    // ═══ IDIOMATIC VERBS — multi-word expressions ═══
+    ("mam na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("mieć na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
 
     // ═══ 1ST PERSON PRESENT FORMS — data-driven exceptions ═══
     // Common 1st person singular present forms that need explicit lexicon entries

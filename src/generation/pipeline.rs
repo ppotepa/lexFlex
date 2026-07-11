@@ -270,7 +270,26 @@ fn generate_frame(
             }
             Ok(words)
         }
-        Frame::Possession { possessor, possessed, .. } => {
+        Frame::Possession { possessor, possessed, verb_concept } => {
+            // Special handling for HAVE_NAME: "I am called Adam"
+            if verb_concept == "HAVE_NAME" {
+                // For HAVE_NAME, generate "I am called [name]"
+                let name_form = realizer.realize_noun_phrase(possessed, &mut possessed.features.clone(), desc, lexicon)?;
+                let verb_form = if desc.language == "en" {
+                    // Use "am called" for 1st person singular present
+                    "am called".to_string()
+                } else {
+                    v.clone()
+                };
+                let mut words = vec![];
+                if desc.language == "en" {
+                    words.push("I".to_string());
+                }
+                words.push(verb_form);
+                words.extend(name_form);
+                return Ok(words);
+            }
+            
             let mut fp = possessor.features.clone();
             fp.case = Some(Case::Nominative);
             if let Some(ref q) = sentence.quantification {

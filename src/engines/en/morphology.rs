@@ -26,6 +26,17 @@ impl EnglishMorphology {
         number: Option<Number>,
     ) -> Result<String, GenerateError> {
         let irregular = match (lemma, tense, person, number) {
+            // "be called" - idiomatic expression for "mieć na imię"
+            ("be called", Tense::Present, Some(Person::First), Some(Number::Singular)) => Some("am called"),
+            ("be called", Tense::Present, Some(Person::Second), Some(Number::Singular)) => Some("are called"),
+            ("be called", Tense::Present, Some(Person::Third), Some(Number::Singular)) => Some("is called"),
+            ("be called", Tense::Present, _, Some(Number::Plural)) => Some("are called"),
+            ("be called", Tense::Present, _, _) => Some("are called"),
+            ("be called", Tense::Past, _, Some(Number::Singular)) => Some("was called"),
+            ("be called", Tense::Past, _, Some(Number::Plural)) => Some("were called"),
+            ("be called", Tense::Past, _, _) => Some("was called"),
+            ("be called", Tense::Future, _, _) => Some("will be called"),
+            
             ("be", Tense::Present, Some(Person::First), Some(Number::Singular)) => Some("am"),
             ("be", Tense::Present, Some(Person::Third), Some(Number::Singular)) => Some("is"),
             ("be", Tense::Present, _, Some(Number::Plural)) => Some("are"),

@@ -56,25 +56,130 @@ impl PolishParser {
     fn tokenize(&self, input: &str) -> Vec<Token> {
         let mut tokens = Vec::new();
         let mut offset = 0;
+        
+        // Split input into words first
+        let words: Vec<&str> = input.split_whitespace().collect();
+        let mut i = 0;
 
-        for word in input.split_whitespace() {
+        while i < words.len() {
+            let word = words[i];
             let clean = word.trim_matches(|c: char| c.is_ascii_punctuation());
             let form = clean.to_lowercase();
+            
+            // Check for multi-word expressions (idioms)
+            let (token_form, token_lemma, token_pos, token_features, consumed) = 
+                self.check_multiword_expression(&words, i);
+            
+            if consumed > 0 {
+                // Multi-word expression found
+                tokens.push(Token {
+                    form: token_form.clone(),
+                    lemma: Some(token_lemma),
+                    pos: token_pos,
+                    features: token_features,
+                    span: (offset, offset + token_form.len()),
+                });
+                offset += token_form.len() + 1;
+                i += consumed;
+            } else {
+                // Single word
+                let (pos, features, lemma) = self.analyze_token(&form);
 
-            let (pos, features, lemma) = self.analyze_token(&form);
+                tokens.push(Token {
+                    form: form.clone(),
+                    lemma: Some(lemma),
+                    pos,
+                    features,
+                    span: (offset, offset + word.len()),
+                });
 
-            tokens.push(Token {
-                form: form.clone(),
-                lemma: Some(lemma),
-                pos,
-                features,
-                span: (offset, offset + word.len()),
-            });
-
-            offset += word.len() + 1;
+                offset += word.len() + 1;
+                i += 1;
+            }
         }
 
         tokens
+    }
+    
+    /// Check for multi-word expressions (idioms, phrasal verbs, etc.)
+    /// Returns (form, lemma, pos, features, number_of_words_consumed)
+    /// If no multi-word expression found, returns ("", "", Unknown, default, 0)
+    fn check_multiword_expression(&self, words: &[&str], start_idx: usize) -> (String, String, PartOfSpeech, FeatureBundle, usize) {
+        if start_idx >= words.len() {
+            return (String::new(), String::new(), PartOfSpeech::Unknown, FeatureBundle::default(), 0);
+        }
+        
+        // Check for 3-word expressions first (more specific)
+        if start_idx + 2 < words.len() {
+            let word1 = words[start_idx].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
+            let word2 = words[start_idx + 1].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
+            let word3 = words[start_idx + 2].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
+            let three_word = format!("{} {} {}", word1, word2, word3);
+            
+            // "mam na imię" = "my name is" (idiom for introducing oneself)
+            if three_word == "mam na imię" {
+                return (
+                    "mam na imię".to_string(),
+                    "have_name".to_string(),
+                    PartOfSpeech::Verb,
+                    FeatureBundle {
+                        tense: Some(Tense::Present),
+                        person: Some(Person::First),
+                        number: Some(Number::Singular),
+                        ..Default::default()
+                    },
+                    3
+                );
+            }
+        }
+        
+        // Check for 2-word expressions
+        if start_idx + 1 < words.len() {
+            let word1 = words[start_idx].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
+            let word2 = words[start_idx + 1].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
+            let two_word = format!("{} {}", word1, word2);
+            
+            // "na imię" = "my name is" (idiom for introducing oneself)
+            if two_word == "na imię" {
+                return (
+                    "na imię".to_string(),
+                    "have_name".to_string(),
+                    PartOfSpeech::Verb,
+                    FeatureBundle {
+                        tense: Some(Tense::Present),
+                        person: Some(Person::First),
+                        number: Some(Number::Singular),
+                        ..Default::default()
+                    },
+                    2
+                );
+            }
+            
+            // "razem z" = "together with" (prepositional phrase)
+            if two_word == "razem z" {
+                return (
+                    "razem z".to_string(),
+                    "together_with".to_string(),
+                    PartOfSpeech::Preposition,
+                    FeatureBundle::default(),
+                    2
+                );
+            }
+            
+            // "w porze" = "at the time of" (temporal expression)
+            if two_word == "w porze" {
+                return (
+                    "w porze".to_string(),
+                    "at_time".to_string(),
+                    PartOfSpeech::Preposition,
+                    FeatureBundle::default(),
+                    2
+                );
+            }
+        }
+        
+        // No multi-word expression found
+        (String::new(), String::new(), PartOfSpeech::Unknown, FeatureBundle::default(), 0)
     }
 
     fn analyze_token(&self, form: &str) -> (PartOfSpeech, FeatureBundle, String) {
@@ -631,6 +736,20 @@ impl PolishParser {
             Entity::new(ConceptId::new("unknown"))
         };
 
+        // Special handling for HAVE_NAME: swap possessor and possessed
+        // In "Mam na imię Adam", Adam is the name (possessed), not the possessor
+        if verb_concept == "HAVE_NAME" {
+            // For HAVE_NAME, the single entity is the name (Theme/possessed)
+            // The possessor is implicit (pro-drop "I")
+            if let Some(entity) = entities.first() {
+                return Ok(Frame::Possession {
+                    possessor: Entity::new(ConceptId::new("PERSON")).with_name("I"),
+                    possessed: entity.clone(),
+                    verb_concept: verb_concept.to_string(),
+                });
+            }
+        }
+
         match frame_type {
             "Transfer" => Ok(Frame::Transfer {
                 agent: get(&SemanticRole::Agent),
@@ -681,6 +800,11 @@ impl PolishParser {
                 creator: get(&SemanticRole::Agent),
                 created: get(&SemanticRole::Theme),
                 material: None,
+                verb_concept: verb_concept.to_string(),
+            }),
+            "Possession" => Ok(Frame::Possession {
+                possessor: get(&SemanticRole::Agent),
+                possessed: get(&SemanticRole::Theme),
                 verb_concept: verb_concept.to_string(),
             }),
             _ => Ok(Frame::Statement {

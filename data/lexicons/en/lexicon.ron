@@ -5,6 +5,7 @@
     // ═══ NOUNS — People ═══
     ("tom", (lemma: "Tom", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
     ("mary", (lemma: "Mary", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
+    ("adam", (lemma: "Adam", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
     ("iza", (lemma: "Iza", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("mother", (lemma: "mother", pos: "Noun", concept: "MOTHER", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("father", (lemma: "father", pos: "Noun", concept: "FATHER", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
@@ -160,6 +161,7 @@
     ("say", (lemma: "say", pos: "Verb", concept: "SAY", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], paradigm: None, features: ())),
     ("ask", (lemma: "ask", pos: "Verb", concept: "ASK", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], paradigm: None, features: ())),
     ("have", (lemma: "have", pos: "Verb", concept: "HAVE", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
+    ("have_name", (lemma: "be called", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
     ("be", (lemma: "be", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: None, features: ())),
     ("live", (lemma: "live", pos: "Verb", concept: "LIVE", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: None, features: ())),
     ("work", (lemma: "work", pos: "Verb", concept: "WORK_VERB", frame_type: Some("Creation"), roles: ["Agent", "Location"], paradigm: None, features: ())),
