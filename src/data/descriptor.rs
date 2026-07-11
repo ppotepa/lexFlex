@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use crate::core::interlingua::Case;
+use crate::core::interlingua::{Case, SemanticRole};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageDescriptor {
@@ -30,6 +31,8 @@ pub struct SyntaxDescriptor {
     pub word_order: WordOrder,
     pub pro_drop: bool,
     pub negation_particle: String,
+    /// Mapowanie przyimków na role semantyczne (data-driven)
+    pub preposition_roles: HashMap<String, SemanticRole>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

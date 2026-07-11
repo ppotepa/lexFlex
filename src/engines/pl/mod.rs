@@ -28,7 +28,7 @@ impl PolishEngine {
         descriptor: LanguageDescriptor,
         ontology: Ontology,
     ) -> Self {
-        let parser = PolishParser::new(lexicon.clone(), morphology.clone(), ontology);
+        let parser = PolishParser::new(lexicon.clone(), morphology.clone(), ontology, descriptor.clone());
         let generator = PolishGenerator::new(lexicon.clone(), morphology, descriptor.clone());
 
         Self {

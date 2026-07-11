@@ -27,7 +27,7 @@ impl EnglishEngine {
         descriptor: LanguageDescriptor,
         ontology: Ontology,
     ) -> Self {
-        let parser = EnglishParser::new(lexicon.clone(), EnglishMorphology::new(Vec::new(), Vec::new()), ontology);
+        let parser = EnglishParser::new(lexicon.clone(), EnglishMorphology::new(Vec::new(), Vec::new()), ontology, descriptor.clone());
         let generator = EnglishGenerator::new(lexicon, morphology, descriptor.clone());
 
         Self {

@@ -1,6 +1,7 @@
 use crate::core::deduction::{self, DeductionContext};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
+use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::data::morphology::analyze_morph;
 use crate::engines::en::morphology::EnglishMorphology;
@@ -10,14 +11,16 @@ pub struct EnglishParser {
     lexicon: Lexicon,
     _morphology: EnglishMorphology,
     ontology: Ontology,
+    descriptor: LanguageDescriptor,
 }
 
 impl EnglishParser {
-    pub fn new(lexicon: Lexicon, morphology: EnglishMorphology, ontology: Ontology) -> Self {
+    pub fn new(lexicon: Lexicon, morphology: EnglishMorphology, ontology: Ontology, descriptor: LanguageDescriptor) -> Self {
         Self {
             lexicon,
             _morphology: morphology,
             ontology,
+            descriptor,
         }
     }
 

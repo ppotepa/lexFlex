@@ -186,6 +186,7 @@ impl LexFlexBuilder {
                     word_order: crate::data::descriptor::WordOrder::SVO,
                     pro_drop: lang == "pl",
                     negation_particle: if lang == "pl" { "nie" } else { "not" }.to_string(),
+                    preposition_roles: std::collections::HashMap::new(),
                 },
             })
         }

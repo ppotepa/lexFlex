@@ -1,6 +1,7 @@
 use crate::core::deduction::{self, DeductionContext};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
+use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::engines::pl::morphology::PolishMorphology;
 use crate::error::ParseError;
@@ -9,14 +10,16 @@ pub struct PolishParser {
     lexicon: Lexicon,
     morphology: PolishMorphology,
     ontology: Ontology,
+    descriptor: LanguageDescriptor,
 }
 
 impl PolishParser {
-    pub fn new(lexicon: Lexicon, morphology: PolishMorphology, ontology: Ontology) -> Self {
+    pub fn new(lexicon: Lexicon, morphology: PolishMorphology, ontology: Ontology, descriptor: LanguageDescriptor) -> Self {
         Self {
             lexicon,
             morphology,
             ontology,
+            descriptor,
         }
     }
 
@@ -421,6 +424,55 @@ impl PolishParser {
                 }
             }
         }
+
+        // Prepositional phrase handling: map prepositions to semantic roles (data-driven from descriptor)
+        let mut pp_entities: Vec<Entity> = Vec::new();
+        for (i, token) in tokens.iter().enumerate() {
+            if token.pos == PartOfSpeech::Preposition {
+                // Find the next noun/pronoun after this preposition
+                if let Some(next_noun_idx) = tokens[i+1..].iter().position(|t| {
+                    t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun
+                }) {
+                    let noun_token = &tokens[i + 1 + next_noun_idx];
+                    let noun_lemma = noun_token.lemma.as_deref().unwrap_or(&noun_token.form);
+                    
+                    // Look up the noun in lexicon
+                    let entry = self.lexicon.lookup_by_form(&noun_token.form)
+                        .or_else(|| self.lexicon.lookup_by_lemma(noun_lemma));
+                    
+                    let concept = if let Some(e) = entry {
+                        ConceptId::new(&e.concept)
+                    } else {
+                        ConceptId::new(noun_lemma)
+                    };
+                    
+                    let mut entity = Entity::new(concept)
+                        .with_name(noun_lemma);
+                    entity.features = noun_token.features.clone();
+                    
+                    // Get semantic role from descriptor's preposition_roles map
+                    if let Some(role) = self.descriptor.syntax.preposition_roles.get(&token.form) {
+                        // Store the role in a temporary feature for build_frame to use
+                        // We'll use the case field to encode the role
+                        match role {
+                            SemanticRole::Location => entity.features.case = Some(Case::Locative),
+                            SemanticRole::Goal => entity.features.case = Some(Case::Accusative),
+                            SemanticRole::Source => entity.features.case = Some(Case::Genitive),
+                            SemanticRole::Instrument => entity.features.case = Some(Case::Instrumental),
+                            SemanticRole::Beneficiary => entity.features.case = Some(Case::Dative),
+                            _ => {}
+                        }
+                    }
+                    
+                    // Normalize entity
+                    self.lexicon.normalize_entity(&mut entity);
+                    pp_entities.push(entity);
+                }
+            }
+        }
+        
+        // Add prepositional phrase entities to the main entities list
+        entities.extend(pp_entities);
 
         let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
         sentence.frames.push(frame);
