@@ -87,7 +87,16 @@ pub fn generate_sentence(
         }
     } else if sentence.polarity == Polarity::Negative {
         if let Some(p) = realizer.negation_particle(desc) {
-            if words.len() > 1 {
+            // For EN with "be" verb, insert "not" after the be verb
+            if is_en {
+                if let Some(be_idx) = words.iter().position(|w| matches!(w.as_str(), "is" | "are" | "was" | "were" | "am")) {
+                    words.insert(be_idx + 1, p.to_string());
+                } else if words.len() > 1 {
+                    words.insert(1, p.to_string());
+                } else {
+                    words.push(p.to_string());
+                }
+            } else if words.len() > 1 {
                 words.insert(1, p.to_string());
             } else {
                 words.push(p.to_string());

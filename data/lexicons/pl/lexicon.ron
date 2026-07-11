@@ -452,7 +452,7 @@
     ("się", (lemma: "się", pos: "Pronoun", concept: "REFLEXIVE", frame_type: None, roles: [], paradigm: None, features: ())),
     ("mnie", (lemma: "ja", pos: "Pronoun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Singular), case: Some(Accusative)))),
     ("mi", (lemma: "ja", pos: "Pronoun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Singular), case: Some(Dative)))),
-    ("nasz", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: ())),
+    ("nasz", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (person: Some(First)))),
 
     // ═══ ADVERBS ═══
     ("wczoraj", (lemma: "wczoraj", pos: "Adverb", concept: "YESTERDAY", frame_type: None, roles: [], paradigm: None, features: ())),
@@ -489,7 +489,6 @@
     ("mało", (lemma: "mało", pos: "Particle", concept: "FEW", frame_type: None, roles: [], paradigm: None, features: ())),
     ("kilka", (lemma: "kilka", pos: "Particle", concept: "SEVERAL", frame_type: None, roles: [], paradigm: None, features: ())),
     ("większość", (lemma: "większość", pos: "Particle", concept: "MOST", frame_type: None, roles: [], paradigm: None, features: ())),
-    ("nie", (lemma: "nie", pos: "Particle", concept: "NOT", frame_type: None, roles: [], paradigm: None, features: ())),
     ("wszystko", (lemma: "wszystko", pos: "Particle", concept: "ALL", frame_type: None, roles: [], paradigm: None, features: ())),
     ("coś", (lemma: "coś", pos: "Particle", concept: "SOMETHING", frame_type: None, roles: [], paradigm: None, features: ())),
 

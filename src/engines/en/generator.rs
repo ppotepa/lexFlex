@@ -507,6 +507,11 @@ impl EnglishGenerator {
             let by_name = self.lexicon.lookup_by_form(&name.to_lowercase())
                 .or_else(|| self.lexicon.lookup_by_lemma(name));
             if let Some(e) = by_name {
+                // Don't add article for adjectives
+                if e.pos == "Adjective" {
+                    return Ok(e.lemma.clone());
+                }
+
                 let number = entity.features.number.unwrap_or(Number::Singular);
                 let noun_form = self.morphology.inflect_noun(&e.lemma, number)?;
                 if do_articles && number == Number::Singular {
@@ -530,6 +535,13 @@ impl EnglishGenerator {
         let c = entity.concept.0.clone();
         let entry = self.lexicon.lookup_concept(&c).or_else(|| self.lexicon.lookup_by_lemma(&c.to_lowercase()));
         let lemma = entry.map(|e| e.lemma.clone()).unwrap_or_else(|| c.to_lowercase());
+
+        // Don't add article for adjectives
+        if let Some(e) = entry {
+            if e.pos == "Adjective" {
+                return Ok(lemma);
+            }
+        }
 
         // Refresh phonetic from TARGET lexicon (cross-lang: source may have set consonant for "jabłko", target "apple" needs vowel).
         let mut eff = entity.clone();
@@ -567,6 +579,15 @@ impl EnglishGenerator {
     fn generate_adjective_form(&self, adj: &Entity, head_features: &FeatureBundle) -> Result<String, GenerateError> {
         let concept = &adj.concept.0;
         let degree = adj.features.degree;
+
+        // First try to lookup by name (form) to get correct possessive (my/our/your/etc.)
+        if let Some(name) = &adj.name {
+            if let Some(entry) = self.lexicon.lookup_by_form(&name.to_lowercase()) {
+                if entry.pos == "Adjective" {
+                    return Ok(entry.lemma.clone());
+                }
+            }
+        }
 
         // Look up the adjective in the target (EN) lexicon by concept
         let entry = self.lexicon.lookup_concept(concept);
@@ -684,10 +705,25 @@ impl LanguageRealizer for EnglishGenerator {
 
         // now decide article for the whole NP (based on first pronounced word's sound: first adj or head)
         // skip for proper names (uppercase start, no article)
+        // skip for possessive adjectives (my, our, your, etc.)
+        // skip for bare adjectives (no noun head)
         let num = tmp.features.number.unwrap_or(Number::Singular);
         let first_word = if !result.is_empty() { &result[0] } else { "" };
         let is_proper = first_word.chars().next().map_or(false, |c| c.is_uppercase());
-        let do_art = policy.should_add_article(&tmp, true) && !is_proper;
+        let has_possessive = tmp.adjectives.first().map_or(false, |adj| adj.features.person.is_some());
+        // Check if this is a bare adjective (no noun head) - look up in lexicon
+        let is_bare_adj = if let Some(name) = &tmp.name {
+            if let Some(entry) = self.lexicon.lookup_by_form(&name.to_lowercase()) {
+                entry.pos == "Adjective"
+            } else if let Some(entry) = self.lexicon.lookup_concept(&tmp.concept.0) {
+                entry.pos == "Adjective"
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        let do_art = policy.should_add_article(&tmp, true) && !is_proper && !has_possessive && !is_bare_adj;
         if do_art && num == Number::Singular {
             let is_def = tmp.features.definiteness == Some(Definiteness::Definite) || features.definiteness == Some(Definiteness::Definite);
             if is_def {

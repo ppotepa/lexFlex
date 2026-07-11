@@ -278,8 +278,9 @@
     ("her", (lemma: "she", pos: "Pronoun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (person: Some(Third), number: Some(Singular), gender: Some(Feminine), animacy: Some(Animate)))),
     ("us", (lemma: "we", pos: "Pronoun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Plural), animacy: Some(Animate)))),
     ("them", (lemma: "they", pos: "Pronoun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (person: Some(Third), number: Some(Plural), animacy: Some(Animate)))),
-    ("my", (lemma: "my", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Singular)))),
+    ("my", (lemma: "my", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Singular)))),
     ("our", (lemma: "our", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: None, features: (person: Some(First), number: Some(Plural)))),
+    ("nasz", (lemma: "our", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: None, features: ())),
 
     // ═══ PREPOSITIONS ═══
     ("to", (lemma: "to", pos: "Preposition", concept: "PREP_TO", frame_type: None, roles: [], paradigm: None, features: ())),
