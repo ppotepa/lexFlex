@@ -356,7 +356,9 @@ fn generate_frame(
             let entities = frame.entities();
             let mut words: Vec<String> = Vec::new();
             let mut first = true;
-            let mut first_np_len = 0;
+            let mut subject_words: Vec<String> = Vec::new();
+            let mut object_words: Vec<String> = Vec::new();
+            
             for e in entities {
                 let mut f = e.features.clone();
                 if first {
@@ -372,23 +374,24 @@ fn generate_frame(
                     .unwrap_or_else(|_| vec!["?".to_string()]);
                 if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                     // prefix on non-first (object) roles
-                    if words.len() > 1 {
+                    if !subject_words.is_empty() {
                         let prefixed = prefix_cardinal(np, *n);
-                        words.extend(prefixed);
+                        object_words.extend(prefixed);
                         continue;
                     }
                 }
-                if first_np_len == 0 && !np.is_empty() {
-                    first_np_len = np.len();
+                if subject_words.is_empty() {
+                    subject_words = np;
+                } else {
+                    object_words.extend(np);
                 }
-                words.extend(np);
             }
-            // Insert verb after the first NP (subject), not at position 1
-            if first_np_len > 0 && first_np_len < words.len() {
-                words.insert(first_np_len, v);
-            } else if !words.iter().any(|w| w == &v) {
-                words.insert(words.len().min(1), v);
-            }
+            
+            // Build word order: Subject + Verb + Object (SVO for EN, flexible for PL)
+            words.extend(subject_words);
+            words.push(v);
+            words.extend(object_words);
+            
             Ok(words)
         }
     }
