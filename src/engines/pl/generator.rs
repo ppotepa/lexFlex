@@ -722,7 +722,7 @@ impl LanguageRealizer for PolishGenerator {
                 let r = self.realize_noun_phrase(item, &mut f, desc, lexicon).unwrap_or_else(|_| vec!["?".to_string()]);
                 item_reals.push(r);
             }
-            return self.realize_coordinations(item_reals, desc);
+            return self.realize_coordinations(item_reals, &coord.conjunction, desc);
         }
 
         // Realize adjectival modifiers using proper structure (no name-concat).
@@ -845,18 +845,34 @@ impl LanguageRealizer for PolishGenerator {
     fn realize_coordinations(
         &self,
         items: Vec<Vec<String>>,
+        conjunction: &str,
         desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
-        if items.len() == 1 {
-            return Ok(items[0].clone());
-        }
+        if items.is_empty() { return Ok(vec![]); }
+        if items.len() == 1 { return Ok(items[0].clone()); }
+        
+        // Map source conjunction to target (Polish)
+        let target_conj = match conjunction {
+            "i" | "oraz" | "and" => "i",
+            "," => ",",
+            _ => "i",
+        };
+        
         let mut res = vec![];
         for (i, item) in items.iter().enumerate() {
             res.extend(item.clone());
-            if i < items.len() - 2 {
-                res.push(",".to_string());
-            } else if i < items.len() - 1 {
-                res.push("i".to_string());
+            if i < items.len() - 1 {
+                if target_conj == "," {
+                    // Comma-separated list: add "i" before last item
+                    if i == items.len() - 2 {
+                        res.push("i".to_string());
+                    } else {
+                        res.push(",".to_string());
+                    }
+                } else {
+                    // Use the target conjunction
+                    res.push(target_conj.to_string());
+                }
             }
         }
         Ok(res)

@@ -4,6 +4,7 @@
     (name: "verb_regular", rules: [
         (conditions: [TenseIs(Present), PersonIs(Third), NumberIs(Singular)], operations: [AddSuffix("s")]),
         (conditions: [TenseIs(Present)], operations: []),
-        (conditions: [TenseIs(Past)], operations: [AddSuffix("ed")]),
+        // Past tense with consonant doubling for CVC pattern (stop → stopped)
+        (conditions: [TenseIs(Past)], operations: [DoubleFinalConsonant, AddSuffix("ed")]),
     ]),
 ]

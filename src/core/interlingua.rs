@@ -207,6 +207,9 @@ pub struct FeatureBundle {
     pub suppletive_comparative: Option<String>,
     /// Suppletive stem for superlative.
     pub suppletive_superlative: Option<String>,
+    /// Semantic role assigned by preposition (data-driven, e.g. Goal, Source, Location).
+    /// Enables direct role assignment without case inference.
+    pub semantic_role: Option<SemanticRole>,
 }
 
 // ─── Semantic Roles ──────────────────────────────────────────────────────────

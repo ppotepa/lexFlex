@@ -34,6 +34,7 @@ pub enum Operation {
     Truncate(usize),
     ConsonantAlternate { from: String, to: String },
     Prefix(String),
+    DoubleFinalConsonant,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +95,22 @@ fn apply_operations(stem: &str, operations: &[Operation]) -> String {
             Operation::Prefix(pre) => {
                 result = format!("{}{}", pre, result);
             }
+            Operation::DoubleFinalConsonant => {
+                // Double the final consonant if the word ends in CVC pattern
+                // where C is a single consonant and V is a single vowel
+                if result.len() >= 3 {
+                    let chars: Vec<char> = result.chars().collect();
+                    let last = chars[chars.len() - 1];
+                    let second_last = chars[chars.len() - 2];
+                    let third_last = chars[chars.len() - 3];
+                    
+                    let is_vowel = |c: char| "aeiou".contains(c.to_lowercase().next().unwrap());
+                    
+                    if !is_vowel(last) && is_vowel(second_last) && !is_vowel(third_last) {
+                        result.push(last);
+                    }
+                }
+            }
         }
     }
 
@@ -136,6 +153,10 @@ pub fn reverse_to_stem(form: &str, operations: &[Operation]) -> Option<String> {
                 } else {
                     return None;
                 }
+            }
+            Operation::DoubleFinalConsonant => {
+                // Reverse of consonant doubling is ambiguous; approximate by no-op for analysis
+                // (we can't reliably know if a consonant was doubled or not)
             }
         }
     }
