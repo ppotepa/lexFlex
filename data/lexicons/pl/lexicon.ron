@@ -699,4 +699,94 @@
     ("Warszawę", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Accusative)))),
     ("Kraków", (lemma: "Kraków", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
     ("Gdańsk", (lemma: "Gdańsk", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
+
+    // ═══════════════════════════════════════════
+    // POSSESSIVES — nasz (our)
+    // ═══════════════════════════════════════════
+    ("nasz", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("nasza", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("nasze", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular)))),
+    ("naszego", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular), case: Some(Genitive)))),
+    ("naszą", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Accusative)))),
+    ("naszym", (lemma: "nasz", pos: "Adjective", concept: "OUR", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular), case: Some(Locative)))),
+
+    // ═══════════════════════════════════════════
+    // ADJECTIVES — key descriptors
+    // ═══════════════════════════════════════════
+    ("ładny", (lemma: "ładny", pos: "Adjective", concept: "NICE", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("ładna", (lemma: "ładny", pos: "Adjective", concept: "NICE", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("ładne", (lemma: "ładny", pos: "Adjective", concept: "NICE", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular)))),
+    ("duży", (lemma: "duży", pos: "Adjective", concept: "BIG", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("duża", (lemma: "duży", pos: "Adjective", concept: "BIG", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("duże", (lemma: "duży", pos: "Adjective", concept: "BIG", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular)))),
+    ("jasny", (lemma: "jasny", pos: "Adjective", concept: "BRIGHT", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("jasna", (lemma: "jasny", pos: "Adjective", concept: "BRIGHT", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("czysty", (lemma: "czysty", pos: "Adjective", concept: "CLEAN", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("czysta", (lemma: "czysty", pos: "Adjective", concept: "CLEAN", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("wygodny", (lemma: "wygodny", pos: "Adjective", concept: "COMFORTABLE", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("wygodna", (lemma: "wygodny", pos: "Adjective", concept: "COMFORTABLE", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+
+    // ═══════════════════════════════════════════
+    // NOUNS — Rooms, Furniture, Food (additional)
+    // ═══════════════════════════════════════════
+    ("pokój", (lemma: "pokój", pos: "Noun", concept: "ROOM", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Count)))),
+    ("pokoje", (lemma: "pokój", pos: "Noun", concept: "ROOM", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Plural), case: Some(Accusative)))),
+    ("kuchnia", (lemma: "kuchnia", pos: "Noun", concept: "KITCHEN", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("kuchnię", (lemma: "kuchnia", pos: "Noun", concept: "KITCHEN", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Accusative)))),
+    ("łazienka", (lemma: "łazienka", pos: "Noun", concept: "BATHROOM", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("łazienkę", (lemma: "łazienka", pos: "Noun", concept: "BATHROOM", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Accusative)))),
+    ("ogród", (lemma: "ogród", pos: "Noun", concept: "GARDEN", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Count)))),
+    ("stół", (lemma: "stół", pos: "Noun", concept: "TABLE", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Count)))),
+    ("krzesło", (lemma: "krzesło", pos: "Noun", concept: "CHAIR", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), countability: Some(Count)))),
+    ("krzesła", (lemma: "krzesło", pos: "Noun", concept: "CHAIR", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Plural), case: Some(Accusative)))),
+    ("szafa", (lemma: "szafa", pos: "Noun", concept: "WARDROBE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("kanapa", (lemma: "kanapa", pos: "Noun", concept: "SOFA", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("ser", (lemma: "ser", pos: "Noun", concept: "CHEESE", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Mass)))),
+    ("pomidorem", (lemma: "pomidor", pos: "Noun", concept: "TOMATO", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), case: Some(Instrumental)))),
+    ("masłem", (lemma: "masło", pos: "Noun", concept: "BUTTER", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), case: Some(Instrumental)))),
+    ("masło", (lemma: "masło", pos: "Noun", concept: "BUTTER", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), countability: Some(Mass)))),
+    ("pomidor", (lemma: "pomidor", pos: "Noun", concept: "TOMATO", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Count)))),
+
+    // ═══════════════════════════════════════════
+    // VERBS — daily activities
+    // ═══════════════════════════════════════════
+    ("wstaję", (lemma: "wstawać", pos: "Verb", concept: "WAKE_UP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("wstawać", (lemma: "wstawać", pos: "Verb", concept: "WAKE_UP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("ubieramy", (lemma: "ubierać", pos: "Verb", concept: "DRESS", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Plural), tense: Some(Present)))),
+    ("ubierać", (lemma: "ubierać", pos: "Verb", concept: "DRESS", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("wychodzimy", (lemma: "wychodzić", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: Some("verb_ić"), features: (person: Some(First), number: Some(Plural), tense: Some(Present)))),
+    ("wychodzić", (lemma: "wychodzić", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: Some("verb_ić"), features: ())),
+    ("idziemy", (lemma: "iść", pos: "Verb", concept: "WALK", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ić"), features: (person: Some(First), number: Some(Plural), tense: Some(Present)))),
+    ("iść", (lemma: "iść", pos: "Verb", concept: "WALK", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ić"), features: ())),
+    ("staram", (lemma: "starać", pos: "Verb", concept: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("starać", (lemma: "starać", pos: "Verb", concept: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("gotować", (lemma: "gotować", pos: "Verb", concept: "COOK", frame_type: Some("Creation"), roles: ["Agent", "Created"], paradigm: Some("verb_ać"), features: ())),
+    ("gotuję", (lemma: "gotować", pos: "Verb", concept: "COOK", frame_type: Some("Creation"), roles: ["Agent", "Created"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("biegać", (lemma: "biegać", pos: "Verb", concept: "RUN", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("biegam", (lemma: "biegać", pos: "Verb", concept: "RUN", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("oglądam", (lemma: "oglądać", pos: "Verb", concept: "WATCH", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("oglądać", (lemma: "oglądać", pos: "Verb", concept: "WATCH", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: ())),
+    ("słucham", (lemma: "słuchać", pos: "Verb", concept: "LISTEN", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("słuchać", (lemma: "słuchać", pos: "Verb", concept: "LISTEN", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: ())),
+    ("pracować", (lemma: "pracować", pos: "Verb", concept: "WORK", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("pracuję", (lemma: "pracować", pos: "Verb", concept: "WORK", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("uczyć", (lemma: "uczyć", pos: "Verb", concept: "LEARN", frame_type: Some("Cognition"), roles: ["Agent", "Theme"], paradigm: Some("verb_yć"), features: ())),
+    ("uczę", (lemma: "uczyć", pos: "Verb", concept: "LEARN", frame_type: Some("Cognition"), roles: ["Agent", "Theme"], paradigm: Some("verb_yć"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("pomagać", (lemma: "pomagać", pos: "Verb", concept: "HELP", frame_type: Some("Transfer"), roles: ["Agent", "Recipient"], paradigm: Some("verb_ać"), features: ())),
+    ("pomagam", (lemma: "pomagać", pos: "Verb", concept: "HELP", frame_type: Some("Transfer"), roles: ["Agent", "Recipient"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("sprzątać", (lemma: "sprzątać", pos: "Verb", concept: "CLEAN_UP", frame_type: Some("Custom"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: ())),
+    ("sprzątam", (lemma: "sprzątać", pos: "Verb", concept: "CLEAN_UP", frame_type: Some("Custom"), roles: ["Agent", "Theme"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("odpoczywać", (lemma: "odpoczywać", pos: "Verb", concept: "REST", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("odpoczywam", (lemma: "odpoczywać", pos: "Verb", concept: "REST", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+
+    // ═══════════════════════════════════════════
+    // PRONOUNS / ADVERBS — additional
+    // ═══════════════════════════════════════════
+    ("każdego", (lemma: "każdy", pos: "Adjective", concept: "EVERY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular), case: Some(Accusative)))),
+    ("każdy", (lemma: "każdy", pos: "Adjective", concept: "EVERY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("każda", (lemma: "każdy", pos: "Adjective", concept: "EVERY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("szóstej", (lemma: "szósty", pos: "Adjective", concept: "SIXTH", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Locative)))),
+    ("dzisiaj", (lemma: "dzisiaj", pos: "Adverb", concept: "TODAY", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("jutro", (lemma: "jutro", pos: "Adverb", concept: "TOMORROW", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("wczoraj", (lemma: "wczoraj", pos: "Adverb", concept: "YESTERDAY", frame_type: None, roles: [], paradigm: None, features: ())),
 ]

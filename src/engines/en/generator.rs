@@ -37,7 +37,8 @@ impl EnglishGenerator {
             parts.push(text);
         }
 
-        Ok(parts.join(". "))
+        // Join multiple sentences with space (each already has terminal punctuation)
+        Ok(parts.join(" "))
     }
 
     fn generate_sentence(&self, sentence: &Sentence) -> Result<String, GenerateError> {
@@ -477,7 +478,9 @@ impl EnglishGenerator {
         needs_article: bool,
     ) -> Result<String, GenerateError> {
         let policy = GenerationPolicy::new(&self.descriptor);
-        let do_articles = policy.should_add_article(entity, needs_article);
+        let do_articles = policy.should_add_article(entity, needs_article)
+            && entity.concept.0 != "DUMMY_SUBJECT"
+            && entity.concept.0 != "PRONOUN";
 
         // Handle coordination first: expand items and join with appropriate conjunction
         if let Some(ref coord) = entity.coordination {
@@ -742,7 +745,10 @@ impl LanguageRealizer for EnglishGenerator {
         let num = tmp.features.number.unwrap_or(Number::Singular);
         let first_word = if !result.is_empty() { &result[0] } else { "" };
         let is_proper = first_word.chars().next().map_or(false, |c| c.is_uppercase());
-        let has_possessive = tmp.adjectives.first().map_or(false, |adj| adj.features.person.is_some());
+        let has_possessive = tmp.adjectives.first().map_or(false, |adj| {
+            adj.features.person.is_some()
+                || matches!(adj.concept.0.as_str(), "OUR" | "YOUR" | "MY" | "HIS" | "HER" | "ITS" | "THEIR")
+        }) || matches!(tmp.concept.0.as_str(), "OUR" | "YOUR" | "MY" | "HIS" | "HER" | "ITS" | "THEIR");
         // Check if this is a bare adjective (no noun head) - look up in lexicon
         let is_bare_adj = if let Some(name) = &tmp.name {
             if let Some(entry) = self.lexicon.lookup_by_form(&name.to_lowercase()) {
@@ -755,7 +761,8 @@ impl LanguageRealizer for EnglishGenerator {
         } else {
             false
         };
-        let do_art = policy.should_add_article(&tmp, true) && !is_proper && !has_possessive && !is_bare_adj;
+        let do_art = policy.should_add_article(&tmp, true) && !is_proper && !has_possessive && !is_bare_adj
+            && tmp.concept.0 != "DUMMY_SUBJECT" && tmp.concept.0 != "PRONOUN";
         if do_art && num == Number::Singular {
             let is_def = tmp.features.definiteness == Some(Definiteness::Definite) || features.definiteness == Some(Definiteness::Definite);
             if is_def {

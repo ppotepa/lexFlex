@@ -190,6 +190,12 @@
     ("visit", (lemma: "visit", pos: "Verb", concept: "VISIT", frame_type: Some("Motion"), roles: ["Agent", "Goal"], paradigm: None, features: ())),
     ("walk", (lemma: "walk", pos: "Verb", concept: "WALK_VERB", frame_type: Some("Motion"), roles: ["Agent", "Location"], paradigm: None, features: ())),
     ("rest", (lemma: "rest", pos: "Verb", concept: "REST", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: None, features: ())),
+    ("wake up", (lemma: "wake up", pos: "Verb", concept: "WAKE_UP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: None, features: ())),
+    ("try", (lemma: "try", pos: "Verb", concept: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], paradigm: None, features: ())),
+    ("cook", (lemma: "cook", pos: "Verb", concept: "COOK", frame_type: Some("Creation"), roles: ["Agent", "Created"], paradigm: None, features: ())),
+    ("listen", (lemma: "listen", pos: "Verb", concept: "LISTEN", frame_type: Some("Perception"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
+    ("clean up", (lemma: "clean up", pos: "Verb", concept: "CLEAN_UP", frame_type: Some("Custom"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
+    ("work", (lemma: "work", pos: "Verb", concept: "WORK", frame_type: Some("Custom"), roles: ["Agent"], paradigm: None, features: ())),
     ("talk", (lemma: "talk", pos: "Verb", concept: "TALK", frame_type: Some("Communication"), roles: ["Agent", "Addressee"], paradigm: None, features: ())),
     ("show", (lemma: "show", pos: "Verb", concept: "SHOW", frame_type: Some("Communication"), roles: ["Agent", "Recipient", "Theme"], paradigm: None, features: ())),
     ("stop", (lemma: "stop", pos: "Verb", concept: "STOP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: None, features: ())),
@@ -361,6 +367,7 @@
     ("near", (lemma: "near", pos: "Adjective", concept: "NEAR", frame_type: None, roles: [], paradigm: None, features: ())),
     ("tall", (lemma: "tall", pos: "Adjective", concept: "TALL", frame_type: None, roles: [], paradigm: None, features: ())),
     ("delicious", (lemma: "delicious", pos: "Adjective", concept: "DELICIOUS", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("nice", (lemma: "nice", pos: "Adjective", concept: "NICE", frame_type: None, roles: [], paradigm: None, features: ())),
 
     // ═══ SUPPLETIVE COMPARATIVE/SUPERLATIVE — data-driven exceptions ═══
     ("better", (lemma: "good", pos: "Adjective", concept: "GOOD", frame_type: None, roles: [], paradigm: None, features: (degree: Some(Comparative)))),

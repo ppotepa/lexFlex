@@ -29,28 +29,104 @@ impl PolishParser {
         }
 
         let tokens = self.tokenize(input);
-        let partial = self.build_partial_structure(&tokens)?;
 
-        let context = DeductionContext::new(
-            &self.lexicon,
-            &self.ontology,
-            LanguageId::new("pl"),
-        );
-        let mut utterance = deduction::deduce(partial, &context)
-            .map_err(|_| ParseError::NoVerbFound)?;
+        // Detect clause boundaries and split into clause groups
+        let clause_groups = self.split_into_clauses(&tokens);
 
-        // Propagate tense from tokens that carried morphological tense features
-        // (algorithmic: any token with tense from paradigm analysis propagates to sentence)
-        if let Some(s) = utterance.sentences.first_mut() {
-            for t in &tokens {
-                if t.features.tense == Some(Tense::Past) {
-                    s.tense = Some(Tense::Past);
-                    break;
+        if clause_groups.len() <= 1 {
+            // Single clause — proceed as before
+            let partial = self.build_partial_structure(&tokens)?;
+            let context = DeductionContext::new(&self.lexicon, &self.ontology, LanguageId::new("pl"));
+            let mut utterance = deduction::deduce(partial, &context)
+                .map_err(|_| ParseError::NoVerbFound)?;
+
+            // Propagate tense from tokens
+            if let Some(s) = utterance.sentences.first_mut() {
+                for t in &tokens {
+                    if t.features.tense == Some(Tense::Past) {
+                        s.tense = Some(Tense::Past);
+                        break;
+                    }
+                }
+            }
+            return Ok(utterance);
+        }
+
+        // Multiple clauses — parse each separately
+        let mut all_sentences = vec![];
+        for clause_tokens in &clause_groups {
+            if clause_tokens.is_empty() { continue; }
+            // Skip if no verb in this clause
+            if !clause_tokens.iter().any(|t| t.pos == PartOfSpeech::Verb) { continue; }
+
+            match self.build_partial_structure(clause_tokens) {
+                Ok(partial) => {
+                    let context = DeductionContext::new(&self.lexicon, &self.ontology, LanguageId::new("pl"));
+                    if let Ok(mut utterance) = deduction::deduce(partial, &context) {
+                        // Propagate tense
+                        if let Some(s) = utterance.sentences.first_mut() {
+                            for t in clause_tokens.iter() {
+                                if t.features.tense == Some(Tense::Past) {
+                                    s.tense = Some(Tense::Past);
+                                    break;
+                                }
+                            }
+                        }
+                        all_sentences.extend(utterance.sentences);
+                    }
+                }
+                Err(_) => continue,
+            }
+        }
+
+        if all_sentences.is_empty() {
+            return Err(ParseError::NoVerbFound);
+        }
+
+        Ok(Utterance { sentences: all_sentences, discourse: None })
+    }
+
+    /// Split tokens into clause groups based on clause boundary conjunctions.
+    /// Returns a vec of token vectors, one per clause.
+    fn split_into_clauses(&self, tokens: &[Token]) -> Vec<Vec<Token>> {
+        // Conjunctions that always mark clause boundaries
+        let always_boundary = ["ale", "a", "że", "bo", "ponieważ", "jeśli", "jeżeli", "gdy", "kiedy", "dlatego"];
+        // Conjunctions that mark clause boundaries only when there's a verb on both sides
+        let sometimes_boundary = ["i", "oraz", "lub", "albo"];
+
+        let mut boundaries: Vec<usize> = vec![];
+
+        for (i, token) in tokens.iter().enumerate() {
+            if always_boundary.contains(&token.form.as_str()) {
+                boundaries.push(i);
+            } else if sometimes_boundary.contains(&token.form.as_str()) {
+                let verb_before = tokens[..i].iter().any(|t| t.pos == PartOfSpeech::Verb);
+                let verb_after = tokens[i+1..].iter().any(|t| t.pos == PartOfSpeech::Verb);
+                if verb_before && verb_after {
+                    boundaries.push(i);
                 }
             }
         }
 
-        Ok(utterance)
+        if boundaries.is_empty() {
+            return vec![tokens.to_vec()];
+        }
+
+        let mut groups: Vec<Vec<Token>> = vec![];
+        let mut start = 0;
+
+        for &boundary in &boundaries {
+            if boundary > start {
+                groups.push(tokens[start..boundary].to_vec());
+            }
+            start = boundary + 1;
+        }
+
+        if start < tokens.len() {
+            groups.push(tokens[start..].to_vec());
+        }
+
+        groups
     }
 
     fn tokenize(&self, input: &str) -> Vec<Token> {
@@ -301,9 +377,20 @@ impl PolishParser {
             matches!(t.lemma.as_deref(), Some("być") | Some("zostać"))
         });
         let has_passive_participle = tokens.iter().any(|t| {
-            t.pos == PartOfSpeech::Participle
-                || t.form.ends_with("ny") || t.form.ends_with("na") || t.form.ends_with("ne")
+            if t.pos == PartOfSpeech::Participle { return true; }
+            // Suffix heuristic: only if token is NOT an adjective in the lexicon
+            if t.form.ends_with("ny") || t.form.ends_with("na") || t.form.ends_with("ne")
                 || t.form.ends_with("ty") || t.form.ends_with("ta") || t.form.ends_with("te")
+            {
+                // Check if it's actually an adjective
+                let entry = self.lexicon.lookup_by_form(&t.form)
+                    .or_else(|| self.lexicon.lookup_by_lemma(t.lemma.as_deref().unwrap_or(&t.form)));
+                if let Some(e) = entry {
+                    return e.pos == "Participle";
+                }
+                return true; // unknown form with passive suffix — assume participle
+            }
+            false
         });
         if has_passive_aux && has_passive_participle {
             sentence.voice = Some(Voice::Passive);
@@ -627,13 +714,11 @@ impl PolishParser {
         let mut pp_entities: Vec<Entity> = Vec::new();
         for (i, token) in tokens.iter().enumerate() {
             if token.pos == PartOfSpeech::Preposition {
-                eprintln!("DEBUG: Found preposition '{}' at index {}", token.form, i);
                 // Find the next noun/pronoun after this preposition, skipping adjectives
                 if let Some(next_noun_idx) = tokens[i+1..].iter().position(|t| {
                     t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun
                 }) {
                     let noun_token = &tokens[i + 1 + next_noun_idx];
-                    eprintln!("DEBUG: Found noun '{}' at index {}", noun_token.form, i + 1 + next_noun_idx);
                     let noun_lemma = noun_token.lemma.as_deref().unwrap_or(&noun_token.form);
 
                     // Look up the noun in lexicon
@@ -652,7 +737,6 @@ impl PolishParser {
 
                     // Get semantic role from descriptor's preposition_roles map
                     if let Some(role) = self.descriptor.syntax.preposition_roles.get(&token.form) {
-                        eprintln!("DEBUG: Preposition '{}' maps to role {:?}", token.form, role);
                         // Store the semantic role directly in entity features
                         entity.features.semantic_role = Some(*role);
                         // Also set the case field for backward compatibility
@@ -664,15 +748,12 @@ impl PolishParser {
                             SemanticRole::Beneficiary => entity.features.case = Some(Case::Dative),
                             _ => {}
                         }
-                        eprintln!("DEBUG: Set semantic_role {:?} and case {:?} for entity '{}'", entity.features.semantic_role, entity.features.case, entity.name.as_deref().unwrap_or(""));
                     }
 
                     // Collect adjectives before the noun as modifiers
                     for j in (i+1)..(i+1+next_noun_idx) {
-                        eprintln!("DEBUG: Checking token at index {} for adjective: {:?}", j, tokens[j].pos);
                         if tokens[j].pos == PartOfSpeech::Adjective {
                             let adj_lemma = tokens[j].lemma.as_deref().unwrap_or(&tokens[j].form);
-                            eprintln!("DEBUG: Found adjective '{}' at index {}", adj_lemma, j);
                             let adj_entry = self.lexicon.lookup_by_form(&tokens[j].form)
                                 .or_else(|| self.lexicon.lookup_by_lemma(adj_lemma));
 
@@ -681,7 +762,6 @@ impl PolishParser {
                                     .with_name(adj_lemma);
                                 adj_entity.features = tokens[j].features.clone();
                                 entity.adjectives.push(adj_entity);
-                                eprintln!("DEBUG: Added adjective '{}' to entity", adj_lemma);
                             }
                         }
                     }
@@ -746,15 +826,11 @@ impl PolishParser {
         // Map semantic role or case to available role in the frame
         let mut still_unassigned: Vec<Entity> = Vec::new();
         for entity in unassigned {
-            eprintln!("DEBUG build_frame Pass 1: entity name={:?}, semantic_role={:?}, case={:?}", entity.name, entity.features.semantic_role, entity.features.case);
             // First, check if entity has an explicit semantic role from preposition
             if let Some(role) = entity.features.semantic_role {
-                eprintln!("DEBUG build_frame Pass 1: entity has semantic_role {:?}", role);
                 if roles.contains(&role) {
                     if let Some(idx) = roles.iter().position(|r| *r == role) {
-                        eprintln!("DEBUG build_frame Pass 1: role {:?} found at idx {}, assigned[idx]={}", role, idx, assigned[idx].is_none());
                         if assigned[idx].is_none() {
-                            eprintln!("DEBUG build_frame Pass 1: assigning entity {:?} to role {:?}", entity.name, role);
                             assigned[idx] = Some(entity.clone());
                             continue;
                         }
@@ -971,16 +1047,81 @@ impl PolishParser {
                 possessed: get(&SemanticRole::Theme),
                 verb_concept: verb_concept.to_string(),
             }),
-            "Existence" => Ok(Frame::Existence {
-                entity: get(&SemanticRole::Agent),
-                location: Some(get(&SemanticRole::Location)),
-                verb_concept: verb_concept.to_string(),
-            }),
-            _ => Ok(Frame::Statement {
-                subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
-                property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
-                verb_concept: verb_concept.to_string(),
-            }),
+            "Existence" => {
+                let theme = get(&SemanticRole::Theme);
+                let loc = get(&SemanticRole::Location);
+                // Helper: check if an entity name is an adjective in the lexicon
+                let is_adj_entity = |name: &str| -> bool {
+                    self.lexicon.lookup_by_form(name)
+                        .or_else(|| self.lexicon.lookup_by_lemma(name))
+                        .map_or(false, |e| e.pos == "Adjective")
+                };
+                // If "location" is actually a predicate adjective, all entities are predicate adjectives
+                // → "jest jasny, czysty i wygodny" = "It is bright, clean and comfortable"
+                if loc.concept.0 != "unknown" {
+                    let loc_name = loc.name.as_deref().unwrap_or("");
+                    if is_adj_entity(loc_name) {
+                        // Collect all adjective entities as the property
+                        let all_adj: Vec<Entity> = entities.iter()
+                            .filter(|e| is_adj_entity(e.name.as_deref().unwrap_or("")))
+                            .cloned()
+                            .collect();
+                        let property = if all_adj.len() >= 2 {
+                            let first = all_adj[0].clone();
+                            let coord = Coordination { items: all_adj, conjunction: "i".to_string() };
+                            let mut ce = first;
+                            ce.coordination = Some(coord);
+                            ce
+                        } else if all_adj.len() == 1 {
+                            all_adj[0].clone()
+                        } else {
+                            loc.clone()
+                        };
+                        // Use non-adjective entities as subject, "it" if none
+                        let non_adj: Vec<Entity> = entities.iter()
+                            .filter(|e| !is_adj_entity(e.name.as_deref().unwrap_or("")))
+                            .cloned()
+                            .collect();
+                        let subject = if non_adj.is_empty() {
+                            Entity::new(ConceptId::new("DUMMY_SUBJECT")).with_name("it")
+                        } else if non_adj.len() == 1 {
+                            non_adj[0].clone()
+                        } else {
+                            let first = non_adj[0].clone();
+                            let coord = Coordination { items: non_adj, conjunction: "i".to_string() };
+                            let mut ce = first;
+                            ce.coordination = Some(coord);
+                            ce
+                        };
+                        return Ok(Frame::Statement {
+                            subject,
+                            property,
+                            verb_concept: verb_concept.to_string(),
+                        });
+                    }
+                }
+                // If entity itself is an adjective concept and no location, treat as Statement
+                let theme_name = theme.name.as_deref().unwrap_or("");
+                if is_adj_entity(theme_name) && loc.concept.0 == "unknown" {
+                    return Ok(Frame::Statement {
+                        subject: Entity::new(ConceptId::new("DUMMY_SUBJECT")).with_name("it"),
+                        property: theme,
+                        verb_concept: verb_concept.to_string(),
+                    });
+                }
+                Ok(Frame::Existence {
+                    entity: theme,
+                    location: if loc.concept.0 != "unknown" { Some(loc) } else { None },
+                    verb_concept: verb_concept.to_string(),
+                })
+            },
+            other => {
+                Ok(Frame::Statement {
+                    subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
+                    property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
+                    verb_concept: verb_concept.to_string(),
+                })
+            },
         }
     }
 }

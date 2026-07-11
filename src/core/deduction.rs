@@ -243,6 +243,8 @@ fn is_reflexive_pronoun(name: &str, concept: &str) -> bool {
 
 fn is_personal_pronoun(name: &str, concept: &str) -> bool {
     let name_lower = name.to_lowercase();
+    // Skip dummy subjects used for existential/copular sentences (e.g., "it is bright")
+    if concept == "DUMMY_SUBJECT" { return false; }
     matches!(
         name_lower.as_str(),
         "on" | "ona" | "ono" | "oni" | "one" | "ja" | "ty" | "my" | "wy"

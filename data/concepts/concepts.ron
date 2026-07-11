@@ -249,4 +249,15 @@
     // ═══ ADDITIONAL ENTITIES ═══
     (id: "FAMILY", frame_type: None, roles: ["Agent", "Recipient"], inherent_features: (animacy: Some(Animate), countability: Some(Count))),
     (id: "HOUR", frame_type: None, roles: ["Theme", "Time"], inherent_features: (gender: Some(Feminine), countability: Some(Count))),
+
+    // ═══ ADDITIONAL ACTIONS ═══
+    (id: "WAKE_UP", frame_type: Some("Motion"), roles: ["Agent"], inherent_features: ()),
+    (id: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], inherent_features: ()),
+    (id: "COOK", frame_type: Some("Creation"), roles: ["Agent", "Created"], inherent_features: ()),
+    (id: "LISTEN", frame_type: Some("Perception"), roles: ["Agent", "Theme"], inherent_features: ()),
+    (id: "CLEAN_UP", frame_type: Some("Custom"), roles: ["Agent", "Theme"], inherent_features: ()),
+
+    // ═══ ADDITIONAL PROPERTIES ═══
+    (id: "OUR", frame_type: None, roles: [], inherent_features: ()),
+    (id: "NICE", frame_type: None, roles: [], inherent_features: ()),
 ]
