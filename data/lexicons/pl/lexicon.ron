@@ -343,6 +343,36 @@
     ("leżą", (lemma: "leżeć", pos: "Verb", concept: "LIE", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
     ("śpią", (lemma: "spać", pos: "Verb", concept: "SLEEP", frame_type: Some("Existence"), roles: ["Agent"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
 
+    // ═══ ADDITIONAL VERBS — from Adam text ═══
+    ("stać", (lemma: "stać", pos: "Verb", concept: "STAND", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ac"), features: (aspect: Some(Imperfective)))),
+    ("stoi", (lemma: "stać", pos: "Verb", concept: "STAND", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("wisi", (lemma: "wisieć", pos: "Verb", concept: "HANG", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("wisieć", (lemma: "wisieć", pos: "Verb", concept: "HANG", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_ec"), features: (aspect: Some(Imperfective)))),
+    ("wstaję", (lemma: "wstawać", pos: "Verb", concept: "GET_UP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_wać"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("myję", (lemma: "myć", pos: "Verb", concept: "WASH", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+    ("woli", (lemma: "woleć", pos: "Verb", concept: "PREFER", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("woleć", (lemma: "woleć", pos: "Verb", concept: "PREFER", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ec"), features: (aspect: Some(Imperfective)))),
+    ("ubieramy", (lemma: "ubierać", pos: "Verb", concept: "DRESS", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Plural)))),
+    ("wychodzimy", (lemma: "wychodzić", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Plural)))),
+    ("idzie", (lemma: "iść", pos: "Verb", concept: "GO", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Source"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("pracuje", (lemma: "pracować", pos: "Verb", concept: "WORK_VERB", frame_type: Some("Creation"), roles: ["Agent", "Location"], paradigm: Some("verb_ować"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("jest", (lemma: "być", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_byc"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("są", (lemma: "być", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_byc"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
+    ("odwiedziliśmy", (lemma: "odwiedzać", pos: "Verb", concept: "VISIT", frame_type: Some("Motion"), roles: ["Agent", "Goal"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("zatrzymaliśmy", (lemma: "zatrzymywać", pos: "Verb", concept: "STOP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_wać"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("zrobiliśmy", (lemma: "zrobić", pos: "Verb", concept: "DO_MAKE", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ic"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("spacerowaliśmy", (lemma: "spacerować", pos: "Verb", concept: "WALK_VERB", frame_type: Some("Motion"), roles: ["Agent", "Location"], paradigm: Some("verb_ować"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("odpoczywaliśmy", (lemma: "odpoczywać", pos: "Verb", concept: "REST", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_wać"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("rozmawialiśmy", (lemma: "rozmawiać", pos: "Verb", concept: "TALK", frame_type: Some("Communication"), roles: ["Agent", "Addressee"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("pokazał", (lemma: "pokazać", pos: "Verb", concept: "SHOW", frame_type: Some("Communication"), roles: ["Agent", "Recipient", "Theme"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(Third), number: Some(Singular), aspect: Some(Perfective)))),
+    ("przygotowała", (lemma: "przygotować", pos: "Verb", concept: "PREPARE", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ować"), features: (tense: Some(Past), person: Some(Third), number: Some(Singular), gender: Some(Feminine), aspect: Some(Perfective)))),
+    ("będzie", (lemma: "być", pos: "Verb", concept: "BE", frame_type: Some("Existence"), roles: ["Theme", "Location"], paradigm: Some("verb_byc"), features: (tense: Some(Future), person: Some(Third), number: Some(Singular)))),
+    ("pojedziemy", (lemma: "pojechać", pos: "Verb", concept: "RIDE", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Instrument"], paradigm: Some("verb_ac"), features: (tense: Some(Future), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
+    ("spodoba", (lemma: "spodobać", pos: "Verb", concept: "LIKE", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], paradigm: Some("verb_ac"), features: (tense: Some(Future), person: Some(Third), number: Some(Singular), aspect: Some(Perfective)))),
+    ("można", (lemma: "móc", pos: "Verb", concept: "CAN", frame_type: None, roles: ["Agent", "Content"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("warto", (lemma: "warto", pos: "Verb", concept: "WORTH", frame_type: None, roles: ["Agent", "Content"], paradigm: None, features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("uważam", (lemma: "uważać", pos: "Verb", concept: "THINK", frame_type: Some("Cognition"), roles: ["Cognizer", "Content"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
+
     // ═══════════════════════════════════════════
     // ADJECTIVES — lemmas with paradigm class
     // ═══════════════════════════════════════════

@@ -198,6 +198,9 @@
     (id: "LEAD", frame_type: Some("Motion"), roles: ["Agent", "Goal"], inherent_features: ()),
     (id: "BEGIN", frame_type: Some("Motion"), roles: ["Agent"], inherent_features: ()),
     (id: "CAN", frame_type: None, roles: ["Agent", "Content"], inherent_features: ()),
+    (id: "HANG", frame_type: Some("Existence"), roles: ["Theme", "Location"], inherent_features: ()),
+    (id: "PREFER", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], inherent_features: ()),
+    (id: "WORTH", frame_type: None, roles: ["Agent", "Content"], inherent_features: ()),
 
     // ═══ PROPERTIES ═══
     (id: "BIG", frame_type: None, roles: [], inherent_features: ()),
