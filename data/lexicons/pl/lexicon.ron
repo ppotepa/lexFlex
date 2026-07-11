@@ -573,10 +573,13 @@
     ("tatę", (lemma: "tata", pos: "Noun", concept: "FATHER", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), case: Some(Accusative)))),
     ("żony", (lemma: "żona", pos: "Noun", concept: "WIFE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Genitive)))),
     ("żonę", (lemma: "żona", pos: "Noun", concept: "WIFE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Accusative)))),
+    ("żoną", (lemma: "żona", pos: "Noun", concept: "WIFE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Instrumental)))),
     ("córki", (lemma: "córka", pos: "Noun", concept: "DAUGHTER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Genitive)))),
     ("córkę", (lemma: "córka", pos: "Noun", concept: "DAUGHTER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Accusative)))),
+    ("córką", (lemma: "córka", pos: "Noun", concept: "DAUGHTER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), case: Some(Instrumental)))),
     ("psa", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Accusative)))),
     ("psu", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Dative)))),
+    ("psem", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Instrumental)))),
 
     // ═══ INFLECTED FORMS — common cases from Adam text ═══
     ("pokoje", (lemma: "pokój", pos: "Noun", concept: "ROOM", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Plural), case: Some(Accusative)))),

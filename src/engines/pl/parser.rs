@@ -807,6 +807,11 @@ impl PolishParser {
                 possessed: get(&SemanticRole::Theme),
                 verb_concept: verb_concept.to_string(),
             }),
+            "Existence" => Ok(Frame::Existence {
+                entity: get(&SemanticRole::Agent),
+                location: Some(get(&SemanticRole::Location)),
+                verb_concept: verb_concept.to_string(),
+            }),
             _ => Ok(Frame::Statement {
                 subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
                 property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
