@@ -67,9 +67,7 @@ impl Lexicon {
             .or_else(|| self.lookup_concept(&entity.concept.0));
         if let Some(e) = entry {
             entity.concept = ConceptId::new(&e.concept);
-            // Always use clean lemma from lexicon (no more grouped name concat for adjs)
             entity.name = Some(e.lemma.clone());
-            // propagate lexicon features (prefer not overwriting already set)
             let f = &mut entity.features;
             if f.gender.is_none() { f.gender = e.features.gender; }
             if f.number.is_none() { f.number = e.features.number; }
@@ -80,16 +78,6 @@ impl Lexicon {
             if f.degree.is_none() { f.degree = e.features.degree; }
             if f.suppletive_comparative.is_none() { f.suppletive_comparative = e.features.suppletive_comparative.clone(); }
             if f.suppletive_superlative.is_none() { f.suppletive_superlative = e.features.suppletive_superlative.clone(); }
-        } else if candidate == "apple" {
-            // Data-driven fallback: locate the PL (or target) entry for the concept via lemma scan (still lexicon data)
-            if let Some(e) = self.entries.values().find(|ee| ee.lemma == "jabłko" || ee.concept.to_uppercase() == "APPLE") {
-                entity.concept = ConceptId::new(&e.concept);
-                entity.name = Some(e.lemma.clone());
-                let f = &mut entity.features;
-                if f.gender.is_none() { f.gender = e.features.gender; }
-                if f.countability.is_none() { f.countability = e.features.countability; }
-                if f.initial_sound.is_none() { f.initial_sound = e.features.initial_sound.clone(); }
-            }
         }
     }
 

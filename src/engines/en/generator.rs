@@ -489,7 +489,7 @@ impl EnglishGenerator {
             if name.chars().next().map_or(false, |c| c.is_uppercase()) && !has_space {
                 return Ok(name.clone());
             }
-            
+
             let by_name = self.lexicon.lookup_by_form(&name.to_lowercase())
                 .or_else(|| self.lexicon.lookup_by_lemma(name));
             if let Some(e) = by_name {
@@ -546,6 +546,42 @@ impl EnglishGenerator {
         }
 
         Ok(noun_form)
+    }
+
+    /// Generate adjective surface form from entity with degree/concept features.
+    /// Uses lexicon to map concept to target adjective lemma, then applies degree.
+    fn generate_adjective_form(&self, adj: &Entity, head_features: &FeatureBundle) -> Result<String, GenerateError> {
+        let concept = &adj.concept.0;
+        let degree = adj.features.degree;
+
+        // Look up the adjective in the target (EN) lexicon by concept
+        let entry = self.lexicon.lookup_concept(concept);
+        let base_lemma = entry.map(|e| e.lemma.clone()).unwrap_or_else(|| concept.to_lowercase());
+
+        // Check for suppletive forms in the lexicon (e.g., good→better→best)
+        if let Some(deg) = degree {
+            // Search for a lexicon entry with matching concept + degree
+            for (_, e) in &self.lexicon.entries {
+                if e.concept.to_uppercase() == concept.to_uppercase()
+                    && e.features.degree == Some(deg)
+                    && e.pos == "Adjective"
+                {
+                    return Ok(e.lemma.clone());
+                }
+            }
+            // Regular degree formation: add -er/-est suffix
+            match deg {
+                crate::core::interlingua::Degree::Comparative => {
+                    return Ok(format!("{}er", base_lemma));
+                }
+                crate::core::interlingua::Degree::Superlative => {
+                    return Ok(format!("{}est", base_lemma));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(base_lemma)
     }
 
     fn find_verb_for_frame(&self, frame: &Frame) -> Result<String, GenerateError> {

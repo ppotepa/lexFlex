@@ -1,7 +1,8 @@
-// Polish noun declension paradigms
+// Polish noun declension paradigms — algorithmic
+// Each paradigm handles ALL 7 cases × 2 numbers = 14 forms.
 
 [
-    // Neuter nouns ending in -o (jabłko)
+    // ═══ Neuter nouns ending in -o (jabłko, okno, mleko, miasto) ═══
     (name: "neuter_o", rules: [
         (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
         (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "o", to: "a")]),
@@ -18,7 +19,24 @@
         (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "o", to: "ach")]),
     ]),
 
-    // Feminine nouns ending in -a (książka)
+    // ═══ Neuter nouns ending in -e (jedzenie, napoje, narzędzia) ═══
+    (name: "neuter_e", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "e", to: "a")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "e", to: "u")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "e", to: "em")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "e", to: "u")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "e", to: "a")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: []),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "e", to: "om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "e", to: "a")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "e", to: "ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "e", to: "ach")]),
+    ]),
+
+    // ═══ Feminine nouns ending in -a (książka, woda, mama, żona) ═══
     (name: "feminine_a", rules: [
         (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
         (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "a", to: "i")]),
@@ -35,7 +53,24 @@
         (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "a", to: "ach")]),
     ]),
 
-    // Masculine nouns ending in consonant (dom)
+    // ═══ Feminine nouns ending in -ia (szkoła→szkoła uses -a, but firma, restauracja) ═══
+    (name: "feminine_ia", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ia", to: "ii")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ia", to: "ii")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ia", to: "ię")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ia", to: "ią")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ia", to: "ii")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "ie")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "i")]),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "iom")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "ie")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "iami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ia", to: "iach")]),
+    ]),
+
+    // ═══ Masculine nouns ending in consonant (dom, kot, pies, chleb) ═══
     (name: "masculine_consonant", rules: [
         (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
         (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [AddSuffix("u")]),
@@ -50,5 +85,56 @@
         (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [AddSuffix("y")]),
         (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [AddSuffix("ami")]),
         (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [AddSuffix("ach")]),
+    ]),
+
+    // ═══ Masculine nouns ending in -ec (ojciec, koniec, miesiąc) ═══
+    (name: "masculine_ec", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ec", to: "ca")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ec", to: "cowi")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ec", to: "ca")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ec", to: "cem")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "ec", to: "cu")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "ce")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "ców")]),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "com")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "ce")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "cami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "ec", to: "cach")]),
+    ]),
+
+    // ═══ Masculine personal nouns (student, profesor, współpracownik) — Nom.pl = -owie/-y ═══
+    (name: "masculine_personal", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [AddSuffix("a")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [AddSuffix("owi")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: [AddSuffix("a")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [AddSuffix("em")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [AddSuffix("ze")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [AddSuffix("owie")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: []),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [AddSuffix("om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [AddSuffix("ów")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [AddSuffix("ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [AddSuffix("ach")]),
+    ]),
+
+    // ═══ Neuter -um (muzeum, liceum) ═══
+    (name: "neuter_um", rules: [
+        (conditions: [CaseIs(Nominative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Genitive), NumberIs(Singular)], operations: [ReplaceSuffix(from: "um", to: "um")]),
+        (conditions: [CaseIs(Dative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "um", to: "um")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Instrumental), NumberIs(Singular)], operations: [ReplaceSuffix(from: "um", to: "um")]),
+        (conditions: [CaseIs(Locative), NumberIs(Singular)], operations: [ReplaceSuffix(from: "um", to: "um")]),
+        (conditions: [CaseIs(Vocative), NumberIs(Singular)], operations: []),
+        (conditions: [CaseIs(Nominative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "a")]),
+        (conditions: [CaseIs(Genitive), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "ów")]),
+        (conditions: [CaseIs(Dative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "om")]),
+        (conditions: [CaseIs(Accusative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "a")]),
+        (conditions: [CaseIs(Instrumental), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "ami")]),
+        (conditions: [CaseIs(Locative), NumberIs(Plural)], operations: [ReplaceSuffix(from: "um", to: "ach")]),
     ]),
 ]

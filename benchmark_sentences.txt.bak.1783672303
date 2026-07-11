@@ -1,0 +1,161 @@
+# lexFlex Benchmark - 100 Sentences
+# Format: DIRECTION sentence
+# DIRECTION is PL->EN or EN->PL
+
+# === PL->EN: Transfer Frame (5) ===
+PL->EN Tomek dał jabłko Izie
+PL->EN Iza dała książkę Tomkowi
+PL->EN Student dał mleko profesorowi
+PL->EN Mama dała chleb tacie
+PL->EN Tomek dał wodę Izie
+
+# === PL->EN: Perception Frame (5) ===
+PL->EN Tomek widział jabłko
+PL->EN Iza widziała książkę
+PL->EN Student czytał książkę
+PL->EN Tomek widział kota
+PL->EN Profesor widział studenta
+
+# === PL->EN: Consumption Frame (5) ===
+PL->EN Tomek jadł jabłko
+PL->EN Iza piła mleko
+PL->EN Kot jadł chleb
+PL->EN Tomek jadł chleb
+PL->EN Iza piła wodę
+
+# === PL->EN: Emotion Frame (5) ===
+PL->EN Tomek kochał Izę
+PL->EN Iza kochała Tomka
+PL->EN Student kochał profesora
+PL->EN Mama kochała tatę
+PL->EN Tomek kochał kota
+
+# === PL->EN: Creation Frame (5) ===
+PL->EN Tomek zrobił książkę
+PL->EN Iza zrobiła jabłko
+PL->EN Student zrobił mleko
+PL->EN Mama zrobiła chleb
+PL->EN Tomek zrobił dom
+
+# === PL->EN: Motion Frame (5) ===
+PL->EN Tomek poszedł
+PL->EN Iza poszła
+PL->EN Student poszedł
+PL->EN Kot poszedł
+PL->EN Mama poszła
+
+# === PL->EN: Cognition Frame (3) ===
+PL->EN Tomek myślał
+PL->EN Profesor myślał
+PL->EN Student myślał
+
+# === PL->EN: Negation (7) ===
+PL->EN Tomek nie dał jabłka Izie
+PL->EN Iza nie dała książki Tomkowi
+PL->EN Tomek nie jadł jabłka
+PL->EN Student nie widział książki
+PL->EN Tomek nie pił mleka
+PL->EN Iza nie kochała Tomka
+PL->EN Tomek nie zrobił książki
+
+# === PL->EN: Temporal (5) ===
+PL->EN Tomek dał jabłko Izie wczoraj
+PL->EN Iza dała książkę Tomkowi dzisiaj
+PL->EN Tomek widział jabłko jutro
+PL->EN Student jadł chleb wczoraj
+PL->EN Tomek pił mleko dzisiaj
+
+# === PL->EN: Questions (5) ===
+PL->EN Czy Tomek dał jabłko Izie
+PL->EN Czy Iza widziała książkę
+PL->EN Czy Tomek jadł jabłko
+PL->EN Czy Student pił mleko
+PL->EN Czy Iza kochała Tomka
+
+# === PL->EN: Quantification (3) ===
+PL->EN Wszyscy jadł jabłko
+PL->EN Nikt nie widział książki
+PL->EN Niektórzy pił mleko
+
+# === PL->EN: Existence (2) ===
+PL->EN Jest jabłko
+PL->EN Jest kot
+
+# === EN->PL: Transfer Frame (5) ===
+EN->PL Tom gave an apple to Iza
+EN->PL Iza gave a book to Tom
+EN->PL A student gave milk to a professor
+EN->PL A mother gave bread to a father
+EN->PL Tom gave water to Iza
+
+# === EN->PL: Perception Frame (5) ===
+EN->PL Tom saw an apple
+EN->PL Iza saw a book
+EN->PL A student read a book
+EN->PL Tom saw a cat
+EN->PL A professor saw a student
+
+# === EN->PL: Consumption Frame (5) ===
+EN->PL Tom ate an apple
+EN->PL Iza drank milk
+EN->PL A cat ate bread
+EN->PL Tom ate bread
+EN->PL Iza drank water
+
+# === EN->PL: Emotion Frame (5) ===
+EN->PL Tom loved Iza
+EN->PL Iza loved Tom
+EN->PL A student loved a professor
+EN->PL A mother loved a father
+EN->PL Tom loved a cat
+
+# === EN->PL: Creation Frame (5) ===
+EN->PL Tom made a book
+EN->PL Iza made an apple
+EN->PL A student made milk
+EN->PL A mother made bread
+EN->PL Tom made a house
+
+# === EN->PL: Motion Frame (5) ===
+EN->PL Tom went
+EN->PL Iza went
+EN->PL A student went
+EN->PL A cat went
+EN->PL A mother went
+
+# === EN->PL: Cognition Frame (3) ===
+EN->PL Tom thought
+EN->PL A professor thought
+EN->PL A student thought
+
+# === EN->PL: Negation (7) ===
+EN->PL Tom did not give an apple to Iza
+EN->PL Iza did not give a book to Tom
+EN->PL Tom did not eat an apple
+EN->PL A student did not read a book
+EN->PL Tom did not drink milk
+EN->PL Iza did not love Tom
+EN->PL Tom did not make a book
+
+# === EN->PL: Temporal (5) ===
+EN->PL Tom gave an apple to Iza yesterday
+EN->PL Iza gave a book to Tom today
+EN->PL Tom saw an apple tomorrow
+EN->PL A student ate bread yesterday
+EN->PL Tom drank milk today
+
+# === EN->PL: Questions (5) ===
+EN->PL Did Tom give an apple to Iza
+EN->PL Did Iza see a book
+EN->PL Did Tom eat an apple
+EN->PL Did a student drink milk
+EN->PL Did Iza love Tom
+
+# === EN->PL: Quantification (3) ===
+EN->PL All ate an apple
+EN->PL None saw a book
+EN->PL Some drank milk
+
+# === EN->PL: Existence (2) ===
+EN->PL An apple is
+EN->PL A cat is

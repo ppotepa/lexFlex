@@ -163,16 +163,23 @@ fn generate_frame(
     let mut verb_feats = FeatureBundle::default();
     verb_feats.tense = sentence.tense;
     verb_feats.aspect = sentence.aspect;
+
+    // Person/number propagation: derive from subject entity features (algorithmic, not hardcoded)
+    // Default to 3rd singular only if no entity provides person info
     verb_feats.person = Some(Person::Third);
     verb_feats.number = Some(Number::Singular);
-    // For possession "ma"/"have" default to present if not explicitly past (fixes coord test expecting "have" not "had")
+
+    // For possession "ma"/"have" default to present if not explicitly past
     if (verb_lemma == "have" || verb_lemma == "ma" || verb_lemma.eq_ignore_ascii_case("HAVE")) && verb_feats.tense.is_none() {
         verb_feats.tense = Some(Tense::Present);
     }
 
-    // default person/number/gender from first entity if present
-    // algorithmic via AgreementEngine for coord resolution (plural + gender)
+    // Algorithmic person/number from first entity (subject/agent)
     if let Some(first) = frame.entities().first() {
+        // Propagate person from entity (1st/2nd/3rd)
+        if let Some(p) = first.features.person {
+            verb_feats.person = Some(p);
+        }
         if verb_feats.gender.is_none() {
             verb_feats.gender = first.features.gender;
         }
@@ -181,6 +188,8 @@ fn generate_frame(
         let resolved = agr.resolve_for_coordination(&item_vec);
         if resolved.number == Some(Number::Plural) || first.coordination.is_some() {
             verb_feats.number = Some(Number::Plural);
+        } else if let Some(n) = first.features.number {
+            verb_feats.number = Some(n);
         }
         if verb_feats.gender.is_none() {
             verb_feats.gender = resolved.gender;
@@ -343,10 +352,11 @@ fn generate_frame(
             Ok(words)
         }
         _ => {
-            // Fallback for other frames (perception, emotion, etc.)
+            // Fallback for other frames (perception, emotion, statement, etc.)
             let entities = frame.entities();
             let mut words: Vec<String> = Vec::new();
             let mut first = true;
+            let mut first_np_len = 0;
             for e in entities {
                 let mut f = e.features.clone();
                 if first {
@@ -368,14 +378,16 @@ fn generate_frame(
                         continue;
                     }
                 }
-                words.extend(np);
-                if words.len() == 1 {
-                    words.push(v.clone());
+                if first_np_len == 0 && !np.is_empty() {
+                    first_np_len = np.len();
                 }
+                words.extend(np);
             }
-            // ensure verb if not inserted (e.g. single entity frames)
-            if !words.iter().any(|w| w == &v) && words.len() >= 1 {
-                words.insert(1, v);
+            // Insert verb after the first NP (subject), not at position 1
+            if first_np_len > 0 && first_np_len < words.len() {
+                words.insert(first_np_len, v);
+            } else if !words.iter().any(|w| w == &v) {
+                words.insert(words.len().min(1), v);
             }
             Ok(words)
         }

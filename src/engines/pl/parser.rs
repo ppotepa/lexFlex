@@ -36,21 +36,13 @@ impl PolishParser {
         let mut utterance = deduction::deduce(partial, &context)
             .map_err(|_| ParseError::NoVerbFound)?;
 
-        // Robust post-deduction: if any token carried Past from morph analysis (coord cases), force set Past (deduction may default).
+        // Propagate tense from tokens that carried morphological tense features
+        // (algorithmic: any token with tense from paradigm analysis propagates to sentence)
         if let Some(s) = utterance.sentences.first_mut() {
             for t in &tokens {
                 if t.features.tense == Some(Tense::Past) {
                     s.tense = Some(Tense::Past);
                     break;
-                }
-            }
-        }
-
-        // Final safety: if the raw input contains typical PL past verb endings, force Past on sentence (to guarantee for hard driving sentences).
-        if input.contains("ł") || input.contains("li") || input.contains("ły") || input.contains("ła") || input.contains("ło") {
-            if let Some(s) = utterance.sentences.first_mut() {
-                if s.tense != Some(Tense::Past) {
-                    s.tense = Some(Tense::Past);
                 }
             }
         }
@@ -83,165 +75,45 @@ impl PolishParser {
     }
 
     fn analyze_token(&self, form: &str) -> (PartOfSpeech, FeatureBundle, String) {
-        if form == "nie" {
-            return (PartOfSpeech::Negation, FeatureBundle::default(), "nie".to_string());
-        }
-        if form == "czy" {
-            return (PartOfSpeech::Particle, FeatureBundle::default(), "czy".to_string());
-        }
-        // ma/mieć now handled purely via lexicon entry lookup (no special case here)
-
-        // (prioritization disabled to restore basic tests)
-        if false && (form.ends_with("ł") || form.ends_with("ła") || form.ends_with("ło") || form.ends_with("li") || form.ends_with("ły")) {
-            if let Some((pos, features, lemma)) = self.analyze_morphology(form) {
-                return (pos, features, lemma);
-            }
-            // Fallback force to guarantee tense Past for these forms (to fix coord past sentences)
-            let (gender, number) = if form.ends_with("ła") {
-                (Some(Gender::Feminine), Some(Number::Singular))
-            } else if form.ends_with("ło") {
-                (Some(Gender::Neuter), Some(Number::Singular))
-            } else if form.ends_with("li") || form.ends_with("ły") {
-                (None, Some(Number::Plural))
-            } else {
-                (Some(Gender::Masculine), Some(Number::Singular))
-            };
-            let base = if form.ends_with("li") || form.ends_with("ły") {
-                form.trim_end_matches("li").trim_end_matches("ły").to_string() + "ć"
-            } else if form.ends_with("ła") {
-                form.trim_end_matches("ła").to_string() + "ć"
-            } else if form.ends_with("ło") {
-                form.trim_end_matches("ło").to_string() + "ć"
-            } else {
-                form.trim_end_matches("ł").to_string() + "ć"
-            };
-            let mut features = FeatureBundle { tense: Some(Tense::Past), gender, number, ..Default::default() };
-            let lemma = if let Some(entry) = self.lexicon.lookup_by_lemma(&base) {
-                let mut f = entry.features.clone();
-                f.tense = Some(Tense::Past);
-                f.gender = gender;
-                f.number = number;
-                base
-            } else { base };
-            return (PartOfSpeech::Verb, features, lemma);
-        }
-
-        // (force removed to restore simple tests; rely on lexicon for "widział")
-        // (force removed)
-
-        // Try lexicon lookup first
+        // 1. Try lexicon lookup first (handles all closed-class words + inflected forms in lexicon)
         if let Some(entry) = self.lexicon.lookup_by_form(form) {
             let pos = self.lexicon.parse_pos(&entry.pos);
             return (pos, entry.features.clone(), entry.lemma.clone());
         }
 
-        if let Some(entry) = self.lexicon.lookup_by_form(&form.to_lowercase()) {
-            let pos = self.lexicon.parse_pos(&entry.pos);
-            return (pos, entry.features.clone(), entry.lemma.clone());
-        }
-
-        // Try morphological analysis for unknown forms
+        // 2. Try paradigm-based reverse morphological analysis (algorithmic, data-driven)
         if let Some((pos, features, lemma)) = self.analyze_morphology(form) {
             return (pos, features, lemma);
         }
 
+        // 3. Unknown — return surface form as lemma
         (PartOfSpeech::Unknown, FeatureBundle::default(), form.to_string())
     }
 
+    /// Algorithmic morphological analysis using paradigm reverse matching.
+    /// Tries all verb/noun/adjective paradigms in reverse to find (lemma, features) from surface form.
+    /// No hardcoded suffix checks — all derived from RON paradigm rules.
     fn analyze_morphology(&self, form: &str) -> Option<(PartOfSpeech, FeatureBundle, String)> {
-        // Try to analyze as past tense verb (ending in -ł, -ła, -ło, -li, -ły) - algorithmic morph detection
-        if form.ends_with("ł") || form.ends_with("ła") || form.ends_with("ło") || form.ends_with("li") || form.ends_with("ły") {
-            let (gender, number) = if form.ends_with("ła") {
-                (Some(Gender::Feminine), Some(Number::Singular))
-            } else if form.ends_with("ło") {
-                (Some(Gender::Neuter), Some(Number::Singular))
-            } else if form.ends_with("li") {
-                (None, Some(Number::Plural))
-            } else if form.ends_with("ły") {
-                (None, Some(Number::Plural))
-            } else {
-                (Some(Gender::Masculine), Some(Number::Singular))
-            };
-
-            // Algorithmic base: strip common past endings (morph rule style)
-            let base = if form == "zjadł" {
-                "zjeść".to_string()
-            } else if form.ends_with("li") || form.ends_with("ły") {
-                let s = form.trim_end_matches("li").trim_end_matches("ły");
-                s.to_string() + "ć"
-            } else if form.ends_with("ła") {
-                form.trim_end_matches("ła").to_string() + "ć"
-            } else if form.ends_with("ło") {
-                form.trim_end_matches("ło").to_string() + "ć"
-            } else {
-                form.trim_end_matches("ł").to_string() + "ć"
-            };
-
-            let mut features = FeatureBundle { tense: Some(Tense::Past), gender, number, ..Default::default() };
-            // try lexicon for concept
-            let lemma = if let Some(entry) = self.lexicon.lookup_by_lemma(&base) {
-                features = entry.features.clone();
-                features.tense = Some(Tense::Past);
-                features.gender = gender;
-                features.number = number;
-                base
-            } else {
-                base
-            };
-            // RON if available
-            if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
-                if rule_fb.tense.is_some() { features.tense = rule_fb.tense; }
-            }
+        // Try algorithmic verb analysis via paradigm reverse matching + lexicon validation
+        if let Some((lemma, features)) = self.morphology.analyze_verb_with_lexicon(form, &self.lexicon) {
             return Some((PartOfSpeech::Verb, features, lemma));
         }
 
-        // Try to analyze as present tense verb (ending in -e, -esz, -emy, -ecie, -ą)
-        if form.ends_with("e") || form.ends_with("esz") || form.ends_with("emy") || form.ends_with("ecie") || form.ends_with("ą") {
-            let (person, number) = if form.ends_with("e") {
-                (Some(Person::First), Some(Number::Singular))
-            } else if form.ends_with("esz") {
-                (Some(Person::Second), Some(Number::Singular))
-            } else if form.ends_with("emy") {
-                (Some(Person::First), Some(Number::Plural))
-            } else if form.ends_with("ecie") {
-                (Some(Person::Second), Some(Number::Plural))
-            } else if form.ends_with("ą") {
-                (Some(Person::Third), Some(Number::Plural))
-            } else {
-                (Some(Person::Third), Some(Number::Singular))
-            };
-
-            // Try to find base form
-            let possible_lemmas = vec![
-                form.trim_end_matches("e").to_string() + "ć",
-                form.trim_end_matches("esz").to_string() + "ć",
-                form.trim_end_matches("emy").to_string() + "ć",
-                form.trim_end_matches("ecie").to_string() + "ć",
-                form.trim_end_matches("ą").to_string() + "ć",
-            ];
-
-            for lemma in possible_lemmas {
-                if let Some(entry) = self.lexicon.lookup_by_lemma(&lemma) {
-                    let mut features = entry.features.clone();
-                    features.tense = Some(Tense::Present);
-                    features.person = person;
-                    features.number = number;
-                    // Exercise RON paradigm rules for analysis (via loaded morphology)
-                    if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
-                        if rule_fb.tense.is_some() { features.tense = rule_fb.tense; }
-                        if rule_fb.person.is_some() { features.person = rule_fb.person; }
-                        if rule_fb.number.is_some() { features.number = rule_fb.number; }
-                    }
-                    return Some((PartOfSpeech::Verb, features, lemma));
-                }
-            }
+        // Try algorithmic noun analysis via paradigm reverse matching + lexicon validation
+        if let Some((lemma, features)) = self.morphology.analyze_noun_with_lexicon(form, &self.lexicon) {
+            return Some((PartOfSpeech::Noun, features, lemma));
         }
 
-        // Fallback: still try paradigms directly on the raw form (exercises RON data even without lexicon lemma)
-        if let Some(rule_fb) = self.morphology.analyze_verb_form(form) {
-            if rule_fb.tense.is_some() {
-                let lemma_guess = form.to_string() + "ć"; // best effort
-                return Some((PartOfSpeech::Verb, rule_fb, lemma_guess));
+        // Try adjective analysis via paradigm reverse matching
+        if let Some(fb) = self.morphology.analyze_adjective_form(form) {
+            if fb.degree.is_some() {
+                // For degree forms, try to find base in lexicon
+                let base = crate::data::morphology::reverse_to_stem(form, &[]).unwrap_or_else(|| form.to_string());
+                if let Some(entry) = self.lexicon.lookup_by_lemma(&base).or_else(|| self.lexicon.lookup_by_form(&base)) {
+                    if entry.pos == "Adjective" {
+                        return Some((PartOfSpeech::Adjective, entry.features.clone(), entry.lemma.clone()));
+                    }
+                }
             }
         }
 
@@ -456,11 +328,14 @@ impl PolishParser {
             }
         }
 
+        // Temporal detection: algorithmic via lexicon concept lookup (no hardcoded word list)
+        let temporal_concepts = ["YESTERDAY", "TODAY", "TOMORROW", "NOW"];
         let temporal_token = tokens.iter().find(|t| {
-            matches!(t.form.as_str(),
-                "wczoraj" | "dzisiaj" | "jutro" | "teraz" |
-                "yesterday" | "today" | "tomorrow" | "now"
-            )
+            if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
+                temporal_concepts.iter().any(|c| entry.concept.to_uppercase() == *c)
+            } else {
+                false
+            }
         });
         if let Some(tt) = temporal_token {
             sentence.temporal = Some(TemporalReference::Deictic {
@@ -468,49 +343,81 @@ impl PolishParser {
             });
         }
 
-        // Detect quantification
+        // Quantification detection: algorithmic via lexicon concept lookup
+        let universal_concepts = ["ALL", "EVERY", "EVERYONE", "EVERYTHING"];
+        let existential_concepts = ["SOME", "SOMEONE", "SOMETHING"];
+        let negated_concepts = ["NOBODY", "NOTHING", "NONE", "NO"];
+        let many_concepts = ["MANY", "MUCH"];
+        let few_concepts = ["FEW", "SEVERAL"];
+        let most_concepts = ["MOST"];
+
         let quantifier_token = tokens.iter().find(|t| {
-            matches!(t.form.as_str(),
-                "wszyscy" | "każdy" | "wszystko" |  // all, every
-                "niektórzy" | "niektóre" | "coś" |  // some
-                "nikt" | "nic" |  // none, nothing
-                "wiele" | "wielu" | "dużo" |  // many, much
-                "mało" | "kilka" |  // few, several
-                "większość"  // most
-            )
+            if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
+                let c = entry.concept.to_uppercase();
+                universal_concepts.contains(&c.as_str())
+                    || existential_concepts.contains(&c.as_str())
+                    || negated_concepts.contains(&c.as_str())
+                    || many_concepts.contains(&c.as_str())
+                    || few_concepts.contains(&c.as_str())
+                    || most_concepts.contains(&c.as_str())
+            } else {
+                false
+            }
         });
         if let Some(qt) = quantifier_token {
-            sentence.quantification = Some(match qt.form.as_str() {
-                "wszyscy" | "każdy" | "wszystko" => Quantifier::Universal,
-                "niektórzy" | "niektóre" | "coś" => Quantifier::Existential,
-                "nikt" | "nic" => Quantifier::NegatedExistential,
-                "wiele" | "wielu" | "dużo" => Quantifier::Proportional("many".to_string()),
-                "mało" | "kilka" => Quantifier::Proportional("few".to_string()),
-                "większość" => Quantifier::Proportional("most".to_string()),
-                _ => Quantifier::Existential,
-            });
+            if let Some(entry) = self.lexicon.lookup_by_form(&qt.form) {
+                let c = entry.concept.to_uppercase();
+                sentence.quantification = Some(if universal_concepts.contains(&c.as_str()) {
+                    Quantifier::Universal
+                } else if existential_concepts.contains(&c.as_str()) {
+                    Quantifier::Existential
+                } else if negated_concepts.contains(&c.as_str()) {
+                    Quantifier::NegatedExistential
+                } else if many_concepts.contains(&c.as_str()) {
+                    Quantifier::Proportional("many".to_string())
+                } else if few_concepts.contains(&c.as_str()) {
+                    Quantifier::Proportional("few".to_string())
+                } else if most_concepts.contains(&c.as_str()) {
+                    Quantifier::Proportional("most".to_string())
+                } else {
+                    Quantifier::Existential
+                });
+            }
         }
 
-        // detect numerical from digits or number words
+        // Numerical detection: digits or number words via lexicon concept
         if sentence.quantification.is_none() {
             for t in tokens {
                 if let Ok(n) = t.form.parse::<i32>() {
                     sentence.quantification = Some(Quantifier::Numerical(n));
                     break;
                 }
-                // simple word numbers
-                let num = match t.form.as_str() {
-                    "trzy" | "three" => Some(3),
-                    "cztery" | "four" => Some(4),
-                    "pięć" | "five" => Some(5),
-                    "dziesięć" | "ten" => Some(10),
-                    "dwadzieścia" | "twenty" => Some(20),
-                    "trzydzieści" | "thirty" => Some(30),
-                    _ => None,
-                };
-                if let Some(n) = num {
-                    sentence.quantification = Some(Quantifier::Numerical(n));
-                    break;
+                // Check if token is a number word via lexicon concept
+                if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
+                    let c = entry.concept.to_uppercase();
+                    let num = match c.as_str() {
+                        "ONE" => Some(1),
+                        "TWO" => Some(2),
+                        "THREE" => Some(3),
+                        "FOUR" => Some(4),
+                        "FIVE" => Some(5),
+                        "SIX" => Some(6),
+                        "SEVEN" => Some(7),
+                        "EIGHT" => Some(8),
+                        "NINE" => Some(9),
+                        "TEN" => Some(10),
+                        "TWENTY" => Some(20),
+                        "THIRTY" => Some(30),
+                        "FORTY" => Some(40),
+                        "FIFTY" => Some(50),
+                        "HUNDRED" => Some(100),
+                        "THOUSAND" => Some(1000),
+                        _ => None,
+                    };
+                    if let Some(n) = num {
+                        sentence.quantification = Some(Quantifier::Numerical(n));
+                        break;
+                    }
                 }
             }
         }
@@ -518,12 +425,8 @@ impl PolishParser {
         let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
         sentence.frames.push(frame);
 
-        if tokens.iter().any(|t| t.form == "ma") {
-            if let (Some(p), Some(o)) = (entities.get(0), entities.get(1)) {
-                sentence.frames = vec![ Frame::Possession { possessor: p.clone(), possessed: o.clone(), verb_concept: "HAVE".to_string() } ];
-            }
-            sentence.tense = Some(Tense::Present);
-        }
+        // Possession detection: driven by verb frame_type from lexicon (not hardcoded "ma" check)
+        // The verb entry for "ma"/"mieć" has frame_type "Possession" which is already used above.
 
         Ok(Utterance::single_sentence(sentence))
     }
