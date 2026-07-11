@@ -43,8 +43,12 @@ fn main() {
             continue;
         }
 
-        let (direction, sentence) = if let Some(rest) = line.strip_prefix("PL->EN ") {
+        let (direction, sentence) = if let Some(rest) = line.strip_prefix("PL->EN:") {
+            ("PL->EN", rest.trim())
+        } else if let Some(rest) = line.strip_prefix("PL->EN ") {
             ("PL->EN", rest)
+        } else if let Some(rest) = line.strip_prefix("EN->PL:") {
+            ("EN->PL", rest.trim())
         } else if let Some(rest) = line.strip_prefix("EN->PL ") {
             ("EN->PL", rest)
         } else {

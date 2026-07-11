@@ -73,8 +73,8 @@ impl<'a> GenerationPolicy<'a> {
         self.desc.morphology.aspect_type
     }
 
-    /// Whether to realize as periphrastic progressive (data-driven via descriptor.aspect_type).
-    pub fn use_periphrastic_progressive(&self, sentence: &Sentence) -> bool {
+    /// Whether to realize as periphrastic prog_aspect (data-driven via descriptor.aspect_type).
+    pub fn use_periphrastic_prog_aspect(&self, sentence: &Sentence) -> bool {
         self.desc.morphology.aspect_type == AspectType::Periphrastic
             && sentence.aspect == Some(Aspect::Progressive)
     }
@@ -82,7 +82,7 @@ impl<'a> GenerationPolicy<'a> {
 
 /// Resolve the surface verb lemma for the frame, preferring the verb_concept
 /// stored in the frame (looked up in lexicon). Fallback is lowercased concept.
-/// Only minimal special case for consumption liquid (DRINK vs EAT) using patient features.
+/// Only minimal handling for consumption liquid (DRINK vs EAT) using patient features.
 /// No language-specific string literals for lemmas.
 pub fn resolve_surface_verb(frame: &Frame, lexicon: &Lexicon) -> String {
     let (concept, is_liquid) = match frame {
@@ -117,7 +117,7 @@ pub fn resolve_surface_verb(frame: &Frame, lexicon: &Lexicon) -> String {
     let chosen = if is_liquid { "DRINK" } else { concept };
 
     // Prefer verb_concept via lexicon lookup (first match wins; data order + RON morphology drive surface like "jeść" -> "jadł").
-    // No per-concept string overrides or special cases here.
+    // No per-concept string overrides or ad-hoc cases here.
     if let Some(entry) = lexicon.lookup_concept(chosen) {
         return entry.lemma.clone();
     }

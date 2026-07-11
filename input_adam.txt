@@ -1,0 +1,51 @@
+# Test: pełna strona tekstu (Adam)
+# Format: PL->EN:sentence
+PL->EN:Mam na imię Adam.
+PL->EN:Mam dwadzieścia siedem lat i mieszkam w małym mieście niedaleko dużego lasu.
+PL->EN:Mieszkam razem z żoną, córką i psem.
+PL->EN:Nasz dom nie jest duży, ale jest jasny, czysty i wygodny.
+PL->EN:Mamy trzy pokoje, kuchnię, łazienkę oraz niewielki ogród.
+PL->EN:W salonie stoi stół, cztery krzesła, kanapa i wysoka szafa.
+PL->EN:Na ścianie wisi obraz, a obok okna stoi zielona roślina.
+PL->EN:Każdego dnia wstaję o szóstej trzydzieści.
+PL->EN:Najpierw myję twarz i ręce, potem przygotowuję śniadanie.
+PL->EN:Zwykle jem chleb z serem, pomidorem i masłem.
+PL->EN:Do śniadania piję herbatę albo kawę.
+PL->EN:Moja żona woli owsiankę z owocami, a córka najczęściej je płatki z mlekiem.
+PL->EN:Po śniadaniu ubieramy się i wychodzimy z domu.
+PL->EN:Córka idzie do szkoły, a ja jadę autobusem do pracy.
+PL->EN:Pracuję w niewielkiej firmie.
+PL->EN:Moim zadaniem jest przygotowywanie dokumentów, odpowiadanie na wiadomości i rozmowa z klientami.
+PL->EN:W biurze pracuje dziesięć osób.
+PL->EN:Niektórzy są bardzo doświadczeni, a inni dopiero zaczynają pracę.
+PL->EN:Lubię swoich współpracowników, ponieważ są uprzejmi, spokojni i chętnie pomagają innym.
+PL->EN:Czasami mamy dużo obowiązków, ale staramy się dobrze organizować czas.
+PL->EN:W porze obiadu idę z kolegami do pobliskiej restauracji albo przygotowuję jedzenie w domu i przynoszę je do pracy.
+PL->EN:Najczęściej jem ryż z kurczakiem, makaron z warzywami albo zupę.
+PL->EN:Staram się jeść zdrowo, dlatego rzadko kupuję słodycze lub słodkie napoje.
+PL->EN:Zawsze pamiętam także o wodzie.
+PL->EN:Po pracy wracam do domu około siedemnastej.
+PL->EN:Jeśli pogoda jest ładna, idziemy całą rodziną na spacer do parku.
+PL->EN:Nasz pies bardzo lubi biegać po trawie i aportować piłkę.
+PL->EN:Córka często zbiera kolorowe liście, małe kamienie albo kwiaty.
+PL->EN:Gdy pada deszcz, zostajemy w domu.
+PL->EN:Wtedy czytamy książki, oglądamy film lub gramy w gry planszowe.
+PL->EN:W soboty zwykle robimy większe zakupy.
+PL->EN:Jedziemy samochodem do supermarketu i kupujemy mleko, chleb, jajka, ser, masło, ryż, makaron, jabłka, banany, pomidory, ogórki oraz kilka butelek wody.
+PL->EN:Czasami kupujemy również kwiaty do ogrodu albo nową książkę dla córki.
+PL->EN:Zawsze sprawdzamy ceny i porównujemy różne produkty.
+PL->EN:Nie wszystko musi być najtańsze, ale powinno być dobrej jakości.
+PL->EN:W zeszłym miesiącu odwiedziliśmy moich rodziców.
+PL->EN:Mieszkają na wsi w starym, ale bardzo zadbanym domu.
+PL->EN:Przez dwa dni spacerowaliśmy po lesie, odpoczywaliśmy w ogrodzie i rozmawialiśmy do późnego wieczora.
+PL->EN:Mój ojciec pokazał mi swoje nowe narzędzia, a mama przygotowała pyszny obiad.
+PL->EN:W drodze powrotnej zatrzymaliśmy się przy małym jeziorze i zrobiliśmy kilka zdjęć.
+PL->EN:W przyszłym miesiącu planujemy krótki wyjazd do innego miasta.
+PL->EN:Chcemy zwiedzić muzeum, zamek, rynek i ogród botaniczny.
+PL->EN:Jeśli będzie dobra pogoda, pojedziemy również nad rzekę.
+PL->EN:Mam nadzieję, że córce spodoba się podróż, ponieważ bardzo lubi poznawać nowe miejsca i zadawać pytania.
+PL->EN:Uważam, że warto uczyć się języków obcych.
+PL->EN:Dzięki nim można rozmawiać z ludźmi z różnych krajów, czytać książki, oglądać filmy i łatwiej podróżować.
+PL->EN:Nauka nie zawsze jest prosta, ale regularna praca przynosi dobre rezultaty.
+PL->EN:Każdego dnia uczę się kilku nowych słów i powtarzam wcześniej poznane wyrażenia.
+PL->EN:Wierzę, że małe kroki prowadzą do dużych sukcesów.

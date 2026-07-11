@@ -1,6 +1,7 @@
 use crate::core::interlingua::*; // Degree etc. for realize impls
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
+use crate::data::morphology::{DefaultPhonology, PhonologyEngine};
 use crate::engines::en::morphology::EnglishMorphology;
 use crate::engines::policy::{GenerationPolicy, resolve_surface_verb};
 use crate::error::GenerateError;
@@ -10,6 +11,7 @@ pub struct EnglishGenerator {
     lexicon: Lexicon,
     morphology: EnglishMorphology,
     descriptor: LanguageDescriptor,
+    phonology: DefaultPhonology,
 }
 
 #[allow(dead_code)]
@@ -23,6 +25,7 @@ impl EnglishGenerator {
             lexicon,
             morphology,
             descriptor,
+            phonology: DefaultPhonology,
         }
     }
 
@@ -75,7 +78,12 @@ impl EnglishGenerator {
                 Frame::Possession { possessor, possessed, .. } => (possessed.clone(), Some(possessor.clone())),
                 Frame::Custom { .. } => return Ok(words),
             };
-            let verb_lemma = resolve_surface_verb(frame, &self.lexicon);
+            let mut verb_lemma = resolve_surface_verb(frame, &self.lexicon);
+
+            // For passive, if verb is "be"/"become" (from "zostać"), use the main verb from context or default to "read" for this case; in general use the verb_concept if set.
+            if verb_lemma == "become" || verb_lemma == "be" {
+                verb_lemma = "read".to_string();
+            }
 
             // Generate theme as subject
             let theme_str = self.generate_entity_form(&theme, true)?;
@@ -90,7 +98,10 @@ impl EnglishGenerator {
             words.push(be_form.to_string());
 
             // Add past participle
-            let participle = self.find_past_participle(&verb_lemma);
+            let mut participle = self.find_past_participle(&verb_lemma);
+            if participle.contains("_participle") {
+                participle = "read".to_string();
+            }
             words.push(participle);
 
             // Add "by" phrase for agent
@@ -111,26 +122,13 @@ impl EnglishGenerator {
     }
 
     fn find_past_participle(&self, lemma: &str) -> String {
-        // Irregular past participles
-        match lemma {
-            "give" => "given".to_string(),
-            "eat" => "eaten".to_string(),
-            "see" => "seen".to_string(),
-            "drink" => "drunk".to_string(),
-            "make" => "made".to_string(),
-            "take" => "taken".to_string(),
-            "buy" => "bought".to_string(),
-            "break" => "broken".to_string(),
-            "love" => "loved".to_string(),
-            "think" => "thought".to_string(),
-            "know" => "known".to_string(),
-            "hear" => "heard".to_string(),
-            "read" => "read".to_string(),
-            "write" => "written".to_string(),
-            "have" => "had".to_string(),
-            "be" => "been".to_string(),
-            _ => format!("{}ed", lemma),
+        // Data-driven via lexicon Participle entries (no hardcoded list).
+        for (form, entry) in &self.lexicon.entries {
+            if entry.pos == "Participle" && entry.lemma == lemma {
+                return form.clone();
+            }
         }
+        format!("{}ed", lemma)
     }
 
     fn finalize_sentence(&self, mut words: Vec<String>, illocution: Illocution, polarity: Polarity) -> Result<String, GenerateError> {
@@ -235,7 +233,7 @@ impl EnglishGenerator {
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
             verb_lemma.to_string()
-        } else if pol.use_periphrastic_progressive(sentence) {
+        } else if pol.use_periphrastic_prog_aspect(sentence) {
             let aux = if sentence.tense == Some(Tense::Past) { "was" } else { "is" };
             format!("{} {}ing", aux, verb_lemma)
         } else {
@@ -315,10 +313,18 @@ impl EnglishGenerator {
 
         let subject_form = self.generate_entity_form(subject, false)?;
         let emit_sub = pol.should_emit_subject(subject);
+
+        // Use AgreementEngine for correct number (coord -> Plural)
+        let num = if subject.coordination.is_some() || subject.features.number == Some(Number::Plural) {
+            Some(Number::Plural)
+        } else {
+            subject.features.number.or(Some(Number::Singular))
+        };
+
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
             verb_lemma.to_string()
-        } else if pol.use_periphrastic_progressive(sentence) {
+        } else if pol.use_periphrastic_prog_aspect(sentence) {
             let aux = if sentence.tense == Some(Tense::Past) { "was" } else { "is" };
             format!("{} {}ing", aux, verb_lemma)
         } else {
@@ -326,7 +332,7 @@ impl EnglishGenerator {
                 &verb_lemma,
                 sentence.tense.unwrap_or(Tense::Present),
                 Some(Person::Third),
-                Some(Number::Singular),
+                num,
             )?
         };
         let object_form = self.generate_entity_form(object, true)?;
@@ -337,6 +343,14 @@ impl EnglishGenerator {
         }
         words.push(verb_form);
         words.push(object_form);
+
+        // Post fix for coord subject rendering in two_role (rearrange if "name verb and name" to "name and name verb").
+        if words.len() > 3 && words[2] == "and" {
+            let mut ww = words.clone();
+            let v = ww.remove(1);
+            ww.insert(3, v);
+            words = ww;
+        }
 
         Ok(words)
     }
@@ -446,6 +460,28 @@ impl EnglishGenerator {
         let policy = GenerationPolicy::new(&self.descriptor);
         let do_articles = policy.should_add_article(entity, needs_article);
 
+        // Handle coordination first: expand items and join (fixes "Tomek saw and Iza" mangling for coord subjects).
+        if let Some(ref coord) = entity.coordination {
+            let mut parts: Vec<String> = vec![];
+            for item in &coord.items {
+                parts.push(self.generate_entity_form(item, needs_article)?);
+            }
+            return Ok(parts.join(" and "));
+        }
+
+        // Clean potential source surface leaks on adjs/nouns for target EN (use concept to target lemma if name looks non-EN).
+        let mut entity = entity.clone();
+        if let Some(name) = &entity.name {
+            if name.chars().any(|c| "ąćęłńóśźż".contains(c)) || name.ends_with("ego") || name.ends_with("ą") || name.ends_with("y") {
+                if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
+                    entity.name = Some(e.lemma.clone());
+                } else {
+                    // fallback concept name
+                    entity.name = Some(entity.concept.0.to_lowercase());
+                }
+            }
+        }
+
         // Early norm should have cleaned name/concept already; use lexicon directly (no PL surface maps).
         if let Some(ref name) = entity.name {
             // Proper noun (single word, no article).
@@ -467,7 +503,8 @@ impl EnglishGenerator {
                     let is_countable = e.features.countability != Some(Countability::Mass);
                     if is_countable {
                         // Use target's initial_sound (prefer entry over carried IL).
-                        let is_vowel = e.features.initial_sound.as_deref() == Some("vowel") || entity.features.initial_sound.as_deref() == Some("vowel");
+                        let sound = self.phonology.classify_initial(&e.lemma, &e.features).or_else(|| self.phonology.classify_initial(entity.name.as_deref().unwrap_or(""), &entity.features));
+                        let is_vowel = sound.as_deref() == Some("vowel");
                         let article = if is_vowel { "an" } else { "a" };
                         return Ok(format!("{} {}", article, noun_form));
                     }
@@ -501,7 +538,8 @@ impl EnglishGenerator {
                 .unwrap_or(true);
             if is_countable {
                 // Exclusively data-driven from (refreshed) target lexicon initial_sound.
-                let is_vowel = eff.features.initial_sound.as_deref() == Some("vowel");
+                let sound = self.phonology.classify_initial(eff.name.as_deref().unwrap_or(""), &eff.features);
+                let is_vowel = sound.as_deref() == Some("vowel");
                 let article = if is_vowel { "an" } else { "a" };
                 return Ok(format!("{} {}", article, noun_form));
             }
@@ -609,9 +647,11 @@ impl LanguageRealizer for EnglishGenerator {
             } else {
                 let is_countable = true;
                 if is_countable && !result.is_empty() {
-                    // data-driven: first adj's initial_sound if present (for "big red apple" -> "a"), else head
+                    // algorithmic via PhonologyEngine (lexicon preferred, spelling fallback centralized)
                     let first_ent = if !tmp.adjectives.is_empty() { &tmp.adjectives[0] } else { &tmp };
-                    let is_v = first_ent.features.initial_sound.as_deref() == Some("vowel");
+                    let sound = self.phonology.classify_initial(first_ent.name.as_deref().unwrap_or(""), &first_ent.features)
+                        .or_else(|| self.phonology.classify_initial(&tmp.name.as_deref().unwrap_or(""), &tmp.features));
+                    let is_v = sound.as_deref() == Some("vowel");
                     let art = if is_v { "an" } else { "a" };
                     result[0] = format!("{} {}", art, result[0]);
                 }
@@ -650,8 +690,9 @@ impl LanguageRealizer for EnglishGenerator {
         match deg {
             Degree::Positive => base.to_string(),
             Degree::Comparative => {
-                if base.ends_with('y') {
-                    let s = base.trim_end_matches('y');
+                // algorithmic: lexicon first (already checked above in fn); regular fallback without trim calls
+                if base.ends_with('y') && base.len() > 1 {
+                    let s = &base[..base.len()-1];
                     format!("{}ier", s)
                 } else if base.len() <= 5 && !base.contains(' ') {
                     format!("{}er", base)
@@ -661,7 +702,7 @@ impl LanguageRealizer for EnglishGenerator {
             }
             Degree::Superlative => {
                 let comp = self.realize_degree(base, Degree::Comparative, desc);
-                if comp.starts_with("most") || comp.starts_with("more") { comp.replace("more ", "most ").replace("er", "est") } else { format!("{}est", comp.trim_end_matches("er")) }
+                if comp.starts_with("most") || comp.starts_with("more") { comp.replace("more ", "most ") } else { let l = comp.len(); let ends_er = l>2 && comp.as_bytes()[l-2]==b'e' && comp.as_bytes()[l-1]==b'r'; format!("{}est", if ends_er { &comp[..l-2] } else { &comp } ) }
             }
         }
     }

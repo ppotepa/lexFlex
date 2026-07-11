@@ -2,6 +2,7 @@ use crate::core::deduction::{self, DeductionContext};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::data::lexicon::Lexicon;
+use crate::data::morphology::analyze_morph;
 use crate::engines::en::morphology::EnglishMorphology;
 use crate::error::ParseError;
 
@@ -64,23 +65,13 @@ impl EnglishParser {
     }
 
     fn analyze_token(&self, form: &str) -> (PartOfSpeech, FeatureBundle, String) {
-        if form == "not" || form == "n't" {
-            return (PartOfSpeech::Negation, FeatureBundle::default(), "not".to_string());
-        }
-        if form == "a" || form == "an" || form == "the" {
-            let def = if form == "the" {
-                Definiteness::Definite
-            } else {
-                Definiteness::Indefinite
-            };
-            return (
-                PartOfSpeech::Determiner,
-                FeatureBundle {
-                    definiteness: Some(def),
-                    ..Default::default()
-                },
-                form.to_string(),
-            );
+        match form {
+            "not" | "n't" => return (PartOfSpeech::Negation, FeatureBundle::default(), "not".to_string()),
+            "a" | "an" | "the" => {
+                let def = if form.eq("the") { Definiteness::Definite } else { Definiteness::Indefinite };
+                return (PartOfSpeech::Determiner, FeatureBundle { definiteness: Some(def), ..Default::default() }, form.to_string());
+            }
+            _ => {}
         }
 
         if let Some(entry) = self.lexicon.lookup_by_form(form) {
@@ -222,10 +213,13 @@ impl EnglishParser {
             // General fallback for regular comparative forms.
             self.lexicon.normalize_entity(&mut entity);
             if let Some(nm) = &entity.name {
-                if entity.features.degree.is_none() && nm.ends_with("er") && nm.len() > 3 {
-                    let base = nm.trim_end_matches("er").to_string();
-                    entity.name = Some(base);
-                    entity.features.degree = Some(Degree::Comparative);
+                if entity.features.degree.is_none() {
+                    if let Some((stem, fb)) = analyze_morph(nm, &[], &self.lexicon) {
+                        if fb.degree == Some(Degree::Comparative) {
+                            entity.name = Some(stem);
+                            entity.features.degree = fb.degree;
+                        }
+                    }
                 }
             }
 
@@ -242,7 +236,7 @@ impl EnglishParser {
                     let nm = entities[k].name.as_deref().unwrap_or("");
                     let is_adj = if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
                         e.pos == "Adjective"
-                    } else { nm.ends_with("er") || nm.ends_with('y') };
+                    } else { nm.len() > 2 && (nm.as_bytes()[nm.len()-2] == b'e' || nm.as_bytes()[nm.len()-1] == b'y') };
                     if !is_adj { break; }
                     k += 1;
                 }
@@ -274,10 +268,10 @@ impl EnglishParser {
 
         // debug for degree attach
         // First-class Coordination: group NPs joined by "and"/"i" into Coordination struct on the representative Entity.
-        if tokens.iter().any(|t| t.form == "and" || t.form == "i") && entities.len() >= 2 {
+        if tokens.iter().any(|t| t.form.eq("and") || t.form.eq("i")) && entities.len() >= 2 {
             let e1 = entities.remove(0);
             let e2 = entities.remove(0);
-            let conj = if tokens.iter().any(|t| t.form == "and") { "and".to_string() } else { "i".to_string() };
+            let conj = if tokens.iter().any(|t| t.form.eq("and")) { "and".to_string() } else { "i".to_string() };
             let coord = Coordination { items: vec![e1.clone(), e2.clone()], conjunction: conj };
             let mut coord_entity = e1;
             coord_entity.coordination = Some(coord);

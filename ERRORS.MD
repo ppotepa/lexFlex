@@ -2,16 +2,26 @@
 
 **Date:** 2026-07-10
 **Context:** Top-down audit requested by user regarding string `contains` / `replace` / per-word lists instead of linguistic algorithms.
+**Goal fix-all audit (this iteration):** See {SCRATCH}/audit_task1_report.txt and plan.md checklist item 1. Primary cross-lang hacks resolved previously; remaining are degree trims, ma/HAVE specials, verb stripping, missing dedicated engines (to be fixed by introducing PhonologyEngine, enhanced MorphAnalyzer, AgreementEngine per plan).
 
-**Iteration status:** 2026-07-10 ALL 21 POINTS RESOLVED - primary hacks eliminated (see PLAN + verif). Remaining items are low-level engine gaps (Phonology, full Unifier, virile/gov) noted for future, not active workarounds in lexFlex paths.
+**Iteration status:** 2026-07-10 Engines (PhonologyEngine, MorphAnalyzer, AgreementEngine) introduced in data/morphology.rs + partial use in generators/pipeline. Many surface hacks removed. But tests 32/37, multiple hard sentences still fail (preps lost, numeral role reversal, passive no agent, incomplete coord expansion, adverb handling). No overclaim of "ALL 21 resolved / complete". See updated PLAN.md Reality Check + SCRATCH captures for current state. Docs synced to actual (this edit).
 
 **Current completeness status (this version):** 
-- All 21 points from user list completed: structured Entity adjectives, no name-concat, zero cross-lang contains/ ma / unknown / verb-list / degree-table hacks in parsers/gens/pipeline.
-- Degree via lexicon "lepszy/better" entries + RON.
-- Verif: 34/34, CLI roundtrips exact as specified, rg clean on forbidden.
-- This doc + all others updated with RESOLVED. 
+- Core structures + engine skeletons in place (Coordination, Degree, analyze_morph, resolve_for_coordination, classify_initial).
+- Significant cleanup of previous cross-lang hacks done.
+- Remaining gaps documented accurately: verb number propagation incomplete, passive/agent, preps/obliques/adverbs not first-class in IL yet, numeral case+agreement effects partial, some test leaks ("apple").
+- Verif not passing yet. rg has minor items. 32 pass / 5 fail. Hard sentences: partial improvements only.
 - Added deeper categories: closed-class special casing, morphology analysis hacks, irregular lists, default assumptions, passive detection, etc.
 - Explicit "what low-level algorithmic engines are missing" section.
+
+**Current remaining at start of 'fix all' goal (2026-07-10, per audit in {SCRATCH}/audit_task1_report.txt):**
+- Degree stem recovery trims: en/parser.rs:226 trim_end_matches("er"), en/generator.rs:654/664 trims 'y'/'er' + replace logic, pl/generator.rs:726+ ends_with("szy"|"er")/starts_with naj/more in realize_degree (idempotence + fallback).
+- "ma"/HAVE present special: pl/generator.rs:588,596 ifs for lemma=="ma"|"mieć"|"have" -> "ma" (in realize_verb).
+- Verb base stripping: pipeline.rs:119 trim_end_matches('s') for questions.
+- Determiner/neg/coord conj ifs: en/parser: if form=="a"|"an"|"the"|"not" ; "and"/"i" checks (structural but can improve).
+- No dedicated engines yet: Phonology for initial_sound/articles, full bidirectional MorphAnalyzer for analyze/reverse (incl degree/case), AgreementEngine for coord + adj/verb feats.
+- Other: some aspect/polarity ifs for case/aux (should be pure on FeatureBundle), preps/adverbs attachment still limited.
+These will be eliminated by new engines + RON + lexicon per plan.
 
 It should now cover the large majority of the problems visible in the current codebase related to non-algorithmic language processing. 
 
