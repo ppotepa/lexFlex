@@ -109,10 +109,25 @@ impl EnglishParser {
     fn build_partial_structure(&self, tokens: &[Token]) -> Result<Utterance, ParseError> {
         let mut sentence = Sentence::new();
 
-        let verb_idx = tokens
-            .iter()
-            .position(|t| t.pos == PartOfSpeech::Verb)
-            .ok_or(ParseError::NoVerbFound)?;
+        // Detect questions (does/do/did / ? ). Sets illocution so PL generator emits "Czy ... ?"
+        let is_question = tokens.iter().any(|t| {
+            let f = t.form.to_lowercase();
+            f == "did" || f == "does" || f == "do" || f == "?"
+        }) || tokens.first().map_or(false, |t| t.form.eq_ignore_ascii_case("did") || t.form.eq_ignore_ascii_case("does") || t.form.eq_ignore_ascii_case("do"));
+        if is_question {
+            sentence.illocution = Illocution::Question;
+        }
+
+        // Find main verb - skip auxiliary "do/does/did" in questions
+        let verb_idx = if is_question && tokens.first().map_or(false, |t| {
+            let f = t.form.to_lowercase();
+            f == "did" || f == "does" || f == "do"
+        }) {
+            // Skip first token (auxiliary) and find next verb
+            tokens.iter().skip(1).position(|t| t.pos == PartOfSpeech::Verb).map(|i| i + 1)
+        } else {
+            tokens.iter().position(|t| t.pos == PartOfSpeech::Verb)
+        }.ok_or(ParseError::NoVerbFound)?;
 
         let verb_token = &tokens[verb_idx];
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
@@ -141,11 +156,6 @@ impl EnglishParser {
             sentence.polarity = Polarity::Negative;
         }
 
-        // Detect questions (does/do/did / ? ). Sets illocution so PL generator emits "Czy ... ?"
-        let is_question = tokens.iter().any(|t| {
-            let f = t.form.to_lowercase();
-            f == "did" || f == "does" || f == "do" || f == "?"
-        }) || tokens.first().map_or(false, |t| t.form.eq_ignore_ascii_case("did") || t.form.eq_ignore_ascii_case("does") || t.form.eq_ignore_ascii_case("do"));
         if is_question {
             sentence.illocution = Illocution::Question;
             if tokens.iter().any(|t| t.form.eq_ignore_ascii_case("did")) {
