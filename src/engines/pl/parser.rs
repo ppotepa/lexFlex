@@ -1048,7 +1048,11 @@ impl PolishParser {
                 verb_concept: verb_concept.to_string(),
             }),
             "Existence" => {
-                let theme = get(&SemanticRole::Theme);
+                // Get entity from Agent or Theme role (different verbs use different roles)
+                let mut theme = get(&SemanticRole::Theme);
+                if theme.concept.0 == "unknown" {
+                    theme = get(&SemanticRole::Agent);
+                }
                 let loc = get(&SemanticRole::Location);
                 // Helper: check if an entity name is an adjective in the lexicon
                 let is_adj_entity = |name: &str| -> bool {
