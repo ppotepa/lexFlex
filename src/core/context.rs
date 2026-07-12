@@ -152,6 +152,13 @@ pub fn link_cross_utterance_context(dialogue: &mut DialogueGraph) {
                         to: *eid,
                         kind: EdgeKind::Corefers,
                     });
+                    let topic_id = g.add_edge(*peid, *eid, EdgeKind::ContinuesTopic);
+                    dialogue.cross_edges.push(crate::core::graph::Edge {
+                        id: topic_id,
+                        from: *peid,
+                        to: *eid,
+                        kind: EdgeKind::ContinuesTopic,
+                    });
                 }
             }
         }

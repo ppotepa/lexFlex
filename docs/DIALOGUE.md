@@ -10,6 +10,30 @@ Dialogue management is a feature planned for v0.2+. This document specifies the 
 
 The dialogue manager orchestrates multi-turn conversations, tracking state, managing turns, and coordinating between speech acts, intents, and response planning.
 
+## Linguistic Graph — Dialogue Substrate (implemented)
+
+Multi-utterance support is available via **`DialogueGraph`** (`src/core/graph.rs`):
+
+```rust
+pub struct DialogueGraph {
+    pub utterances: Vec<Utterance>,
+    pub cross_edges: Vec<Edge>,  // Corefers, ContinuesTopic across utterances
+}
+```
+
+**API** (`src/api.rs`):
+- `parse_dialogue(&[&str], lang)` → `DialogueGraph`
+- `translate_dialogue(&[&str], from, to)` → `Vec<String>`
+
+`link_cross_utterance_context()` in `src/core/context.rs` adds `Corefers` and `ContinuesTopic` edges when entities recur.
+
+**Benchmark format** (multi-utterance):
+```
+DIALOGUE:PL->EN: Tomek ma kota. ||| Tomek ma psa.
+```
+
+See `tests/graph_tests.rs`: `test_translate_dialogue`, `test_dialogue_continues_topic_edges`.
+
 ---
 
 ## Dialogue State

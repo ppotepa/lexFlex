@@ -1,0 +1,4 @@
+# Multi-utterance dialogue benchmark sample
+DIALOGUE:PL->EN: Tomek ma kota. ||| Tomek ma psa.
+PL->EN: Tomek mieszka z żoną i córką.
+PL->EN: Mam 27 lat.

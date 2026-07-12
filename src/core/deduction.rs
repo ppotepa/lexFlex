@@ -1,3 +1,4 @@
+use crate::core::graph;
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::core::temporal;
@@ -29,6 +30,53 @@ pub fn deduce(
         normalize_features(sentence)?;
     }
     Ok(utterance)
+}
+
+/// Graph-native inference pass (runs after graph materialization in parsers).
+pub fn apply_graph_inference(
+    sentence: &mut Sentence,
+    ontology: &Ontology,
+) -> Result<(), DeductionError> {
+    let Some(ref mut graph) = sentence.graph else {
+        return Ok(());
+    };
+    graph.register_default_constructions();
+
+    // Accompaniment paths → instrumental case + Location semantic role on IL entities
+    let accomp_paths = graph.find_accompaniment_paths();
+    for frame in &mut sentence.frames {
+        if let Frame::Existence { location, .. } = frame {
+            if let Some(loc) = location {
+                if let Some(eid) = graph::find_entity_node_id(graph, loc) {
+                    if graph.location_uses_instrumental(eid) || !accomp_paths.is_empty() {
+                        loc.features.case = Some(Case::Instrumental);
+                        loc.features.semantic_role = Some(SemanticRole::Location);
+                    }
+                }
+            }
+        }
+    }
+
+    // Concept-driven: entities whose concept is related to LIVE as typical accompaniment
+    let live_related = graph.concept_related("LIVE", "typical_accompaniment");
+    if !live_related.is_empty() {
+        for frame in &mut sentence.frames {
+            for entity in frame.entities_mut() {
+                if live_related.iter().any(|c| c == &entity.concept) {
+                    entity.features.semantic_role = Some(SemanticRole::Location);
+                }
+            }
+        }
+    }
+
+    // Ontology inheritance still applies for features not set by graph
+    for frame in &mut sentence.frames {
+        for entity in frame.entities_mut() {
+            ontology.inherit_features(entity);
+        }
+    }
+
+    Ok(())
 }
 
 fn apply_verb_frames(

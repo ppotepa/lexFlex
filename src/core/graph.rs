@@ -21,7 +21,19 @@ pub enum EdgeKind {
     Corefers,
     InFocus,
     RecentMention,
+    ContinuesTopic,
+    ModifierOf,
+    ComplementOf,
+    MatchesPattern(String),
     ConceptRelation(String),
+}
+
+/// Declarative construction pattern (registered at runtime or from defaults).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConstructionPattern {
+    pub name: String,
+    pub prep_forms: Vec<String>,
+    pub concept_filter: Vec<String>,
 }
 
 // ─── Node payloads ────────────────────────────────────────────────────────────
@@ -40,6 +52,16 @@ pub struct WordNode {
 }
 
 impl WordNode {
+    /// Navigate to the next surface word (fluent API per graph.md §6).
+    pub fn navig_next<'a>(&self, graph: &'a LinguisticGraph) -> Option<&'a WordNode> {
+        self.next.and_then(|id| graph.get_word(id))
+    }
+
+    /// Navigate to the previous surface word.
+    pub fn navig_prev<'a>(&self, graph: &'a LinguisticGraph) -> Option<&'a WordNode> {
+        self.prev.and_then(|id| graph.get_word(id))
+    }
+
     pub fn from_token(id: NodeId, token: &Token) -> Self {
         Self {
             id,
@@ -175,6 +197,41 @@ impl<'a> PathBuilder<'a> {
         self
     }
 
+    pub fn then_complementizer(mut self, forms: &[&str]) -> Self {
+        let mut next = Vec::new();
+        for path in &self.paths {
+            if let Some(&vid) = path.last() {
+                if let Some(v) = self.graph.get_word(vid) {
+                    if let Some(nid) = v.next {
+                        if let Some(w) = self.graph.get_word(nid) {
+                            if matches!(w.pos, PartOfSpeech::Conjunction | PartOfSpeech::Particle)
+                                && forms.iter().any(|f| w.form == *f || w.lemma == *f)
+                            {
+                                let mut p = path.clone();
+                                p.push(nid);
+                                next.push(p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.paths = next;
+        self
+    }
+
+    pub fn matching_concept(mut self, concept: &str) -> Self {
+        let c = concept.to_uppercase();
+        self.paths.retain(|path| {
+            path.iter().any(|&nid| {
+                self.graph.get_word(nid).and_then(|w| w.evokes.as_ref()).map_or(false, |id| {
+                    id.0 == c
+                })
+            })
+        });
+        self
+    }
+
     pub fn then_noun_phrase(mut self) -> Self {
         let mut next = Vec::new();
         for path in &self.paths {
@@ -244,6 +301,10 @@ impl TrackedEntity {
 pub struct LinguisticGraph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<Edge>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub constructions: HashMap<String, ConstructionPattern>,
+    #[serde(skip)]
+    node_index: HashMap<NodeId, usize>,
     #[serde(skip)]
     next_node: u32,
     #[serde(skip)]
@@ -271,6 +332,136 @@ impl LinguisticGraph {
         let id = self.alloc_edge_id();
         self.edges.push(Edge { id, from, to, kind });
         id
+    }
+
+    fn rebuild_node_index(&mut self) {
+        self.node_index.clear();
+        for (i, node) in self.nodes.iter().enumerate() {
+            let id = match node {
+                GraphNode::Word(w) => w.id,
+                GraphNode::Phrase(p) => p.id,
+                GraphNode::Entity(e) => e.id,
+                GraphNode::Frame(f) => f.id,
+                GraphNode::Coordination(c) => c.id,
+                GraphNode::Concept(c) => c.id,
+                GraphNode::Sentence(s) => s.id,
+            };
+            self.node_index.insert(id, i);
+        }
+    }
+
+    pub fn node_at(&self, id: NodeId) -> Option<&GraphNode> {
+        self.node_index
+            .get(&id)
+            .and_then(|&i| self.nodes.get(i))
+    }
+
+    /// Register a named construction pattern for discovery queries.
+    pub fn register_construction(&mut self, pattern: ConstructionPattern) {
+        self.constructions.insert(pattern.name.clone(), pattern);
+    }
+
+    /// Register built-in construction patterns (accompaniment, age idiom, etc.).
+    pub fn register_default_constructions(&mut self) {
+        if !self.constructions.is_empty() {
+            return;
+        }
+        self.register_construction(ConstructionPattern {
+            name: "Accompaniment".into(),
+            prep_forms: vec!["z".into(), "with".into(), "razem z".into()],
+            concept_filter: vec![],
+        });
+        self.register_construction(ConstructionPattern {
+            name: "AgeIdiom".into(),
+            prep_forms: vec![],
+            concept_filter: vec!["YEAR".into(), "BE".into()],
+        });
+    }
+
+    /// Find nodes participating in a named construction anchored at a word.
+    pub fn find_construction(&self, word_id: NodeId, name: &str) -> Option<Vec<NodeId>> {
+        if name == "Accompaniment" {
+            return self
+                .find_accompaniment_paths()
+                .into_iter()
+                .find(|p| p.contains(&word_id))
+                .or_else(|| self.find_accompaniment_paths().into_iter().next());
+        }
+        let pattern = self.constructions.get(name)?;
+        if !pattern.prep_forms.is_empty() {
+            return PathBuilder::new(self)
+                .starting_with_verb()
+                .then_preposition(&pattern.prep_forms.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+                .then_noun_phrase()
+                .paths()
+                .into_iter()
+                .find(|p| p.contains(&word_id))
+                .or_else(|| {
+                    PathBuilder::new(self)
+                        .starting_with_verb()
+                        .then_preposition(&pattern.prep_forms.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+                        .then_noun_phrase()
+                        .paths()
+                        .into_iter()
+                        .next()
+                });
+        }
+        if !pattern.concept_filter.is_empty() {
+            let paths: Vec<Vec<NodeId>> = self
+                .word_nodes()
+                .filter(|w| {
+                    w.evokes.as_ref().map_or(false, |c| {
+                        pattern.concept_filter.iter().any(|f| f == &c.0)
+                    })
+                })
+                .map(|w| vec![w.id])
+                .collect();
+            return paths.iter().find(|p| p.contains(&word_id)).cloned()
+                .or_else(|| paths.first().cloned());
+        }
+        None
+    }
+
+    /// Fluent entry for path queries (graph.md §6).
+    pub fn find_paths(&self) -> PathBuilder<'_> {
+        PathBuilder::new(self)
+    }
+
+    /// Coreference chain for an entity node (bidirectional Corefers edges).
+    pub fn coreference_chain(&self, entity_id: NodeId) -> Vec<NodeId> {
+        let mut chain = vec![entity_id];
+        let mut seen = std::collections::HashSet::from([entity_id]);
+        let mut queue = vec![entity_id];
+        while let Some(cur) = queue.pop() {
+            for e in &self.edges {
+                if e.kind == EdgeKind::Corefers && (e.from == cur || e.to == cur) {
+                    let other = if e.from == cur { e.to } else { e.from };
+                    if seen.insert(other) {
+                        chain.push(other);
+                        queue.push(other);
+                    }
+                }
+            }
+        }
+        chain
+    }
+
+    /// Entities currently in focus (InFocus edges).
+    pub fn in_focus_entities(&self) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter(|e| e.kind == EdgeKind::InFocus)
+            .map(|e| e.from)
+            .collect()
+    }
+
+    /// Recent mention entity ids ordered by edge presence.
+    pub fn recent_mention_entities(&self) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter(|e| e.kind == EdgeKind::RecentMention)
+            .map(|e| e.from)
+            .collect()
     }
 
     pub fn from_tokens(tokens: &[Token]) -> (Self, Vec<NodeId>) {
@@ -585,6 +776,7 @@ impl LinguisticGraph {
 
     /// Attach ConceptNodes from ontology and populate WordNode.evokes from lexicon.
     pub fn attach_concept_layer(&mut self, lexicon: &Lexicon, ontology: &Ontology) {
+        self.rebuild_node_index();
         let mut concept_index: HashMap<String, NodeId> = HashMap::new();
 
         for entry in ontology.all_entries() {
@@ -636,6 +828,7 @@ impl LinguisticGraph {
                 }
             }
         }
+        self.rebuild_node_index();
     }
 
     /// Path-based construction matching (accompaniment: verb → prep → noun+).
@@ -729,14 +922,19 @@ impl LinguisticGraph {
 
         if let Some(vi) = verb_token_idx {
             if let Some(&wid) = word_ids.get(vi) {
-                if let Some(entry) = self.nodes.get_mut(wid.0 as usize) {
-                    if let GraphNode::Word(w) = entry {
-                        w.evokes = Some(ConceptId::new(verb_concept));
-                        self.add_edge(wid, frame_id, EdgeKind::EvokesConcept);
+                for node in &mut self.nodes {
+                    if let GraphNode::Word(w) = node {
+                        if w.id == wid {
+                            w.evokes = Some(ConceptId::new(verb_concept));
+                            self.add_edge(wid, frame_id, EdgeKind::EvokesConcept);
+                            break;
+                        }
                     }
                 }
             }
         }
+        self.rebuild_node_index();
+        self.register_default_constructions();
     }
 
     fn materialize_coordination(

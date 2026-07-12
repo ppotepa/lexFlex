@@ -10,6 +10,20 @@ This document shows a complete example of how a sentence flows through the entir
 
 ---
 
+## Linguistic Graph Navigation (Adam accompaniment example)
+
+After parsing `"Tomek mieszka z żoną i córką."` the system builds a multi-layer graph on `Sentence.graph`:
+
+1. **Surface:** `WordNode` chain with `Next`/`Prev` — `word.navig_next(graph)` walks forward.
+2. **Semantic:** `EntityNode` (PERSON, WIFE, DAUGHTER) + `FrameNode` (Existence/LIVE) linked by `Realizes` and `HasRole`.
+3. **Construction:** `PathBuilder::starting_with_verb().then_preposition(&["z"]).then_noun_phrase()` finds accompaniment paths; `find_construction(verb_id, "Accompaniment")` returns participant word ids.
+4. **Generation:** Pipeline reads instrumental features → prep `with`; `TraceStep` records `involved_nodes` / `involved_edges`.
+5. **Output:** `Tomek lives with a wife and a daughter.`
+
+Benchmark traces under `results/runs/*-trace/detailed_traces.txt` include `LINGUISTIC GRAPH` RON with `words`, `entities`, `frames`, `edges` sections.
+
+---
+
 ## Phase 1: Tokenization
 
 The input text is split into tokens.

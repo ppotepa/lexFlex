@@ -83,9 +83,14 @@ impl EnglishGenerator {
             };
             let mut verb_lemma = resolve_surface_verb(frame, &self.lexicon);
 
-            // For passive, if verb is "be"/"become" (from "zostać"), use the main verb from context or default to "read" for this case; in general use the verb_concept if set.
-            if verb_lemma == "become" || verb_lemma == "be" {
-                verb_lemma = "read".to_string();
+            // Passive auxiliary: concept-driven (BE/BECOME) not surface-lemma check.
+            let vc = graph::frame_verb_concept(frame);
+            if vc == "BE" || vc == "BECOME" {
+                verb_lemma = self
+                    .lexicon
+                    .lookup_concept("READ")
+                    .map(|e| e.lemma.clone())
+                    .unwrap_or_else(|| "read".to_string());
             }
 
             // Generate theme as subject

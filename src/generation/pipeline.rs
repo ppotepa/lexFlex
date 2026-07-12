@@ -20,6 +20,34 @@ thread_local! {
     pub static TRACE: std::cell::RefCell<Vec<TraceStep>> = std::cell::RefCell::new(Vec::new());
 }
 
+fn entity_trace(graph: Option<&crate::core::graph::LinguisticGraph>, entity: &Entity) -> (Vec<NodeId>, Vec<EdgeId>) {
+    let Some(g) = graph else {
+        return (vec![], vec![]);
+    };
+    let nodes: Vec<NodeId> = graph::find_entity_node_id(g, entity).into_iter().collect();
+    let edges: Vec<EdgeId> = g
+        .edges
+        .iter()
+        .filter(|e| nodes.contains(&e.from) || nodes.contains(&e.to))
+        .map(|e| e.id)
+        .collect();
+    (nodes, edges)
+}
+
+fn verb_trace(graph: Option<&crate::core::graph::LinguisticGraph>) -> (Vec<NodeId>, Vec<EdgeId>) {
+    let Some(g) = graph else {
+        return (vec![], vec![]);
+    };
+    let nodes: Vec<NodeId> = g.find_verbs().into_iter().map(|v| v.id).collect();
+    let edges: Vec<EdgeId> = g
+        .edges
+        .iter()
+        .filter(|e| nodes.contains(&e.from) || nodes.contains(&e.to))
+        .map(|e| e.id)
+        .collect();
+    (nodes, edges)
+}
+
 /// Common pipeline for sentence generation. Uses realizer for language-specific pieces
 /// (NP, verb, articles, cases via features, coordination, degree, quant adjust).
 /// Assembly order is mostly common with small lang-specific tweaks for prepositions.
@@ -171,17 +199,13 @@ fn generate_frame(
     lexicon: &Lexicon,
 ) -> Result<Vec<String>, GenerateError> {
     let verb_lemma = resolve_surface_verb(frame, lexicon);
-    let verb_nodes: Vec<NodeId> = sentence
-        .graph
-        .as_ref()
-        .map(|g| g.find_verbs().into_iter().map(|v| v.id).collect())
-        .unwrap_or_default();
+    let (verb_nodes, verb_edges) = verb_trace(sentence.graph.as_ref());
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "resolve_verb".to_string(),
         decision: format!("verb_lemma={}", verb_lemma),
         reason: Some("lexicon driven from verb_concept (preferred) or concept".to_string()),
         involved_nodes: verb_nodes,
-        involved_edges: vec![],
+        involved_edges: verb_edges,
     }));
     let mut verb_feats = FeatureBundle::default();
     verb_feats.tense = sentence.tense;
@@ -221,32 +245,37 @@ fn generate_frame(
         }
     }
 
-    let subject_nodes: Vec<NodeId> = sentence
-        .graph
-        .as_ref()
-        .map(|g| {
-            g.edges
-                .iter()
-                .filter(|e| matches!(e.kind, EdgeKind::HasRole(SemanticRole::Agent) | EdgeKind::HasRole(SemanticRole::Theme)))
-                .map(|e| e.from)
-                .collect()
-        })
-        .unwrap_or_default();
+    let (subject_nodes, subject_edges) = sentence.graph.as_ref().map(|g| {
+        let nodes: Vec<NodeId> = g
+            .edges
+            .iter()
+            .filter(|e| matches!(e.kind, EdgeKind::HasRole(SemanticRole::Agent) | EdgeKind::HasRole(SemanticRole::Theme)))
+            .map(|e| e.from)
+            .collect();
+        let edges: Vec<EdgeId> = g
+            .edges
+            .iter()
+            .filter(|e| matches!(e.kind, EdgeKind::HasRole(SemanticRole::Agent) | EdgeKind::HasRole(SemanticRole::Theme)))
+            .map(|e| e.id)
+            .collect();
+        (nodes, edges)
+    }).unwrap_or_default();
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "feature_prop".to_string(),
         decision: format!("person={:?} number={:?} gender={:?} from subject entity + coord", verb_feats.person, verb_feats.number, verb_feats.gender),
         reason: Some("algorithmic propagation per plan (not hardcoded)".to_string()),
         involved_nodes: subject_nodes,
-        involved_edges: vec![],
+        involved_edges: subject_edges,
     }));
 
     let mut v = realizer.realize_verb(&verb_lemma, &verb_feats, desc)?;
+    let (rv_nodes, rv_edges) = verb_trace(sentence.graph.as_ref());
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "realize_verb".to_string(),
         decision: format!("verb_form={}", v),
         reason: Some("from morphology + feats".to_string()),
-        involved_nodes: vec![],
-        involved_edges: vec![],
+        involved_nodes: rv_nodes,
+        involved_edges: rv_edges,
     }));
     // "have"/"ma" form now expected to come correctly from realizer + verb_feats (no string patch)
 
@@ -266,7 +295,8 @@ fn generate_frame(
             let mut agent_for_real = agent.clone();
             lexicon.normalize_entity(&mut agent_for_real);
             let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon, sentence.graph.as_ref())?;
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()), involved_nodes: vec![], involved_edges: vec![] }));
+            let (an, ae) = entity_trace(sentence.graph.as_ref(), agent);
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()), involved_nodes: an, involved_edges: ae }));
 
             let mut ft = theme.features.clone();
             let theme_case = if sentence.polarity == Polarity::Negative {
@@ -275,12 +305,13 @@ fn generate_frame(
                 Some(Case::Accusative)
             };
             ft.case = theme_case;
+            let (tn, te) = entity_trace(sentence.graph.as_ref(), theme);
             TRACE.with(|tt| tt.borrow_mut().push(TraceStep {
                 stage: "case".to_string(),
                 decision: format!("theme_case={:?} (negation? {})", theme_case, sentence.polarity == Polarity::Negative),
                 reason: Some("polarity + frame role".to_string()),
-                involved_nodes: vec![],
-                involved_edges: vec![],
+                involved_nodes: tn,
+                involved_edges: te,
             }));
             if let Some(ref q) = sentence.quantification {
                 realizer.adjust_for_quantifier(&mut ft, q, desc);
@@ -290,7 +321,8 @@ fn generate_frame(
             let theme_proper = theme.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
             if !theme_proper { lexicon.normalize_entity(&mut theme_for_real); }
             let mut theme_form = realizer.realize_noun_phrase(&theme_for_real, &mut ft, desc, lexicon, sentence.graph.as_ref())?;
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("theme={}", theme_form.join(" ")), reason: None, involved_nodes: vec![], involved_edges: vec![] }));
+            let (tn2, te2) = entity_trace(sentence.graph.as_ref(), theme);
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("theme={}", theme_form.join(" ")), reason: None, involved_nodes: tn2, involved_edges: te2 }));
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 theme_form = prefix_cardinal(theme_form, *n);
             }
@@ -306,7 +338,8 @@ fn generate_frame(
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 recip_form = prefix_cardinal(recip_form, *n);
             }
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("recipient={}", recip_form.join(" ")), reason: None, involved_nodes: vec![], involved_edges: vec![] }));
+            let (rn, re) = entity_trace(sentence.graph.as_ref(), recipient);
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("recipient={}", recip_form.join(" ")), reason: None, involved_nodes: rn, involved_edges: re }));
 
             let mut words = vec![];
             if !a.is_empty() {

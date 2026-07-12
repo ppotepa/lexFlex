@@ -931,6 +931,8 @@ impl PolishParser {
         graph.materialize_phrases(tokens, &word_ids);
         graph.attach_concept_layer(&self.lexicon, &self.ontology);
         sentence.graph = Some(graph);
+        deduction::apply_graph_inference(&mut sentence, &self.ontology)
+            .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
     }

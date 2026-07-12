@@ -10,6 +10,31 @@ Discourse management is a feature planned for v0.2+. This document specifies the
 
 Discourse is the context that spans multiple utterances in a conversation. It tracks who is speaking, what has been mentioned, and what can be inferred from prior context.
 
+## Linguistic Graph — Discourse Layer (implemented)
+
+lexFlex materializes discourse context as **edges on `LinguisticGraph`** plus fields on `Discourse`:
+
+| Edge / field | Purpose |
+|--------------|---------|
+| `Corefers` | Same entity across sentences (name/concept match) |
+| `NextSentence` | Frame-to-frame link between consecutive sentences |
+| `InFocus` | Salient entity after a frame |
+| `RecentMention` | Recency tracking per entity |
+| `ContinuesTopic` | Cross-utterance topic carry-over in `DialogueGraph` |
+| `Discourse.entities_in_focus` | Queryable focus stack (`NodeId`s) |
+| `Discourse.recent_mentions` | `(entity_id, recency)` pairs |
+
+**Module:** `src/core/context.rs` — `track_discourse()`, `recent_entities_of_type()`.
+
+**Example query after parse:**
+```rust
+let g = sentence.graph.as_ref().unwrap();
+let focus = g.in_focus_entities();
+let chain = g.coreference_chain(entity_id);
+```
+
+Multi-sentence PL input `"Tomek ma kota. Tomek ma psa."` produces `Corefers` + `NextSentence` edges testable via `tests/graph_tests.rs`.
+
 ## Discourse Model
 
 ```rust

@@ -72,6 +72,64 @@ fn main() {
             continue;
         }
 
+        // Multi-utterance dialogue: DIALOGUE:PL->EN: sent1 ||| sent2 ||| sent3
+        if let Some(rest) = line.strip_prefix("DIALOGUE:") {
+            let (direction, body) = if let Some(r) = rest.strip_prefix("PL->EN:") {
+                ("PL->EN", r.trim())
+            } else if let Some(r) = rest.strip_prefix("EN->PL:") {
+                ("EN->PL", r.trim())
+            } else {
+                continue;
+            };
+            let (from, to) = match direction {
+                "PL->EN" => ("pl", "en"),
+                "EN->PL" => ("en", "pl"),
+                _ => continue,
+            };
+            let parts: Vec<&str> = body.split("|||").map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+            if parts.len() < 2 {
+                continue;
+            }
+            lexflex::generation::pipeline::TRACE.with(|t| t.borrow_mut().clear());
+            let dialogue_parse = api.parse_dialogue(&parts, from);
+            let dialogue_translate = api.translate_dialogue(&parts, from, to);
+            let parse_repr = dialogue_parse
+                .as_ref()
+                .map(|d| format!("utterances={} cross_edges={}", d.utterances.len(), d.cross_edges.len()))
+                .unwrap_or_else(|e| format!("PARSE FAILED: {}", e));
+            let (output, status) = match &dialogue_translate {
+                Ok(outs) => (outs.join(" | "), "✓"),
+                Err(e) => (format!("ERROR: {}", e), "✗"),
+            };
+            let _ = writeln!(trace_file, "═══════════════════════════════════════════════════════════════");
+            let _ = writeln!(trace_file, "#{}  DIALOGUE {}  {} parts", i + 1, direction, parts.len());
+            let _ = writeln!(trace_file, "DIALOGUE GRAPH: {}", parse_repr);
+            if let Ok(d) = &dialogue_parse {
+                for (ui, u) in d.utterances.iter().enumerate() {
+                    if let Some(s) = u.sentences.first() {
+                        if let Some(ref g) = s.graph {
+                            let snap = GraphSnapshot::from(g);
+                            let _ = writeln!(trace_file, "Utterance {} LINGUISTIC GRAPH (entities={}, edges={}):",
+                                ui + 1, snap.entities.len(), snap.edges.len());
+                        }
+                    }
+                }
+                let _ = writeln!(trace_file, "CROSS_EDGES: {}", d.cross_edges.len());
+            }
+            let steps = lexflex::generation::pipeline::TRACE.with(|t| t.borrow().clone());
+            for st in &steps {
+                let _ = writeln!(trace_file, " - [{}] {} nodes={:?} edges={:?}", st.stage, st.decision, st.involved_nodes, st.involved_edges);
+            }
+            let _ = writeln!(trace_file, "OUTPUT: {}", output);
+            let _ = writeln!(trace_file, "STATUS: {}", status);
+            let _ = writeln!(trace_file, "═══════════════════════════════════════════════════════════════\n");
+            println!("║  {:<4}  {:<7}  {:<35}  {:<35}  {}  ║", i + 1, "DIALOGUE", format!("{} utt", parts.len()), output.chars().take(33).collect::<String>(), status);
+            if status == "✓" {
+                if direction == "PL->EN" { pl_en_ok += 1; } else { en_pl_ok += 1; }
+            } else if direction == "PL->EN" { pl_en_fail += 1; } else { en_pl_fail += 1; }
+            continue;
+        }
+
         let (direction, sentence) = if let Some(rest) = line.strip_prefix("PL->EN:") {
             ("PL->EN", rest.trim())
         } else if let Some(rest) = line.strip_prefix("PL->EN ") {

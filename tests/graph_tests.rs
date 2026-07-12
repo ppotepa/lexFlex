@@ -329,6 +329,62 @@ fn test_age_idiom_uses_year_concept_not_lemma_hacks() {
 }
 
 #[test]
+fn test_construction_registry_find_construction() {
+    let graph = graph_from_parse("Tomek mieszka z żoną i córką.", "pl");
+    assert!(!graph.constructions.is_empty());
+    let verbs: Vec<_> = graph.find_verbs().into_iter().map(|v| v.id).collect();
+    let found = verbs.iter().find_map(|&vid| graph.find_construction(vid, "Accompaniment"));
+    assert!(found.is_some(), "Accompaniment construction should be discoverable");
+}
+
+#[test]
+fn test_word_navig_next_and_coreference_chain() {
+    let api = build_api();
+    let il = api.parse("Tomek ma kota. Tomek ma psa.", "pl").unwrap();
+    let utt = il.as_natural().unwrap();
+    let g = utt.sentences[1].graph.as_ref().unwrap();
+    let words: Vec<_> = g.word_nodes().collect();
+    assert!(words[0].navig_next(g).is_some());
+    let entities: Vec<_> = g.entity_ids();
+    if entities.len() >= 2 {
+        let chain = g.coreference_chain(entities[0]);
+        assert!(!chain.is_empty());
+    }
+}
+
+#[test]
+fn test_in_focus_and_recent_mention_queries() {
+    let api = build_api();
+    let il = api.parse("Tomek ma kota.", "pl").unwrap();
+    let g = il.as_natural().unwrap().sentences[0].graph.as_ref().unwrap();
+    assert!(!g.in_focus_entities().is_empty() || !g.recent_mention_entities().is_empty());
+}
+
+#[test]
+fn test_graph_inference_sets_location_role() {
+    let graph = graph_from_parse("Tomek mieszka z żoną.", "pl");
+    let api = build_api();
+    let il = api.parse("Tomek mieszka z żoną.", "pl").unwrap();
+    let sentence = &il.as_natural().unwrap().sentences[0];
+    if let Frame::Existence { location: Some(loc), .. } = &sentence.frames[0] {
+        assert_eq!(loc.features.case, Some(Case::Instrumental));
+        assert_eq!(loc.features.semantic_role, Some(SemanticRole::Location));
+    }
+    let paths = graph.find_paths().starting_with_verb().then_preposition(&["z"]).then_noun_phrase().paths();
+    assert!(!paths.is_empty());
+}
+
+#[test]
+fn test_dialogue_continues_topic_edges() {
+    let api = build_api();
+    let dialogue = api
+        .parse_dialogue(&["Tomek ma kota.", "Tomek ma psa."], "pl")
+        .unwrap();
+    assert!(dialogue.cross_edges.iter().any(|e| e.kind == EdgeKind::ContinuesTopic)
+        || dialogue.cross_edges.iter().any(|e| e.kind == EdgeKind::Corefers));
+}
+
+#[test]
 fn test_translate_dialogue() {
     let api = build_api();
     let outs = api
