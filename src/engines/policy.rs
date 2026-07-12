@@ -149,6 +149,7 @@ mod tests {
                 word_order: wo,
                 pro_drop,
                 negation_particle: "not".into(),
+                preposition_roles: std::collections::HashMap::new(),
             },
         }
     }

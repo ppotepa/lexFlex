@@ -357,7 +357,11 @@ impl EnglishGenerator {
             words.push(subject_form);
         }
         words.push(verb_form);
-        words.push(object_form);
+        
+        // Only add object if it's not "unknown" (intransitive verbs)
+        if object.concept.0 != "unknown" && !object_form.is_empty() {
+            words.push(object_form);
+        }
 
         // Post fix for coord subject rendering in two_role (rearrange if "name verb and name" to "name and name verb").
         if words.len() > 3 && words[2] == "and" {

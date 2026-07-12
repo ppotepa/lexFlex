@@ -1,0 +1,23 @@
+[filter]
+command = "cargo"
+description = "lexFlex cargo filter - keep errors and final summary, reduce repetitive warnings"
+
+# Drop the very repetitive "help: prefix with underscore" suggestions (we know about them)
+[[rules]]
+pattern = "^\\s+\\| help: if this is intentional"
+action = "drop"
+
+[[rules]]
+pattern = "^\\s+\\= note: `\\#\\[warn"
+action = "drop"
+
+# Keep the important final line
+[[rules]]
+pattern = "^(error|warning): .*lexflex"
+action = "keep"
+
+# Everything else: let rtk's default + truncate do the work
+[[rules]]
+pattern = ".*"
+action = "truncate"
+max_lines = 12

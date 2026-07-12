@@ -779,6 +779,21 @@
     ("odpoczywać", (lemma: "odpoczywać", pos: "Verb", concept: "REST", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
     ("odpoczywam", (lemma: "odpoczywać", pos: "Verb", concept: "REST", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
 
+    // ═══ REFLEXIVE VERBS — with "się" ═══
+    ("ubierać się", (lemma: "ubierać się", pos: "Verb", concept: "DRESS_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("ubieram się", (lemma: "ubierać się", pos: "Verb", concept: "DRESS_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("ubieramy się", (lemma: "ubierać się", pos: "Verb", concept: "DRESS_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Plural), tense: Some(Present)))),
+    ("starać się", (lemma: "starać się", pos: "Verb", concept: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("staram się", (lemma: "starać się", pos: "Verb", concept: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("zatrzymać się", (lemma: "zatrzymać się", pos: "Verb", concept: "STOP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("zatrzymuję się", (lemma: "zatrzymać się", pos: "Verb", concept: "STOP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("uczyć się", (lemma: "uczyć się", pos: "Verb", concept: "LEARN", frame_type: Some("Cognition"), roles: ["Agent", "Theme"], paradigm: Some("verb_yć"), features: ())),
+    ("uczę się", (lemma: "uczyć się", pos: "Verb", concept: "LEARN", frame_type: Some("Cognition"), roles: ["Agent", "Theme"], paradigm: Some("verb_yć"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("myć się", (lemma: "myć się", pos: "Verb", concept: "WASH_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_yć"), features: ())),
+    ("myję się", (lemma: "myć się", pos: "Verb", concept: "WASH_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_yć"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+    ("czesać się", (lemma: "czesać się", pos: "Verb", concept: "COMB_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: ())),
+    ("czeszę się", (lemma: "czesać się", pos: "Verb", concept: "COMB_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: Some("verb_ać"), features: (person: Some(First), number: Some(Singular), tense: Some(Present)))),
+
     // ═══════════════════════════════════════════
     // PRONOUNS / ADVERBS — additional
     // ═══════════════════════════════════════════

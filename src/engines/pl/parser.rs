@@ -231,6 +231,36 @@ impl PolishParser {
                 );
             }
             
+            // Reflexive verbs with "się"
+            if two_word.ends_with(" się") {
+                let verb_form = two_word.trim_end_matches(" się");
+                // Check if this verb form exists in lexicon as reflexive
+                if let Some(entry) = self.lexicon.lookup_by_form(&two_word) {
+                    eprintln!("DEBUG: Found reflexive verb '{}' in lexicon, features: {:?}", two_word, entry.features);
+                    let pos = self.lexicon.parse_pos(&entry.pos);
+                    return (
+                        two_word.clone(),
+                        entry.lemma.clone(),
+                        pos,
+                        entry.features.clone(),
+                        2
+                    );
+                }
+                // Check if base verb exists (without "się")
+                if let Some(entry) = self.lexicon.lookup_by_form(verb_form) {
+                    eprintln!("DEBUG: Found base verb '{}' in lexicon, features: {:?}", verb_form, entry.features);
+                    let pos = self.lexicon.parse_pos(&entry.pos);
+                    return (
+                        two_word.clone(),
+                        entry.lemma.clone(),
+                        pos,
+                        entry.features.clone(),
+                        2
+                    );
+                }
+                eprintln!("DEBUG: No lexicon entry for '{}' or '{}'", two_word, verb_form);
+            }
+
             // "razem z" = "together with" (prepositional phrase)
             if two_word == "razem z" {
                 return (
@@ -313,6 +343,7 @@ impl PolishParser {
             .ok_or(ParseError::NoVerbFound)?;
 
         let verb_token = &tokens[verb_idx];
+        eprintln!("DEBUG: verb_token.form={}, verb_token.features.person={:?}", verb_token.form, verb_token.features.person);
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
 
         let verb_entry = self.lexicon.lookup_by_lemma(verb_lemma)
@@ -339,10 +370,12 @@ impl PolishParser {
         // Pro-drop detection: if verb has 1st/2nd person and no explicit pronoun, add implicit subject
         let verb_person = verb_token.features.person;
         let verb_number = verb_token.features.number;
+        eprintln!("DEBUG: verb_person={:?}, verb_number={:?}", verb_person, verb_number);
         let has_explicit_subject = tokens.iter().any(|t| {
             t.pos == PartOfSpeech::Pronoun && t.features.person == verb_person
         });
-        
+        eprintln!("DEBUG: has_explicit_subject={}", has_explicit_subject);
+
         let implicit_subject = if !has_explicit_subject && verb_person.is_some() {
             let (pronoun_name, pronoun_person) = match (verb_person, verb_number) {
                 (Some(Person::First), Some(Number::Singular)) => (Some("I"), Some(Person::First)),
@@ -351,11 +384,13 @@ impl PolishParser {
                 (Some(Person::Second), Some(Number::Plural)) => (Some("you"), Some(Person::Second)),
                 _ => (None, None),
             };
+            eprintln!("DEBUG: pronoun_name={:?}, pronoun_person={:?}", pronoun_name, pronoun_person);
             pronoun_name.map(|name| {
                 let mut entity = Entity::new(ConceptId::new("PERSON"))
                     .with_name(name);
                 entity.features.person = pronoun_person;
                 entity.features.number = verb_number;
+                eprintln!("DEBUG: Created implicit subject: {:?}", entity.name);
                 entity
             })
         } else {
@@ -370,6 +405,14 @@ impl PolishParser {
         let question = tokens.iter().any(|t| t.form == "czy");
         if question {
             sentence.illocution = Illocution::Question;
+        }
+
+        // Detect reflexive: "się" token OR reflexive verb lemma
+        let has_reflexive = tokens.iter().any(|t| t.form == "się")
+            || verb_lemma.ends_with(" się")
+            || matches!(verb_concept.as_str(), "DRESS_ONESELF" | "WASH_ONESELF" | "COMB_ONESELF");
+        if has_reflexive {
+            sentence.reflexive = true;
         }
 
         // Detect passive voice: być/zostać + passive participle
@@ -414,6 +457,7 @@ impl PolishParser {
                     && t.pos != PartOfSpeech::Particle
                     && t.pos != PartOfSpeech::Adverb
                     && t.pos != PartOfSpeech::Conjunction  // exclude conjunctions (i, oraz, and)
+                    && t.form != "się"  // exclude reflexive marker
                     && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three" | "szybko") // numbers not np, exclude known adverbs
                     && !is_after_preposition // exclude nouns after prepositions (they're handled in pp_entities)
             })
@@ -1009,11 +1053,32 @@ impl PolishParser {
                 stimulus: get(&SemanticRole::Stimulus),
                 verb_concept: verb_concept.to_string(),
             }),
-            "Cognition" => Ok(Frame::Cognition {
-                cognizer: get(&SemanticRole::Experiencer),
-                content: get(&SemanticRole::Theme),
-                verb_concept: verb_concept.to_string(),
-            }),
+            "Cognition" => {
+                // Try multiple role combinations for flexibility
+                let cognizer = if roles.contains(&SemanticRole::Cognizer) {
+                    get(&SemanticRole::Cognizer)
+                } else if roles.contains(&SemanticRole::Experiencer) {
+                    get(&SemanticRole::Experiencer)
+                } else if roles.contains(&SemanticRole::Agent) {
+                    get(&SemanticRole::Agent)
+                } else {
+                    Entity::new(ConceptId::new("unknown"))
+                };
+                
+                let content = if roles.contains(&SemanticRole::Content) {
+                    get(&SemanticRole::Content)
+                } else if roles.contains(&SemanticRole::Theme) {
+                    get(&SemanticRole::Theme)
+                } else {
+                    Entity::new(ConceptId::new("unknown"))
+                };
+                
+                Ok(Frame::Cognition {
+                    cognizer,
+                    content,
+                    verb_concept: verb_concept.to_string(),
+                })
+            },
             "Emotion" => Ok(Frame::Emotion {
                 experiencer: get(&SemanticRole::Experiencer),
                 stimulus: get(&SemanticRole::Stimulus),
@@ -1117,6 +1182,14 @@ impl PolishParser {
                     entity: theme,
                     location: if loc.concept.0 != "unknown" { Some(loc) } else { None },
                     verb_concept: verb_concept.to_string(),
+                })
+            },
+            "Custom" => {
+                // Custom frame for reflexive verbs and other special cases
+                let agent = get(&SemanticRole::Agent);
+                Ok(Frame::Custom {
+                    name: verb_concept.to_string(),
+                    roles: vec![(SemanticRole::Agent, agent)],
                 })
             },
             other => {

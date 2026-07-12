@@ -132,6 +132,46 @@ pub fn generate_sentence(
 
 
     let mut result = words.join(" ");
+    
+    // Handle reflexive: add reflexive pronoun after verb
+    if sentence.reflexive && is_en {
+        // Find subject person/number to determine reflexive pronoun
+        let subject = sentence.frames.iter()
+            .flat_map(|f| f.entities())
+            .find(|e| e.features.person.is_some() || e.features.case == Some(Case::Nominative));
+        
+        let reflexive_pronoun = if let Some(subj) = subject {
+            match (subj.features.person, subj.features.number) {
+                (Some(Person::First), Some(Number::Singular)) => "myself",
+                (Some(Person::First), Some(Number::Plural)) => "ourselves",
+                (Some(Person::Second), _) => "yourself",
+                (Some(Person::Third), Some(Number::Singular)) => {
+                    match subj.features.gender {
+                        Some(Gender::Masculine) => "himself",
+                        Some(Gender::Feminine) => "herself",
+                        _ => "itself",
+                    }
+                }
+                (Some(Person::Third), Some(Number::Plural)) => "themselves",
+                _ => "itself",
+            }
+        } else {
+            "itself"
+        };
+        
+        // Insert reflexive pronoun after verb (typically position 1 in SVO structure)
+        if !result.is_empty() {
+            let parts: Vec<&str> = result.split_whitespace().collect();
+            if parts.len() > 1 {
+                // Find verb position (usually after subject, so position 1)
+                let verb_pos = if parts.len() > 1 { 1 } else { 0 };
+                let mut new_parts = parts.clone();
+                new_parts.insert(verb_pos + 1, reflexive_pronoun);
+                result = new_parts.join(" ");
+            }
+        }
+    }
+    
     // Fix for coord subject in two_role paths: rearrange "name verb and name ..." to "name and name verb ..." to match IL structure.
     let w: Vec<&str> = result.split(' ').collect();
     if w.len() > 3 && w[2] == "and" {
@@ -504,6 +544,11 @@ fn generate_frame(
             let mut object_words: Vec<String> = Vec::new();
             
             for e in entities {
+                // Skip "unknown" entities (intransitive verbs, optional roles)
+                if e.concept.0 == "unknown" {
+                    continue;
+                }
+                
                 let mut f = e.features.clone();
                 if first {
                     f.case = Some(Case::Nominative);

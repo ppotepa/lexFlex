@@ -1,10 +1,21 @@
 # Build artifacts
 /target
 
-# Temporary files
-*.txt
+# Temporary and scratch files
+/scratch/
+*.bak*
+
+# Generated output
 concat.txt
 benchmark_output.txt
+
+# Tool-generated
+.codegraph/
+.qwen/
+
+# Scratch / test inputs (untracked data files)
+benchmark_extended*.txt
+input*.txt
 pl
 
 # Test binaries
