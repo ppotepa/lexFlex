@@ -62,6 +62,62 @@ fn test_en_to_pl_perception() {
     assert_eq!(result, "Tom widział jabłko.");
 }
 
+// ─── Weak-corpus regression (graph-driven fixes, real LexFlexAPI::translate) ─
+
+#[test]
+fn test_weak_corpus_en_to_pl_accompaniment() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("I live with a wife and a daughter.", "en", "pl").unwrap(),
+        "mieszkam z żoną i córką."
+    );
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_age_idiom() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("I am 27 years old.", "en", "pl").unwrap(),
+        "Mam 27 lat."
+    );
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_coordination_possession() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Tomek and Iza have an apple.", "en", "pl").unwrap(),
+        "Tomek i Iza mają jabłko."
+    );
+}
+
+#[test]
+fn test_weak_corpus_pl_to_en_proper_noun_locative_warsaw() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Anna mieszka w Warszawie.", "pl", "en").unwrap(),
+        "Anna lives in Warsaw."
+    );
+}
+
+#[test]
+fn test_weak_corpus_pl_to_en_proper_noun_locative_krakow() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Tomek mieszka w Krakowie.", "pl", "en").unwrap(),
+        "Tomek lives in Krakow."
+    );
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_locative() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Anna lives in Warsaw.", "en", "pl").unwrap(),
+        "Anna mieszka w Warszawie."
+    );
+}
+
 // ─── Parse Tests ─────────────────────────────────────────────────────────────
 
 #[test]
