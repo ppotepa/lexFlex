@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::core::interlingua::{FeatureBundle, PartOfSpeech};
+use crate::core::interlingua::{Case, FeatureBundle, Number, PartOfSpeech};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LexEntry {
@@ -52,27 +52,39 @@ impl Lexicon {
         self.entries.values().find(|e| e.concept.to_uppercase() == c)
     }
 
+    /// Find a pre-registered surface form for lemma + case + number (irregular inflections in lexicon).
+    pub fn lookup_inflected_surface(&self, lemma: &str, case: Case, number: Number) -> Option<String> {
+        self.entries
+            .iter()
+            .find(|(_, e)| {
+                e.lemma == lemma
+                    && e.features.case == Some(case)
+                    && e.features.number == Some(number)
+            })
+            .map(|(form, _)| form.clone())
+    }
+
     /// Early normalization using base form / concept lookup.
     /// Resolves to canonical concept + lemma from lexicon; propagates features (incl new initial_sound).
     /// RESOLVED: early normalization + concept/lemma lookup (no ad-hoc per-word surface patches remain in logic).
     pub fn normalize_entity(&self, entity: &mut crate::core::interlingua::Entity) {
         use crate::core::interlingua::ConceptId;
+        let candidate = entity.name.as_deref().unwrap_or(&entity.concept.0).to_lowercase();
+        let by_form = self.lookup_by_form(&candidate);
+        let by_lemma = self.lookup_by_lemma(&candidate);
+        let by_concept = self.lookup_concept(&entity.concept.0);
         let is_proper = entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
-        if is_proper {
-            // Never override proper names with common noun lemmas from target lexicon
+        if is_proper && by_form.is_none() && by_lemma.is_none() {
+            // Keep unattested proper names (Tom, Anna); inflected surfaces (Warszawie) still map via form entry.
             return;
         }
-        let candidate = entity.name.as_deref().unwrap_or(&entity.concept.0).to_lowercase();
-        let entry = self.lookup_by_form(&candidate)
-            .or_else(|| self.lookup_by_lemma(&candidate))
-            .or_else(|| self.lookup_concept(&entity.concept.0));
-        if let Some(e) = entry {
+        if let Some(e) = by_form.or(by_lemma).or(by_concept) {
             entity.concept = ConceptId::new(&e.concept);
             entity.name = Some(e.lemma.clone());
             let f = &mut entity.features;
-            if f.gender.is_none() { f.gender = e.features.gender; }
-            if f.number.is_none() { f.number = e.features.number; }
-            if f.animacy.is_none() { f.animacy = e.features.animacy; }
+            if e.features.gender.is_some() { f.gender = e.features.gender; }
+            if e.features.number.is_some() { f.number = e.features.number; }
+            if e.features.animacy.is_some() { f.animacy = e.features.animacy; }
             if f.countability.is_none() { f.countability = e.features.countability; }
             if f.initial_sound.is_none() { f.initial_sound = e.features.initial_sound.clone(); }
             if f.definiteness.is_none() { f.definiteness = e.features.definiteness; }

@@ -1,6 +1,6 @@
 use crate::core::context;
 use crate::core::deduction::{self, DeductionContext};
-use crate::core::graph::{self, LinguisticGraph, TrackedEntity};
+use crate::core::graph::{self, EdgeKind, GraphNode, LinguisticGraph, TrackedEntity};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::data::descriptor::LanguageDescriptor;
@@ -192,11 +192,11 @@ impl PolishParser {
                 offset += token_form.len() + 1;
                 i += consumed;
             } else {
-                // Single word
+                // Single word — preserve surface case for proper nouns
                 let (pos, features, lemma) = self.analyze_token(&form);
 
                 tokens.push(Token {
-                    form: form.clone(),
+                    form: clean.to_string(),
                     lemma: Some(lemma),
                     pos,
                     features,
@@ -463,7 +463,7 @@ impl PolishParser {
             sentence.polarity = Polarity::Negative;
         }
 
-        let question = tokens.iter().any(|t| t.form == "czy");
+        let question = tokens.iter().any(|t| t.form.eq_ignore_ascii_case("czy"));
         if question {
             sentence.illocution = Illocution::Question;
         }
@@ -532,18 +532,29 @@ impl PolishParser {
         }
 
         for (np_idx, np) in &np_tokens {
-            let lemma = np.lemma.as_deref().unwrap_or(&np.form);
-            let entry = self.lexicon.lookup_by_form(&np.form)
+            let surface = &np.form;
+            let lookup = surface.to_lowercase();
+            let lemma = np.lemma.as_deref().unwrap_or(&lookup);
+            let entry = self.lexicon.lookup_by_form(&lookup)
+                .or_else(|| self.lexicon.lookup_by_form(surface))
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
             let concept = if let Some(e) = entry {
                 ConceptId::new(&e.concept)
+            } else if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
+                ConceptId::new("PERSON")
             } else {
                 ConceptId::new(lemma)
             };
 
+            let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
+                surface.clone()
+            } else {
+                lemma.to_string()
+            };
+
             let mut entity = Entity::new(concept)
-                .with_name(lemma);
+                .with_name(&name);
             entity.features = np.features.clone();
             // Degree from lexicon entry (for comparative surfaces mapped to base + degree feature) or analyzer.
             let entry = self.lexicon.lookup_by_form(lemma).or_else(|| self.lexicon.lookup_by_lemma(lemma));
@@ -896,33 +907,26 @@ impl PolishParser {
         // Add prepositional phrase entities to the main entities list
         entities.extend(pp_entities);
 
-        let mut frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
-
-        // Age idiom: YEAR concept token in possession frame → BE + YEAR (concept-driven, no lemma/form hacks).
-        if frame_type == "Possession" {
-            let year_token = tokens.iter().find(|t| {
-                self.lexicon
-                    .lookup_by_form(&t.form)
-                    .or_else(|| {
-                        t.lemma
-                            .as_ref()
-                            .and_then(|l| self.lexicon.lookup_by_lemma(l))
-                    })
-                    .map_or(false, |e| e.concept == "YEAR")
-            });
-            if let (Some(yt), Frame::Possession { verb_concept, possessed, .. }) =
-                (year_token, &mut frame)
-            {
-                *verb_concept = "BE".to_string();
-                let mut year_ent = Entity::new(ConceptId::new("YEAR")).with_name("year");
-                year_ent.features = yt.features.clone();
-                *possessed = year_ent;
-            }
-        }
+        let frame = if let Some(age) = self.try_age_idiom_frame(tokens, &entities, &sentence) {
+            age
+        } else {
+            self.build_frame(&frame_type, &roles, &entities, &verb_concept)?
+        };
 
         sentence.frames.push(frame.clone());
 
         let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
+        // Fully populate evokes for words from lexicon (data-driven concept attachment)
+        for (i, &wid) in word_ids.iter().enumerate() {
+            if let Some(tok) = tokens.get(i) {
+                if let Some(entry) = self.lexicon.lookup_by_form(&tok.form).or_else(|| self.lexicon.lookup_by_lemma(tok.lemma.as_deref().unwrap_or(&tok.form))) {
+                    if let Some(GraphNode::Word(w)) = graph.nodes.get_mut(wid.0 as usize) {
+                        w.evokes = Some(ConceptId::new(&entry.concept));
+                    }
+                    graph.add_edge(wid, wid, EdgeKind::EvokesConcept); // self-ref as marker, or better link later
+                }
+            }
+        }
         let tracked: Vec<TrackedEntity> = graph::collect_frame_entities(&frame)
             .into_iter()
             .map(|e| TrackedEntity::new(e.clone(), graph::match_entity_to_tokens(&e, tokens)))
@@ -930,11 +934,67 @@ impl PolishParser {
         graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
         graph.materialize_phrases(tokens, &word_ids);
         graph.attach_concept_layer(&self.lexicon, &self.ontology);
+
+        // Populate full node types for AC1 (SentenceNode etc for multi-sentence Adam support)
+        let sent_node_id = graph.alloc_node_id();
+        graph.nodes.push(GraphNode::Sentence(crate::core::graph::SentenceNode {
+            id: sent_node_id,
+            frame_id: sentence.frames.last().and_then(|f| { /* simplistic */ None }),
+        }));
+        let utt_node_id = graph.alloc_node_id();
+        graph.nodes.push(GraphNode::Utterance(crate::core::graph::UtteranceNode {
+            id: utt_node_id,
+            sentence_ids: vec![sent_node_id],
+            discourse: None,
+        }));
+        let disc_id = graph.alloc_node_id();
+        graph.nodes.push(GraphNode::Discourse(crate::core::graph::DiscourseNode {
+            id: disc_id,
+            speaker: None,
+            addressee: None,
+            entities: vec![],
+        }));
+        // Clause stub for multi
+        if tokens.len() > 0 {
+            let cl_id = graph.alloc_node_id();
+            graph.nodes.push(GraphNode::Clause(crate::core::graph::ClauseNode {
+                id: cl_id,
+                sentence_id: Some(sent_node_id),
+                words: word_ids.clone(),
+            }));
+        }
+
         sentence.graph = Some(graph);
         deduction::apply_graph_inference(&mut sentence, &self.ontology)
             .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
+    }
+
+    fn try_age_idiom_frame(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        sentence: &Sentence,
+    ) -> Option<Frame> {
+        let has_year = tokens.iter().any(|t| {
+            self.lexicon
+                .lookup_by_form(&t.form)
+                .map_or(false, |e| e.concept == "YEAR")
+        });
+        let has_number = matches!(sentence.quantification, Some(Quantifier::Numerical(_)));
+        if !has_year || !has_number {
+            return None;
+        }
+        let possessor = entities.first()?.clone();
+        let mut possessed = Entity::new(ConceptId::new("YEAR")).with_name("rok");
+        possessed.features.number = Some(Number::Plural);
+        possessed.features.case = Some(Case::Genitive);
+        Some(Frame::Possession {
+            possessor,
+            possessed,
+            verb_concept: "BE".to_string(),
+        })
     }
 
     fn build_frame(

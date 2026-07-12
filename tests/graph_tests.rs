@@ -394,3 +394,54 @@ fn test_translate_dialogue() {
     assert!(!outs[0].is_empty());
     assert!(!outs[1].is_empty());
 }
+
+// ─── Weak-corpus regression (graph-driven fixes) ─────────────────────────────
+
+#[test]
+fn test_weak_corpus_en_to_pl_accompaniment() {
+    let api = build_api();
+    let out = api
+        .translate("I live with a wife and a daughter.", "en", "pl")
+        .unwrap();
+    assert_eq!(out, "mieszkam z żoną i córką.");
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_age_idiom() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("I am 27 years old.", "en", "pl").unwrap(),
+        "Mam 27 lat."
+    );
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_coordination_possession() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Tomek and Iza have an apple.", "en", "pl").unwrap(),
+        "Tomek i Iza mają jabłko."
+    );
+}
+
+#[test]
+fn test_weak_corpus_pl_to_en_proper_noun_locative() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Anna mieszka w Warszawie.", "pl", "en").unwrap(),
+        "Anna lives in Warsaw."
+    );
+    assert_eq!(
+        api.translate("Tomek mieszka w Krakowie.", "pl", "en").unwrap(),
+        "Tomek lives in Krakow."
+    );
+}
+
+#[test]
+fn test_weak_corpus_en_to_pl_locative() {
+    let api = build_api();
+    assert_eq!(
+        api.translate("Anna lives in Warsaw.", "en", "pl").unwrap(),
+        "Anna mieszka w Warszawie."
+    );
+}

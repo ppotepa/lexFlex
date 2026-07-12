@@ -743,7 +743,7 @@ fn test_degree_and_coordination_realization() {
     // EN->PL degree roundtrip critical for 21pts
     let out1r = api.translate("Does a better student have a cat?", "en", "pl").unwrap_or_default();
     // Must produce lepszy (data driven from good+Comp via explicit degree entry in lexicon + realize_degree + adj vec on Entity)
-    assert_eq!(out1r, "Czy lepszy student ma kot?");
+    assert_eq!(out1r, "Czy lepszy student ma kota?");
 
     // List with coordination ( "i" ) -- parser now populates first-class Coordination on Entity.
     // Strict assert_eq! per verification plan (drives real path).

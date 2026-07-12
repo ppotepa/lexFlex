@@ -528,6 +528,12 @@ impl PolishGenerator {
                         return Ok(if is_proper { self.capitalize_first(&entry.lemma) } else { entry.lemma.clone() });
                     }
 
+                    if let Some(surface) = self.lexicon.lookup_inflected_surface(&entry.lemma, target_case, number) {
+                        let is_proper = entry.lemma.chars().next().map_or(false, |c| c.is_uppercase())
+                            || entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
+                        return Ok(if is_proper { self.capitalize_first(&surface) } else { surface });
+                    }
+
                     return self.morphology.inflect_noun(
                         &entry.lemma,
                         target_case,
@@ -586,6 +592,12 @@ impl PolishGenerator {
             if target_case == Case::Nominative && number == Number::Singular {
                 let is_proper = entry.lemma.chars().next().map_or(false, |c| c.is_uppercase()) || entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
                 return Ok(if is_proper { self.capitalize_first(&entry.lemma) } else { entry.lemma.clone() });
+            }
+
+            if let Some(surface) = self.lexicon.lookup_inflected_surface(&entry.lemma, target_case, number) {
+                let is_proper = entry.lemma.chars().next().map_or(false, |c| c.is_uppercase())
+                    || entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
+                return Ok(if is_proper { self.capitalize_first(&surface) } else { surface });
             }
 
             let form = self.morphology.inflect_noun(
@@ -738,9 +750,6 @@ impl LanguageRealizer for PolishGenerator {
                 let mut f = item.features.clone();
                 if let Some(c) = features.case.or(tmp.features.case) {
                     f.case = Some(c);
-                }
-                if features.number == Some(Number::Plural) || tmp.features.number == Some(Number::Plural) {
-                    f.number = Some(Number::Plural);
                 }
                 let r = self
                     .realize_noun_phrase(item, &mut f, desc, lexicon, None)

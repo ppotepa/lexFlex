@@ -472,7 +472,7 @@ impl EnglishGenerator {
             self.morphology.inflect_verb(&lemma, tense, Some(person), Some(number))?
         };
 
-        let mut words = vec![verb, entity_form];
+        let mut words = vec![entity_form, verb];
 
         if let Some(loc) = location {
             let loc_form = self.generate_entity_form_legacy(loc, false)?;

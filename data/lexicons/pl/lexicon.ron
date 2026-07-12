@@ -7,6 +7,8 @@
     // NOUNS — People
     // ═══════════════════════════════════════════
     ("tomek", (lemma: "Tomek", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
+    ("anna", (lemma: "Anna", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
+    ("Annie", (lemma: "Anna", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate), case: Some(Locative)))),
     ("iza", (lemma: "Iza", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("mama", (lemma: "mama", pos: "Noun", concept: "MOTHER", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
     ("tata", (lemma: "tata", pos: "Noun", concept: "FATHER", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
@@ -698,8 +700,12 @@
     // Cities
     ("Warszawa", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate)))),
     ("Warszawie", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Locative)))),
+    ("warszawie", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Locative)))),
+    ("warsaw", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate)))),
     ("Warszawę", (lemma: "Warszawa", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Accusative)))),
     ("Kraków", (lemma: "Kraków", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
+    ("Krakowie", (lemma: "Kraków", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Locative)))),
+    ("krakowie", (lemma: "Kraków", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate), case: Some(Locative)))),
     ("Gdańsk", (lemma: "Gdańsk", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Inanimate)))),
 
     // ═══════════════════════════════════════════

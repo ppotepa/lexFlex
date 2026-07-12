@@ -1,0 +1,16 @@
+# Weak-case regression corpus (graph-driven fixes)
+# EN->PL accompaniment
+EN->PL:I live with a wife and a daughter.
+# EN->PL age idiom
+EN->PL:I am 27 years old.
+# EN->PL coordination possession
+EN->PL:Tomek and Iza have an apple.
+# PL->EN proper noun + locative city
+PL->EN:Anna mieszka w Warszawie.
+PL->EN:Tomek mieszka w Krakowie.
+# EN->PL locative (must use w not z)
+EN->PL:Anna lives in Warsaw.
+# PL->EN regression anchors
+PL->EN:Tomek mieszka z żoną i córką.
+PL->EN:Mam 27 lat.
+PL->EN:Tomek i Iza ma jabłko.

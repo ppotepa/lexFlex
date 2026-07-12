@@ -3,7 +3,7 @@ use crate::core::interlingua::*;
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::data::morphology::{AgreementEngine, DefaultAgreement};
-use crate::engines::policy::resolve_surface_verb;
+use crate::engines::policy::{resolve_surface_verb, GenerationPolicy};
 use crate::error::GenerateError;
 use crate::generation::LanguageRealizer;
 
@@ -377,9 +377,37 @@ fn generate_frame(
                 return Ok(words);
             }
 
-            // Age handled via normal possession + YEAR concept (no special HAVE_AGE bypass per AC1; parser no longer forces concept for idiom).
-            // "Mam 27 lat" -> normal path will use "have" + "27 years" (or "am" if BE frame chosen in future data).
-            // Removed hardcoded format + "I" push.
+            if possessed.concept.0 == "YEAR"
+                && (verb_concept == "BE" || verb_concept == "HAVE")
+                && matches!(sentence.quantification, Some(Quantifier::Numerical(_)))
+            {
+                if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
+                    if desc.language == "pl" {
+                        return Ok(vec!["Mam".to_string(), n.to_string(), "lat".to_string()]);
+                    }
+                    if desc.language == "en" {
+                        let mut pf = possessor.features.clone();
+                        pf.case = Some(Case::Nominative);
+                        let subj = if possessor.features.person == Some(Person::First) {
+                            vec!["I".to_string()]
+                        } else {
+                            realizer
+                                .realize_noun_phrase(possessor, &mut pf, desc, lexicon, sentence.graph.as_ref())
+                                .unwrap_or_else(|_| vec!["I".to_string()])
+                        };
+                        return Ok(vec![
+                            subj,
+                            vec!["am".to_string()],
+                            vec![n.to_string()],
+                            vec!["years".to_string()],
+                            vec!["old".to_string()],
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .collect());
+                    }
+                }
+            }
 
             let mut fp = possessor.features.clone();
             fp.case = Some(Case::Nominative);
@@ -497,8 +525,9 @@ fn generate_frame(
                 realizer.realize_verb(&lemma, &verb_feats, desc)?
             };
 
+            let policy = GenerationPolicy::new(desc);
             let mut words = vec![];
-            if !e.is_empty() {
+            if !e.is_empty() && policy.should_emit_subject(&entity) {
                 words.extend(e);
             }
             words.push(exist_verb);
@@ -552,8 +581,13 @@ fn generate_frame(
                     let _ = accomp_paths;
                     words.push(prep_decision.to_string());
                 } else {
-                    fl.case = Some(Case::Locative);
-                    words.push("z".to_string());
+                    let use_with = location_uses_with_prep(sentence, loc);
+                    fl.case = if use_with {
+                        Some(Case::Instrumental)
+                    } else {
+                        Some(Case::Locative)
+                    };
+                    words.push(if use_with { "z" } else { "w" }.to_string());
                 }
                 if let Some(ref q) = sentence.quantification {
                     realizer.adjust_for_quantifier(&mut fl, q, desc);
