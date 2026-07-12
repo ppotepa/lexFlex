@@ -4,6 +4,7 @@ use crate::core::ontology::Ontology;
 use crate::core::temporal;
 use crate::data::lexicon::Lexicon;
 use crate::error::DeductionError;
+use crate::core::unknown_concept::resolve_concept_for_unknown; // resolve real ConceptId for unknowns (A+B of unknown concept resolution)
 
 pub struct DeductionContext<'a> {
     pub lexicon: &'a Lexicon,
@@ -38,6 +39,17 @@ pub fn apply_graph_inference(
     _lexicon: &Lexicon,
     ontology: &Ontology,
 ) -> Result<(), DeductionError> {
+    // Fix any bad/unknown concepts on entities using the resolver in core deduction path.
+    // This ensures even entities that reach graph inference get a real data ConceptId (baked/ron list).
+    for frame in sentence.frames.iter_mut() {
+        for entity in frame.entities_mut() {
+            let c = &entity.concept.0;
+            if c == "unknown" || c.is_empty() || c == "UNKNOWN" {
+                let resolved = resolve_concept_for_unknown(_lexicon, entity.name.as_deref().unwrap_or(c), c, None, &[]);
+                entity.concept = resolved;
+            }
+        }
+    }
     let Some(ref mut graph) = sentence.graph else {
         return Ok(());
     };

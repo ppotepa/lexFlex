@@ -7,6 +7,7 @@ use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::engines::pl::morphology::PolishMorphology;
 use crate::error::ParseError;
+use crate::core::unknown_concept::{resolve_concept_for_unknown, is_entity_candidate_token};
 
 pub struct PolishParser {
     lexicon: Lexicon,
@@ -14,15 +15,17 @@ pub struct PolishParser {
     ontology: Ontology,
     #[allow(dead_code)]
     descriptor: LanguageDescriptor,
+    concept_ids: Vec<String>,
 }
 
 impl PolishParser {
-    pub fn new(lexicon: Lexicon, morphology: PolishMorphology, ontology: Ontology, descriptor: LanguageDescriptor) -> Self {
+    pub fn new(lexicon: Lexicon, morphology: PolishMorphology, ontology: Ontology, descriptor: LanguageDescriptor, concept_ids: Vec<String>) -> Self {
         Self {
             lexicon,
             morphology,
             ontology,
             descriptor,
+            concept_ids,
         }
     }
 
@@ -446,10 +449,7 @@ impl PolishParser {
             .enumerate()
             .filter(|(idx, t)| {
                 // pos filter for real NPs + exclude those in PP list spans (z/razem z lists now properly in pp as coord)
-                (t.pos == PartOfSpeech::Noun
-                    || t.pos == PartOfSpeech::Pronoun
-                    || t.pos == PartOfSpeech::Adjective
-                    || (t.pos == PartOfSpeech::Unknown && t.form.chars().any(|c| c.is_alphabetic()) && t.form.len() > 2))
+                is_entity_candidate_token(t)
                     && t.pos != PartOfSpeech::Particle
                     && t.pos != PartOfSpeech::Adverb
                     && t.pos != PartOfSpeech::Conjunction
@@ -479,13 +479,7 @@ impl PolishParser {
                 .or_else(|| self.lexicon.lookup_by_form(surface))
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
-            let concept = if let Some(e) = entry {
-                ConceptId::new(&e.concept)
-            } else if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-                ConceptId::new("PERSON")
-            } else {
-                ConceptId::new(lemma)
-            };
+            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
 
             let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
                 surface.clone()
@@ -782,10 +776,10 @@ impl PolishParser {
                     if t.form == "razem z" || t.form == "z" {
                         k += 1; continue; // skip the prep token itself if reached
                     }
-                    if t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun {
+                    if is_entity_candidate_token(t) {
                         let lemma = t.lemma.as_deref().unwrap_or(&t.form);
                         let entry = self.lexicon.lookup_by_form(&t.form).or_else(|| self.lexicon.lookup_by_lemma(lemma));
-                        let concept = if let Some(e) = entry { ConceptId::new(&e.concept) } else { ConceptId::new(lemma) };
+                        let concept = resolve_concept_for_unknown(&self.lexicon, &t.form, lemma, None, &self.concept_ids);
                         let mut ent = Entity::new(concept).with_name(lemma);
                         ent.features = t.features.clone();
                         // Structural role/case for PP: for "z"/"razem z" (accomp) use animacy/context to decide
@@ -1366,10 +1360,12 @@ mod tests {
         let verb_p = loader::load_paradigms(&data_path.join("morphology/pl/verb_paradigms.ron")).expect("verb");
         let adj_p = loader::load_paradigms(&data_path.join("morphology/pl/adj_paradigms.ron")).expect("adj");
         let morph = crate::engines::pl::morphology::PolishMorphology::new(noun_p, verb_p, adj_p);
-        let ontology = loader::build_ontology_from_concepts(&loader::load_concepts(&data_path.join("concepts/concepts.ron")).unwrap_or_default());
+        let concepts = loader::load_concepts(&data_path.join("concepts/concepts.ron")).unwrap_or_default();
+        let ontology = loader::build_ontology_from_concepts(&concepts);
+        let concept_ids: Vec<String> = concepts.iter().map(|c| c.id.clone()).collect();
         let desc = loader::load_descriptor(&data_path.join("descriptors/pl.ron")).expect("desc");
 
-        let parser = PolishParser::new(lexicon, morph, ontology, desc);
+        let parser = PolishParser::new(lexicon, morph, ontology, desc, concept_ids);
 
         let ut = parser.parse("Mieszkam razem z żoną, córką i psem.").expect("parse");
         let sent = &ut.sentences[0];

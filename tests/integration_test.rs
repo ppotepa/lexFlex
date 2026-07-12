@@ -858,3 +858,101 @@ fn test_agreement_engine_coord() {
     let fb = agr.resolve_for_coordination(&[e1, e2]);
     assert_eq!(fb.number, Some(Number::Plural));
 }
+
+// Test that unknown concept resolver is exercised for unknown words in real parse path.
+#[test]
+fn test_unknown_concept_fallback_for_unknown_word_in_parse() {
+    use lexflex::api::LexFlexAPI;
+    use lexflex::data::loader;
+    use std::path::Path;
+    let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
+    // "xyzqwe" is unknown in lexicon -> parser uses resolve_concept_for_unknown (unknown concept resolver) which buckets to real ConceptId from concepts.ron
+    let utt = api.parse("Mieszkam z xyzqwe.", "pl").expect("parse must succeed");
+    let natural = utt.as_natural().expect("natural");
+
+    // Load the *real* list of concepts that the resolver is supposed to pick from.
+    let concepts = loader::load_concepts(&Path::new("data").join("concepts/concepts.ron")).expect("load concepts for test");
+    let real_concept_ids: std::collections::HashSet<String> = concepts.into_iter().map(|c| c.id).collect();
+
+    let has_real_concept = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| {
+            // Must be a *real* concept from the data list, not the surface or any synthetic concept
+            real_concept_ids.contains(&e.concept.0) && e.concept.0 != "xyzqwe"
+        }))
+    });
+    assert!(has_real_concept, "real data-driven concept from the unknown concept resolver (one of concepts.ron) must appear for unknown word");
+
+    // Name preservation for unknowns (the key gap): surface form must be kept as .name, even after resolver + normalize_entity
+    let has_preserved_name = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| {
+            e.name.as_deref() == Some("xyzqwe") && real_concept_ids.contains(&e.concept.0)
+        }))
+    });
+    assert!(has_preserved_name, "unknown word surface 'xyzqwe' must be preserved in entity.name while getting real base concept");
+}
+
+// EN NP direct object unknown
+#[test]
+fn test_unknown_concept_en_np_unknown() {
+    use lexflex::api::LexFlexAPI;
+    use lexflex::data::loader;
+    use std::path::Path;
+    let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
+    let utt = api.parse("I saw xyzqwe.", "en").expect("parse en");
+    let natural = utt.as_natural().expect("natural");
+    let concepts = loader::load_concepts(&Path::new("data").join("concepts/concepts.ron")).expect("load concepts");
+    let real_concept_ids: std::collections::HashSet<String> = concepts.into_iter().map(|c| c.id).collect();
+    let has_real = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| real_concept_ids.contains(&e.concept.0) && e.concept.0 != "xyzqwe" && true))
+    });
+    assert!(has_real, "real concept from the unknown concept resolver for EN unknown in NP");
+
+    let has_preserved_name = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| e.name.as_deref() == Some("xyzqwe") && real_concept_ids.contains(&e.concept.0)))
+    });
+    assert!(has_preserved_name, "EN NP unknown surface 'xyzqwe' must be preserved in .name");
+}
+
+// EN PP unknown
+#[test]
+fn test_unknown_concept_en_pp_unknown() {
+    use lexflex::api::LexFlexAPI;
+    use lexflex::data::loader;
+    use std::path::Path;
+    let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
+    let utt = api.parse("I live with xyzqwe.", "en").expect("parse en pp");
+    let natural = utt.as_natural().expect("natural");
+    let concepts = loader::load_concepts(&Path::new("data").join("concepts/concepts.ron")).expect("load concepts");
+    let real_concept_ids: std::collections::HashSet<String> = concepts.into_iter().map(|c| c.id).collect();
+    let has_real = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| real_concept_ids.contains(&e.concept.0) && e.concept.0 != "xyzqwe" && true))
+    });
+    assert!(has_real, "real concept from the unknown concept resolver for EN unknown in PP");
+
+    let has_preserved_name = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| e.name.as_deref() == Some("xyzqwe") && real_concept_ids.contains(&e.concept.0)))
+    });
+    assert!(has_preserved_name, "EN PP unknown surface 'xyzqwe' must be preserved in .name");
+}
+
+// PL NP direct (for symmetry)
+#[test]
+fn test_unknown_concept_pl_np_unknown() {
+    use lexflex::api::LexFlexAPI;
+    use lexflex::data::loader;
+    use std::path::Path;
+    let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
+    let utt = api.parse("Widzę xyzqwe.", "pl").expect("parse pl np");
+    let natural = utt.as_natural().expect("natural");
+    let concepts = loader::load_concepts(&Path::new("data").join("concepts/concepts.ron")).expect("load concepts");
+    let real_concept_ids: std::collections::HashSet<String> = concepts.into_iter().map(|c| c.id).collect();
+    let has_real = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| real_concept_ids.contains(&e.concept.0) && e.concept.0 != "xyzqwe" && true))
+    });
+    assert!(has_real, "real concept from the unknown concept resolver for PL unknown in NP");
+
+    let has_preserved_name = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| e.name.as_deref() == Some("xyzqwe") && real_concept_ids.contains(&e.concept.0)))
+    });
+    assert!(has_preserved_name, "PL NP unknown surface 'xyzqwe' must be preserved in .name");
+}

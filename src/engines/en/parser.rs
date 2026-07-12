@@ -8,21 +8,24 @@ use crate::data::lexicon::Lexicon;
 use crate::data::morphology::analyze_morph;
 use crate::engines::en::morphology::EnglishMorphology;
 use crate::error::ParseError;
+use crate::core::unknown_concept::{resolve_concept_for_unknown, is_entity_candidate_token};
 
 pub struct EnglishParser {
     lexicon: Lexicon,
     _morphology: EnglishMorphology,
     ontology: Ontology,
     descriptor: LanguageDescriptor,
+    concept_ids: Vec<String>,
 }
 
 impl EnglishParser {
-    pub fn new(lexicon: Lexicon, morphology: EnglishMorphology, ontology: Ontology, descriptor: LanguageDescriptor) -> Self {
+    pub fn new(lexicon: Lexicon, morphology: EnglishMorphology, ontology: Ontology, descriptor: LanguageDescriptor, concept_ids: Vec<String>) -> Self {
         Self {
             lexicon,
             _morphology: morphology,
             ontology,
             descriptor,
+            concept_ids,
         }
     }
 
@@ -218,9 +221,7 @@ impl EnglishParser {
                     && t.pos != PartOfSpeech::Preposition
                     && !matches!(f.as_str(), "years" | "year" | "old")
                     && f.parse::<i32>().is_err()
-                    && (t.pos == PartOfSpeech::Noun
-                        || t.pos == PartOfSpeech::Pronoun
-                        || t.pos == PartOfSpeech::Adjective)
+                    && is_entity_candidate_token(t)
                     && t.pos != PartOfSpeech::Particle
             })
             .collect();
@@ -234,13 +235,7 @@ impl EnglishParser {
             let entry = self.lexicon.lookup_by_form(&lookup)
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
-            let concept = if let Some(e) = entry {
-                ConceptId::new(&e.concept)
-            } else if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-                ConceptId::new("PERSON")
-            } else {
-                ConceptId::new(lemma)
-            };
+            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
 
             let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
                 surface.clone()
@@ -545,13 +540,7 @@ impl EnglishParser {
             .lexicon
             .lookup_by_form(&lookup)
             .or_else(|| self.lexicon.lookup_by_lemma(lemma));
-        let concept = if let Some(e) = entry {
-            ConceptId::new(&e.concept)
-        } else if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-            ConceptId::new("PERSON")
-        } else {
-            ConceptId::new(lemma)
-        };
+        let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
         let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
             surface.clone()
         } else {
@@ -596,7 +585,7 @@ impl EnglishParser {
                     k += 1;
                     continue;
                 }
-                if t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun {
+                if is_entity_candidate_token(t) {
                     let mut ent = self.token_to_entity(t);
                     let is_person_context =
                         self.ontology.is_animate_entity(&ent);
