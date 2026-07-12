@@ -1792,3 +1792,34 @@ Utterance {
     ],
 }
 ```
+
+---
+
+## Linguistic Graph (Augmenting View)
+
+Each `Sentence` may carry an optional `graph: LinguisticGraph` — a directed multi-layer view populated during parsing:
+
+```rust
+Sentence {
+    frames: vec![...],
+    graph: Some(LinguisticGraph { nodes, edges }),
+    sentence_node_id: None,
+    // ...
+}
+
+Utterance {
+    sentences: vec![...],
+    discourse: Some(Discourse {
+        entities_in_focus: vec![NodeId(...)],
+        recent_mentions: vec![(NodeId(...), 0)],
+        coref_edges: vec![EdgeId(...)],
+        // ...
+    }),
+}
+```
+
+**Layers**: surface words (`WordNode` + `Next`/`Prev`), syntactic phrases (`PhraseNode`), semantic IL materialization (`EntityNode`, `FrameNode` + `Realizes`/`HasRole`), lexical concepts (`ConceptNode` + `EvokesConcept`).
+
+**Invariant**: the graph must reflect the **final** IL frame after any post-parse frame adjustments (e.g. age idiom `BE`/`YEAR`). Materialize semantic nodes only after all frame mutations.
+
+**Serialization**: IL RON omits graph by default (`skip_serializing_if`); benchmark traces export `GraphSnapshot` separately.

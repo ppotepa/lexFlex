@@ -1,3 +1,4 @@
+pub mod context;
 pub mod graph;
 pub mod interlingua;
 pub mod ontology;

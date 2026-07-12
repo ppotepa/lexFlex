@@ -608,6 +608,28 @@ EN: "The sum of two and three equals five"
 
 ---
 
+## Linguistic Graph Layer
+
+Parsed sentences carry a **directed multi-layer graph** (`LinguisticGraph` in `src/core/graph.rs`) alongside classic Interlingua structs:
+
+| Layer | Nodes | Key edges |
+|-------|-------|-----------|
+| Surface | `WordNode` | `Next`, `Prev` |
+| Syntactic | `PhraseNode` (NP/PP/VP) | `SyntacticHead`, `Dependent` |
+| Semantic | `EntityNode`, `FrameNode` | `Realizes`, `HasRole(role)` |
+| Lexical | `ConceptNode` | `EvokesConcept`, `ConceptRelation` |
+| Discourse | focus/recent via `Discourse` | `Corefers`, `NextSentence`, `InFocus` |
+
+**Query API**: `next_word`, `find_accompaniment_paths`, `PathBuilder`, `find_coordination_for_entity`.
+
+**Context**: `src/core/context.rs` tracks coreference and recent mentions within multi-sentence utterances; `DialogueGraph` links cross-utterance entities.
+
+**Traces**: benchmark exports `LINGUISTIC GRAPH` RON snapshots; generation `TraceStep` records `involved_nodes` / `involved_edges`.
+
+The graph augments IL — Interlingua RON serialization remains the stable semantic API. Graph materialization always reflects the **final** IL frame (including post-parse adjustments such as age idioms).
+
+---
+
 ## Summary
 
 lexFlex is a **universal meaning representation framework** that:

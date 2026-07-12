@@ -1,3 +1,4 @@
+use crate::core::context;
 use crate::core::deduction::{self, DeductionContext};
 use crate::core::graph::{self, LinguisticGraph, TrackedEntity};
 use crate::core::interlingua::*;
@@ -31,6 +32,32 @@ impl EnglishParser {
             return Err(ParseError::EmptyInput);
         }
 
+        let sentence_parts = context::split_sentence_boundaries(input);
+        if sentence_parts.len() > 1 {
+            let mut all_sentences = Vec::new();
+            for part in sentence_parts {
+                if let Ok(utt) = self.parse_single(&part) {
+                    all_sentences.extend(utt.sentences);
+                }
+            }
+            if all_sentences.is_empty() {
+                return Err(ParseError::NoVerbFound);
+            }
+            let mut utterance = Utterance {
+                sentences: all_sentences,
+                discourse: None,
+                utterance_node_id: None,
+            };
+            context::track_discourse(&mut utterance);
+            return Ok(utterance);
+        }
+
+        let mut utterance = self.parse_single(input)?;
+        context::track_discourse(&mut utterance);
+        Ok(utterance)
+    }
+
+    fn parse_single(&self, input: &str) -> Result<Utterance, ParseError> {
         let tokens = self.tokenize(input);
         let partial = self.build_partial_structure(&tokens)?;
 
@@ -39,10 +66,7 @@ impl EnglishParser {
             &self.ontology,
             LanguageId::new("en"),
         );
-        let utterance = deduction::deduce(partial, &context)
-            .map_err(|_| ParseError::NoVerbFound)?;
-
-        Ok(utterance)
+        deduction::deduce(partial, &context).map_err(|_| ParseError::NoVerbFound)
     }
 
     fn tokenize(&self, input: &str) -> Vec<Token> {
@@ -350,6 +374,8 @@ impl EnglishParser {
             .map(|e| TrackedEntity::new(e.clone(), graph::match_entity_to_tokens(&e, tokens)))
             .collect();
         graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
+        graph.materialize_phrases(tokens, &word_ids);
+        graph.attach_concept_layer(&self.lexicon, &self.ontology);
         sentence.graph = Some(graph);
 
         Ok(Utterance::single_sentence(sentence))

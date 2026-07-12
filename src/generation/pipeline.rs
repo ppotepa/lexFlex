@@ -1,4 +1,4 @@
-use crate::core::graph::GraphNode;
+use crate::core::graph::{self, EdgeKind, GraphNode};
 use crate::core::interlingua::*;
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
@@ -12,6 +12,8 @@ pub struct TraceStep {
     pub stage: String,
     pub decision: String,
     pub reason: Option<String>,
+    pub involved_nodes: Vec<NodeId>,
+    pub involved_edges: Vec<EdgeId>,
 }
 
 thread_local! {
@@ -169,10 +171,17 @@ fn generate_frame(
     lexicon: &Lexicon,
 ) -> Result<Vec<String>, GenerateError> {
     let verb_lemma = resolve_surface_verb(frame, lexicon);
+    let verb_nodes: Vec<NodeId> = sentence
+        .graph
+        .as_ref()
+        .map(|g| g.find_verbs().into_iter().map(|v| v.id).collect())
+        .unwrap_or_default();
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "resolve_verb".to_string(),
         decision: format!("verb_lemma={}", verb_lemma),
         reason: Some("lexicon driven from verb_concept (preferred) or concept".to_string()),
+        involved_nodes: verb_nodes,
+        involved_edges: vec![],
     }));
     let mut verb_feats = FeatureBundle::default();
     verb_feats.tense = sentence.tense;
@@ -210,10 +219,23 @@ fn generate_frame(
         }
     }
 
+    let subject_nodes: Vec<NodeId> = sentence
+        .graph
+        .as_ref()
+        .map(|g| {
+            g.edges
+                .iter()
+                .filter(|e| matches!(e.kind, EdgeKind::HasRole(SemanticRole::Agent) | EdgeKind::HasRole(SemanticRole::Theme)))
+                .map(|e| e.from)
+                .collect()
+        })
+        .unwrap_or_default();
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "feature_prop".to_string(),
         decision: format!("person={:?} number={:?} gender={:?} from subject entity + coord", verb_feats.person, verb_feats.number, verb_feats.gender),
         reason: Some("algorithmic propagation per plan (not hardcoded)".to_string()),
+        involved_nodes: subject_nodes,
+        involved_edges: vec![],
     }));
 
     let mut v = realizer.realize_verb(&verb_lemma, &verb_feats, desc)?;
@@ -221,6 +243,8 @@ fn generate_frame(
         stage: "realize_verb".to_string(),
         decision: format!("verb_form={}", v),
         reason: Some("from morphology + feats".to_string()),
+        involved_nodes: vec![],
+        involved_edges: vec![],
     }));
     // "have"/"ma" form now expected to come correctly from realizer + verb_feats (no string patch)
 
@@ -240,7 +264,7 @@ fn generate_frame(
             let mut agent_for_real = agent.clone();
             lexicon.normalize_entity(&mut agent_for_real);
             let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon)?;
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()) }));
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()), involved_nodes: vec![], involved_edges: vec![] }));
 
             let mut ft = theme.features.clone();
             let theme_case = if sentence.polarity == Polarity::Negative {
@@ -253,6 +277,8 @@ fn generate_frame(
                 stage: "case".to_string(),
                 decision: format!("theme_case={:?} (negation? {})", theme_case, sentence.polarity == Polarity::Negative),
                 reason: Some("polarity + frame role".to_string()),
+                involved_nodes: vec![],
+                involved_edges: vec![],
             }));
             if let Some(ref q) = sentence.quantification {
                 realizer.adjust_for_quantifier(&mut ft, q, desc);
@@ -262,7 +288,7 @@ fn generate_frame(
             let theme_proper = theme.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
             if !theme_proper { lexicon.normalize_entity(&mut theme_for_real); }
             let mut theme_form = realizer.realize_noun_phrase(&theme_for_real, &mut ft, desc, lexicon)?;
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("theme={}", theme_form.join(" ")), reason: None }));
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("theme={}", theme_form.join(" ")), reason: None, involved_nodes: vec![], involved_edges: vec![] }));
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 theme_form = prefix_cardinal(theme_form, *n);
             }
@@ -278,7 +304,7 @@ fn generate_frame(
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 recip_form = prefix_cardinal(recip_form, *n);
             }
-            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("recipient={}", recip_form.join(" ")), reason: None }));
+            TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("recipient={}", recip_form.join(" ")), reason: None, involved_nodes: vec![], involved_edges: vec![] }));
 
             let mut words = vec![];
             if !a.is_empty() {
@@ -445,9 +471,51 @@ fn generate_frame(
             if let Some(loc) = location {
                 let mut fl = loc.features.clone();
                 if desc.language == "en" {
-                    // EN prep: graph realizing-word features first, then IL case annotation.
                     let use_with = location_uses_with_prep(sentence, loc);
-                    words.push(if use_with { "with".to_string() } else { "in".to_string() });
+                    let prep_decision = if use_with { "with" } else { "in" };
+                    let loc_nodes: Vec<NodeId> = sentence
+                        .graph
+                        .as_ref()
+                        .and_then(|g| {
+                            g.nodes.iter().find_map(|n| match n {
+                                GraphNode::Entity(e)
+                                    if e.concept == loc.concept && e.name == loc.name =>
+                                {
+                                    Some(vec![e.id])
+                                }
+                                _ => None,
+                            })
+                        })
+                        .unwrap_or_default();
+                    let accomp_paths = sentence
+                        .graph
+                        .as_ref()
+                        .map(|g| g.find_accompaniment_paths())
+                        .unwrap_or_default();
+                    TRACE.with(|t| t.borrow_mut().push(TraceStep {
+                        stage: "prep_choice".to_string(),
+                        decision: format!("prep={} (graph_instrumental={})", prep_decision, use_with),
+                        reason: Some("graph realizing-word features + IL case".to_string()),
+                        involved_nodes: loc_nodes,
+                        involved_edges: sentence
+                            .graph
+                            .as_ref()
+                            .map(|g| {
+                                g.edges
+                                    .iter()
+                                    .filter(|e| {
+                                        matches!(
+                                            e.kind,
+                                            EdgeKind::PartOfConstruction(ref c) if c == "Accompaniment"
+                                        )
+                                    })
+                                    .map(|e| e.id)
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                    }));
+                    let _ = accomp_paths;
+                    words.push(prep_decision.to_string());
                 } else {
                     fl.case = Some(Case::Locative);
                     words.push("z".to_string());

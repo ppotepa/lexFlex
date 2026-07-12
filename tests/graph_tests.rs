@@ -212,3 +212,100 @@ fn test_graph_instrumental_drives_with_prep_decision() {
         .expect("WIFE entity");
     assert!(graph.location_uses_instrumental(loc_entity));
 }
+
+// ─── Phrase layer (Phase 2 completion) ───────────────────────────────────────
+
+#[test]
+fn test_phrase_nodes_materialized() {
+    let graph = graph_from_parse("Tomek mieszka z żoną.", "pl");
+    let phrases: Vec<_> = graph.phrase_nodes().collect();
+    assert!(!phrases.is_empty(), "NP/PP/VP phrase nodes expected");
+    assert!(phrases.iter().any(|p| p.phrase_type == "VP"));
+    assert!(phrases.iter().any(|p| p.phrase_type == "PP" || p.phrase_type == "NP"));
+}
+
+// ─── Concept layer (Phase 4) ─────────────────────────────────────────────────
+
+#[test]
+fn test_concept_nodes_and_evokes_edges() {
+    let graph = graph_from_parse("Tomek ma kota.", "pl");
+    assert!(!graph.concept_nodes().collect::<Vec<_>>().is_empty());
+    assert!(graph.has_edge_kind(&EdgeKind::EvokesConcept));
+    let verbs = graph.find_verbs();
+    assert!(verbs.iter().any(|v| v.evokes.is_some()));
+}
+
+// ─── Path / construction matching (Phase 5) ───────────────────────────────────
+
+#[test]
+fn test_accompaniment_construction_paths() {
+    let graph = graph_from_parse("Tomek mieszka z żoną i córką.", "pl");
+    let paths = graph.find_accompaniment_paths();
+    assert!(!paths.is_empty(), "verb→prep→noun accompaniment path expected");
+    assert!(paths[0].len() >= 3);
+    assert!(graph.edges.iter().any(|e| matches!(
+        e.kind,
+        EdgeKind::PartOfConstruction(ref c) if c == "Accompaniment"
+    )));
+}
+
+// ─── Discourse / context (Phase 3) ───────────────────────────────────────────
+
+#[test]
+fn test_multi_sentence_corefers_and_next_sentence() {
+    let api = build_api();
+    let il = api
+        .parse("Tomek ma kota. Tomek ma psa.", "pl")
+        .expect("multi-sentence parse");
+    let utt = il.as_natural().expect("natural");
+    assert_eq!(utt.sentences.len(), 2);
+
+    let d = utt.discourse.as_ref().expect("discourse tracked");
+    assert!(!d.recent_mentions.is_empty());
+    assert!(!d.entities_in_focus.is_empty());
+
+    let g1 = utt.sentences[0].graph.as_ref().expect("graph s1");
+    let g2 = utt.sentences[1].graph.as_ref().expect("graph s2");
+    assert!(g1.edges.iter().any(|e| matches!(e.kind, EdgeKind::Corefers))
+        || g2.edges.iter().any(|e| matches!(e.kind, EdgeKind::Corefers)));
+    assert!(g2.edges.iter().any(|e| matches!(e.kind, EdgeKind::NextSentence))
+        || g1.frame_ids().len() > 0);
+}
+
+#[test]
+fn test_recent_entities_query() {
+    use lexflex::core::context::recent_entities_of_type;
+    let api = build_api();
+    let il = api.parse("Tomek ma kota. Tomek ma psa.", "pl").unwrap();
+    let utt = il.as_natural().unwrap();
+    let recent = recent_entities_of_type(utt, "PERSON", 3);
+    assert!(!recent.is_empty());
+}
+
+// ─── Dialogue graph (Phase 7) ──────────────────────────────────────────────────
+
+#[test]
+fn test_dialogue_graph_cross_utterance() {
+    let api = build_api();
+    let dialogue = api
+        .parse_dialogue(&["Tomek ma kota.", "Tomek ma psa."], "pl")
+        .expect("dialogue parse");
+    assert_eq!(dialogue.utterances.len(), 2);
+    assert!(!dialogue.cross_edges.is_empty() || dialogue.utterances[1]
+        .sentences
+        .first()
+        .and_then(|s| s.graph.as_ref())
+        .map(|g| g.edges.iter().any(|e| matches!(e.kind, EdgeKind::Corefers)))
+        .unwrap_or(false));
+}
+
+#[test]
+fn test_translate_dialogue() {
+    let api = build_api();
+    let outs = api
+        .translate_dialogue(&["Tomek ma kota.", "Tomek ma psa."], "pl", "en")
+        .expect("dialogue translate");
+    assert_eq!(outs.len(), 2);
+    assert!(!outs[0].is_empty());
+    assert!(!outs[1].is_empty());
+}

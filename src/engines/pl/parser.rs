@@ -1,3 +1,4 @@
+use crate::core::context;
 use crate::core::deduction::{self, DeductionContext};
 use crate::core::graph::{self, LinguisticGraph, TrackedEntity};
 use crate::core::interlingua::*;
@@ -30,6 +31,32 @@ impl PolishParser {
             return Err(ParseError::EmptyInput);
         }
 
+        let sentence_parts = context::split_sentence_boundaries(input);
+        if sentence_parts.len() > 1 {
+            let mut all_sentences = Vec::new();
+            for part in sentence_parts {
+                if let Ok(utt) = self.parse_single(&part) {
+                    all_sentences.extend(utt.sentences);
+                }
+            }
+            if all_sentences.is_empty() {
+                return Err(ParseError::NoVerbFound);
+            }
+            let mut utterance = Utterance {
+                sentences: all_sentences,
+                discourse: None,
+                utterance_node_id: None,
+            };
+            context::track_discourse(&mut utterance);
+            return Ok(utterance);
+        }
+
+        let mut utterance = self.parse_single(input)?;
+        context::track_discourse(&mut utterance);
+        Ok(utterance)
+    }
+
+    fn parse_single(&self, input: &str) -> Result<Utterance, ParseError> {
         let tokens = self.tokenize(input);
 
         // Detect clause boundaries and split into clause groups
@@ -54,7 +81,7 @@ impl PolishParser {
             return Ok(utterance);
         }
 
-        // Multiple clauses — parse each separately
+        // Multiple clauses — parse each separately (within one sentence)
         let mut all_sentences = vec![];
         for clause_tokens in &clause_groups {
             if clause_tokens.is_empty() { continue; }
@@ -696,13 +723,10 @@ impl PolishParser {
         }
 
         // Temporal detection: algorithmic via lexicon concept lookup (no hardcoded word list)
-        let temporal_concepts = ["YESTERDAY", "TODAY", "TOMORROW", "NOW"];
         let temporal_token = tokens.iter().find(|t| {
-            if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
-                temporal_concepts.iter().any(|c| entry.concept.to_uppercase() == *c)
-            } else {
-                false
-            }
+            self.lexicon
+                .lookup_by_form(&t.form)
+                .map_or(false, |entry| self.ontology.is_temporal_concept(&entry.concept))
         });
         if let Some(tt) = temporal_token {
             sentence.temporal = Some(TemporalReference::Deictic {
@@ -711,43 +735,22 @@ impl PolishParser {
         }
 
         // Quantification detection: algorithmic via lexicon concept lookup
-        let universal_concepts = ["ALL", "EVERY", "EVERYONE", "EVERYTHING"];
-        let existential_concepts = ["SOME", "SOMEONE", "SOMETHING"];
-        let negated_concepts = ["NOBODY", "NOTHING", "NONE", "NO"];
-        let many_concepts = ["MANY", "MUCH"];
-        let few_concepts = ["FEW", "SEVERAL"];
-        let most_concepts = ["MOST"];
-
         let quantifier_token = tokens.iter().find(|t| {
-            if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
-                let c = entry.concept.to_uppercase();
-                universal_concepts.contains(&c.as_str())
-                    || existential_concepts.contains(&c.as_str())
-                    || negated_concepts.contains(&c.as_str())
-                    || many_concepts.contains(&c.as_str())
-                    || few_concepts.contains(&c.as_str())
-                    || most_concepts.contains(&c.as_str())
-            } else {
-                false
-            }
+            self.lexicon
+                .lookup_by_form(&t.form)
+                .map_or(false, |entry| self.ontology.is_quantifier_concept(&entry.concept))
         });
         if let Some(qt) = quantifier_token {
             if let Some(entry) = self.lexicon.lookup_by_form(&qt.form) {
                 let c = entry.concept.to_uppercase();
-                sentence.quantification = Some(if universal_concepts.contains(&c.as_str()) {
-                    Quantifier::Universal
-                } else if existential_concepts.contains(&c.as_str()) {
-                    Quantifier::Existential
-                } else if negated_concepts.contains(&c.as_str()) {
-                    Quantifier::NegatedExistential
-                } else if many_concepts.contains(&c.as_str()) {
-                    Quantifier::Proportional("many".to_string())
-                } else if few_concepts.contains(&c.as_str()) {
-                    Quantifier::Proportional("few".to_string())
-                } else if most_concepts.contains(&c.as_str()) {
-                    Quantifier::Proportional("most".to_string())
-                } else {
-                    Quantifier::Existential
+                sentence.quantification = Some(match c.as_str() {
+                    "ALL" | "EVERY" | "EVERYONE" | "EVERYTHING" => Quantifier::Universal,
+                    "SOME" | "SOMEONE" | "SOMETHING" => Quantifier::Existential,
+                    "NOBODY" | "NOTHING" | "NONE" | "NO" => Quantifier::NegatedExistential,
+                    "MANY" | "MUCH" => Quantifier::Proportional("many".to_string()),
+                    "FEW" | "SEVERAL" => Quantifier::Proportional("few".to_string()),
+                    "MOST" => Quantifier::Proportional("most".to_string()),
+                    _ => Quantifier::Existential,
                 });
             }
         }
@@ -918,6 +921,8 @@ impl PolishParser {
             .map(|e| TrackedEntity::new(e.clone(), graph::match_entity_to_tokens(&e, tokens)))
             .collect();
         graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
+        graph.materialize_phrases(tokens, &word_ids);
+        graph.attach_concept_layer(&self.lexicon, &self.ontology);
         sentence.graph = Some(graph);
 
         Ok(Utterance::single_sentence(sentence))

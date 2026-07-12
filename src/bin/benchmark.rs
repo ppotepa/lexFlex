@@ -149,7 +149,10 @@ fn main() {
         // Real steps from instrumentation (generate_frame, resolve_surface_verb, realize_* calls via thread local)
         let mut step_lines = vec![];
         for st in &collected_steps {
-            step_lines.push(format!(" - [{}] {} (reason: {:?})", st.stage, st.decision, st.reason));
+            step_lines.push(format!(
+                " - [{}] {} (reason: {:?}, nodes: {:?}, edges: {:?})",
+                st.stage, st.decision, st.reason, st.involved_nodes, st.involved_edges
+            ));
         }
         if step_lines.is_empty() {
             step_lines.push(" - (no steps recorded; collector active in pipeline path)".to_string());

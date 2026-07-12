@@ -33,6 +33,27 @@ impl Ontology {
         self.entries.get(id)
     }
 
+    pub fn all_entries(&self) -> impl Iterator<Item = &OntologyEntry> {
+        self.entries.values()
+    }
+
+    pub fn is_temporal_concept(&self, concept: &str) -> bool {
+        matches!(
+            concept.to_uppercase().as_str(),
+            "YESTERDAY" | "TODAY" | "TOMORROW" | "NOW"
+        )
+    }
+
+    pub fn is_quantifier_concept(&self, concept: &str) -> bool {
+        matches!(
+            concept.to_uppercase().as_str(),
+            "ALL" | "EVERY" | "EVERYONE" | "EVERYTHING"
+                | "SOME" | "SOMEONE" | "SOMETHING"
+                | "NOBODY" | "NOTHING" | "NONE" | "NO"
+                | "MANY" | "MUCH" | "FEW" | "SEVERAL" | "MOST"
+        )
+    }
+
     pub fn is_a(&self, child: &ConceptId, parent: &ConceptId) -> bool {
         if child == parent {
             return true;

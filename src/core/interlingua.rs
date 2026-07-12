@@ -634,6 +634,29 @@ pub struct Discourse {
     pub addressee: Option<Entity>,
     pub purpose: Option<String>,
     pub register: Option<String>,
+    #[serde(default)]
+    pub entities_in_focus: Vec<NodeId>,
+    #[serde(default)]
+    pub recent_mentions: Vec<(NodeId, usize)>,
+    #[serde(default)]
+    pub coref_edges: Vec<EdgeId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub utterance_node_id: Option<NodeId>,
+}
+
+impl Default for Discourse {
+    fn default() -> Self {
+        Self {
+            speaker: None,
+            addressee: None,
+            purpose: None,
+            register: None,
+            entities_in_focus: Vec::new(),
+            recent_mentions: Vec::new(),
+            coref_edges: Vec::new(),
+            utterance_node_id: None,
+        }
+    }
 }
 
 // (Coordination moved earlier to allow Entity to reference it)

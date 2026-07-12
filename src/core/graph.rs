@@ -1,4 +1,6 @@
 use crate::core::interlingua::*;
+use crate::core::ontology::Ontology;
+use crate::data::lexicon::Lexicon;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -13,6 +15,13 @@ pub enum EdgeKind {
     CoordinatesWith,
     EvokesConcept,
     PartOfConstruction(String),
+    SyntacticHead,
+    Dependent,
+    NextSentence,
+    Corefers,
+    InFocus,
+    RecentMention,
+    ConceptRelation(String),
 }
 
 // ─── Node payloads ────────────────────────────────────────────────────────────
@@ -71,11 +80,35 @@ pub struct CoordinationNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhraseNode {
+    pub id: NodeId,
+    pub phrase_type: String,
+    pub head: Option<NodeId>,
+    pub members: Vec<NodeId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConceptNode {
+    pub id: NodeId,
+    pub concept: ConceptId,
+    pub relations: Vec<(String, ConceptId)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SentenceNode {
+    pub id: NodeId,
+    pub frame_id: Option<NodeId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GraphNode {
     Word(WordNode),
+    Phrase(PhraseNode),
     Entity(EntityNode),
     Frame(FrameNode),
     Coordination(CoordinationNode),
+    Concept(ConceptNode),
+    Sentence(SentenceNode),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,6 +117,107 @@ pub struct Edge {
     pub from: NodeId,
     pub to: NodeId,
     pub kind: EdgeKind,
+}
+
+impl GraphNode {
+    pub fn word_id(&self) -> Option<NodeId> {
+        match self {
+            GraphNode::Word(w) => Some(w.id),
+            _ => None,
+        }
+    }
+}
+
+/// Direction-aware path builder for construction matching.
+pub struct PathBuilder<'a> {
+    graph: &'a LinguisticGraph,
+    paths: Vec<Vec<NodeId>>,
+}
+
+impl<'a> PathBuilder<'a> {
+    pub fn new(graph: &'a LinguisticGraph) -> Self {
+        Self {
+            graph,
+            paths: vec![],
+        }
+    }
+
+    pub fn starting_with_verb(mut self) -> Self {
+        self.paths = self
+            .graph
+            .find_verbs()
+            .into_iter()
+            .map(|v| vec![v.id])
+            .collect();
+        self
+    }
+
+    pub fn then_preposition(mut self, forms: &[&str]) -> Self {
+        let mut next = Vec::new();
+        for path in &self.paths {
+            if let Some(&vid) = path.last() {
+                if let Some(v) = self.graph.get_word(vid) {
+                    if let Some(nid) = v.next {
+                        if let Some(w) = self.graph.get_word(nid) {
+                            if w.pos == PartOfSpeech::Preposition
+                                && forms.iter().any(|f| w.form == *f || w.lemma == *f)
+                            {
+                                let mut p = path.clone();
+                                p.push(nid);
+                                next.push(p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.paths = next;
+        self
+    }
+
+    pub fn then_noun_phrase(mut self) -> Self {
+        let mut next = Vec::new();
+        for path in &self.paths {
+            if let Some(&pid) = path.last() {
+                if let Some(prep) = self.graph.get_word(pid) {
+                    let mut cur = prep.next;
+                    let mut p = path.clone();
+                    while let Some(nid) = cur {
+                        if let Some(w) = self.graph.get_word(nid) {
+                            if matches!(
+                                w.pos,
+                                PartOfSpeech::Noun | PartOfSpeech::Pronoun | PartOfSpeech::Adjective
+                            ) {
+                                p.push(nid);
+                                cur = w.next;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    if p.len() > path.len() {
+                        next.push(p);
+                    }
+                }
+            }
+        }
+        self.paths = next;
+        self
+    }
+
+    pub fn paths(self) -> Vec<Vec<NodeId>> {
+        self.paths
+    }
+}
+
+/// Multi-utterance dialogue substrate with cross-utterance edges.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct DialogueGraph {
+    pub utterances: Vec<Utterance>,
+    pub cross_edges: Vec<Edge>,
+    pub utterance_node_ids: Vec<NodeId>,
 }
 
 // ─── Tracked entity (parser helper) ─────────────────────────────────────────
@@ -288,6 +422,233 @@ impl LinguisticGraph {
         self.realizing_words_for_entity(location_entity_id)
             .iter()
             .any(|w| w.features.case == Some(Case::Instrumental))
+    }
+
+    pub fn entity_ids(&self) -> Vec<NodeId> {
+        self.nodes
+            .iter()
+            .filter_map(|n| match n {
+                GraphNode::Entity(e) => Some(e.id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn frame_ids(&self) -> Vec<NodeId> {
+        self.nodes
+            .iter()
+            .filter_map(|n| match n {
+                GraphNode::Frame(f) => Some(f.id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn phrase_nodes(&self) -> impl Iterator<Item = &PhraseNode> {
+        self.nodes.iter().filter_map(|n| match n {
+            GraphNode::Phrase(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn concept_nodes(&self) -> impl Iterator<Item = &ConceptNode> {
+        self.nodes.iter().filter_map(|n| match n {
+            GraphNode::Concept(c) => Some(c),
+            _ => None,
+        })
+    }
+
+    pub fn find_coordination_for_entity(&self, entity_id: NodeId) -> Option<&CoordinationNode> {
+        self.nodes.iter().find_map(|n| match n {
+            GraphNode::Coordination(c) if c.member_entities.contains(&entity_id) => Some(c),
+            _ => None,
+        })
+    }
+
+    pub fn concept_related(&self, concept: &str, relation: &str) -> Vec<ConceptId> {
+        let c = concept.to_uppercase();
+        self.concept_nodes()
+            .filter(|n| n.concept.0 == c)
+            .flat_map(|n| {
+                n.relations
+                    .iter()
+                    .filter(|(r, _)| r == relation)
+                    .map(|(_, t)| t.clone())
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Light syntactic phrase layer from token groups (NP/PP/VP).
+    pub fn materialize_phrases(&mut self, tokens: &[Token], word_ids: &[NodeId]) {
+        for (i, token) in tokens.iter().enumerate() {
+            if token.pos == PartOfSpeech::Verb {
+                if let Some(&wid) = word_ids.get(i) {
+                    let pid = self.alloc_node_id();
+                    self.nodes.push(GraphNode::Phrase(PhraseNode {
+                        id: pid,
+                        phrase_type: "VP".into(),
+                        head: Some(wid),
+                        members: vec![wid],
+                    }));
+                    self.add_edge(wid, pid, EdgeKind::SyntacticHead);
+                    self.add_edge(pid, wid, EdgeKind::Dependent);
+                }
+            }
+        }
+
+        let mut i = 0;
+        while i < tokens.len() {
+            if matches!(
+                tokens[i].pos,
+                PartOfSpeech::Noun
+                    | PartOfSpeech::Adjective
+                    | PartOfSpeech::Determiner
+                    | PartOfSpeech::Pronoun
+            ) {
+                let start = i;
+                while i < tokens.len()
+                    && matches!(
+                        tokens[i].pos,
+                        PartOfSpeech::Noun
+                            | PartOfSpeech::Adjective
+                            | PartOfSpeech::Determiner
+                            | PartOfSpeech::Pronoun
+                    )
+                {
+                    i += 1;
+                }
+                let members: Vec<NodeId> =
+                    (start..i).filter_map(|j| word_ids.get(j).copied()).collect();
+                if !members.is_empty() {
+                    let head = *members.last().unwrap();
+                    let pid = self.alloc_node_id();
+                    self.nodes.push(GraphNode::Phrase(PhraseNode {
+                        id: pid,
+                        phrase_type: "NP".into(),
+                        head: Some(head),
+                        members: members.clone(),
+                    }));
+                    for &m in &members {
+                        if m != head {
+                            self.add_edge(m, head, EdgeKind::SyntacticHead);
+                            self.add_edge(head, m, EdgeKind::Dependent);
+                        }
+                    }
+                }
+            } else if tokens[i].pos == PartOfSpeech::Preposition {
+                let prep_i = i;
+                i += 1;
+                let mut members: Vec<NodeId> = word_ids.get(prep_i).into_iter().copied().collect();
+                while i < tokens.len()
+                    && matches!(
+                        tokens[i].pos,
+                        PartOfSpeech::Noun | PartOfSpeech::Adjective | PartOfSpeech::Pronoun
+                    )
+                {
+                    if let Some(&wid) = word_ids.get(i) {
+                        members.push(wid);
+                    }
+                    i += 1;
+                }
+                if members.len() > 1 {
+                    let head = members[0];
+                    let pid = self.alloc_node_id();
+                    self.nodes.push(GraphNode::Phrase(PhraseNode {
+                        id: pid,
+                        phrase_type: "PP".into(),
+                        head: Some(head),
+                        members: members.clone(),
+                    }));
+                    for &m in &members[1..] {
+                        self.add_edge(m, head, EdgeKind::SyntacticHead);
+                    }
+                    let construction = if tokens[prep_i].form == "z"
+                        || tokens[prep_i].form == "with"
+                        || tokens[prep_i].form == "razem z"
+                    {
+                        "Accompaniment"
+                    } else {
+                        "PrepositionalPhrase"
+                    };
+                    self.add_edge(
+                        *members.last().unwrap(),
+                        pid,
+                        EdgeKind::PartOfConstruction(construction.to_string()),
+                    );
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Attach ConceptNodes from ontology and populate WordNode.evokes from lexicon.
+    pub fn attach_concept_layer(&mut self, lexicon: &Lexicon, ontology: &Ontology) {
+        let mut concept_index: HashMap<String, NodeId> = HashMap::new();
+
+        for entry in ontology.all_entries() {
+            let cid = self.alloc_node_id();
+            let mut relations = Vec::new();
+            if let Some(parent) = &entry.parent {
+                relations.push(("is_a".to_string(), parent.clone()));
+            }
+            let concept_id = entry.id.clone();
+            self.nodes.push(GraphNode::Concept(ConceptNode {
+                id: cid,
+                concept: concept_id.clone(),
+                relations,
+            }));
+            concept_index.insert(concept_id.0.clone(), cid);
+        }
+
+        let word_count = self.nodes.len();
+        for i in 0..word_count {
+            let (wid, concept) = match &self.nodes[i] {
+                GraphNode::Word(w) => {
+                    let concept = w.evokes.clone().or_else(|| {
+                        lexicon
+                            .lookup_by_form(&w.form)
+                            .or_else(|| lexicon.lookup_by_lemma(&w.lemma))
+                            .map(|e| ConceptId::new(&e.concept))
+                    });
+                    (w.id, concept)
+                }
+                _ => continue,
+            };
+            if let Some(cid) = concept {
+                if let GraphNode::Word(wmut) = &mut self.nodes[i] {
+                    wmut.evokes = Some(cid.clone());
+                }
+                if let Some(&cnid) = concept_index.get(&cid.0) {
+                    self.add_edge(wid, cnid, EdgeKind::EvokesConcept);
+                }
+            }
+        }
+
+        for entry in ontology.all_entries() {
+            if let Some(parent) = &entry.parent {
+                if let (Some(&child_id), Some(&parent_id)) = (
+                    concept_index.get(&entry.id.0),
+                    concept_index.get(&parent.0),
+                ) {
+                    self.add_edge(child_id, parent_id, EdgeKind::ConceptRelation("is_a".into()));
+                }
+            }
+        }
+    }
+
+    /// Path-based construction matching (accompaniment: verb → prep → noun+).
+    pub fn find_accompaniment_paths(&self) -> Vec<Vec<NodeId>> {
+        PathBuilder::new(self)
+            .starting_with_verb()
+            .then_preposition(&["z", "with", "razem z"])
+            .then_noun_phrase()
+            .paths()
+    }
+
+    pub fn path_builder(&self) -> PathBuilder<'_> {
+        PathBuilder::new(self)
     }
 
     /// Materialize semantic layer from frame + tracked entities.
@@ -555,31 +916,40 @@ pub fn collect_frame_entities(frame: &Frame) -> Vec<Entity> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphSnapshot {
     pub words: Vec<WordNode>,
+    pub phrases: Vec<PhraseNode>,
     pub entities: Vec<EntityNode>,
     pub frames: Vec<FrameNode>,
     pub coordinations: Vec<CoordinationNode>,
+    pub concepts: Vec<ConceptNode>,
     pub edges: Vec<Edge>,
 }
 
 impl From<&LinguisticGraph> for GraphSnapshot {
     fn from(g: &LinguisticGraph) -> Self {
         let mut words = Vec::new();
+        let mut phrases = Vec::new();
         let mut entities = Vec::new();
         let mut frames = Vec::new();
         let mut coordinations = Vec::new();
+        let mut concepts = Vec::new();
         for node in &g.nodes {
             match node {
                 GraphNode::Word(w) => words.push(w.clone()),
+                GraphNode::Phrase(p) => phrases.push(p.clone()),
                 GraphNode::Entity(e) => entities.push(e.clone()),
                 GraphNode::Frame(f) => frames.push(f.clone()),
                 GraphNode::Coordination(c) => coordinations.push(c.clone()),
+                GraphNode::Concept(c) => concepts.push(c.clone()),
+                GraphNode::Sentence(_) => {}
             }
         }
         Self {
             words,
+            phrases,
             entities,
             frames,
             coordinations,
+            concepts,
             edges: g.edges.clone(),
         }
     }

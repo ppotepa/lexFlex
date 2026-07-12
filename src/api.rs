@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use crate::core::interlingua::{Interlingua, LanguageId};
+use crate::core::graph::DialogueGraph;
+use crate::core::interlingua::{Interlingua, LanguageId, Utterance};
 use crate::data::loader;
 use crate::engines::en::EnglishEngine;
 use crate::engines::en::morphology::EnglishMorphology;
@@ -49,6 +50,44 @@ impl LexFlexAPI {
 
     pub fn supported_languages(&self) -> Vec<String> {
         self.translator.supported_languages()
+    }
+
+    /// Parse multiple utterances and build a dialogue graph with cross-utterance context.
+    pub fn parse_dialogue(
+        &self,
+        texts: &[&str],
+        lang: &str,
+    ) -> Result<DialogueGraph, LexFlexError> {
+        Ok(self.translator.parse_dialogue(texts, &LanguageId::new(lang))?)
+    }
+
+    /// Parse multi-sentence text as a single utterance with discourse tracking.
+    pub fn parse_multi_sentence(
+        &self,
+        input: &str,
+        lang: &str,
+    ) -> Result<Utterance, LexFlexError> {
+        let il = self.parse(input, lang)?;
+        il.as_natural()
+            .cloned()
+            .ok_or_else(|| {
+                LexFlexError::Translate(crate::error::TranslateError::InexpressibleInTarget {
+                    target: lang.to_string(),
+                    features: vec!["Expected natural language utterance".to_string()],
+                })
+            })
+    }
+
+    /// Translate a sequence of utterances, carrying dialogue context.
+    pub fn translate_dialogue(
+        &self,
+        texts: &[&str],
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<String>, LexFlexError> {
+        Ok(self
+            .translator
+            .translate_dialogue(texts, &LanguageId::new(from), &LanguageId::new(to))?)
     }
 }
 

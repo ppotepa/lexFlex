@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::core::context;
+use crate::core::graph::DialogueGraph;
 use crate::core::interlingua::{Interlingua, LanguageId};
 use crate::core::traits::IMeaningRepresentation;
 use crate::error::TranslateError;
@@ -111,6 +113,66 @@ impl UniversalTranslator {
 
     pub fn supported_languages(&self) -> Vec<String> {
         self.engines.keys().cloned().collect()
+    }
+
+    pub fn parse_dialogue(
+        &self,
+        texts: &[&str],
+        from: &LanguageId,
+    ) -> Result<DialogueGraph, TranslateError> {
+        let source = self.engines.get(&from.0).ok_or_else(|| {
+            TranslateError::UnsupportedSourceLanguage {
+                language: from.0.clone(),
+            }
+        })?;
+
+        let mut utterances = Vec::new();
+        for text in texts {
+            let il = source.to_interlingua(text).map_err(|e| {
+                TranslateError::InexpressibleInTarget {
+                    target: from.0.clone(),
+                    features: vec![format!("Parse error: {}", e)],
+                }
+            })?;
+            if let Interlingua::Natural(u) = il {
+                utterances.push(u);
+            }
+        }
+
+        let mut dialogue = DialogueGraph {
+            utterances,
+            cross_edges: Vec::new(),
+            utterance_node_ids: Vec::new(),
+        };
+        context::link_cross_utterance_context(&mut dialogue);
+        Ok(dialogue)
+    }
+
+    pub fn translate_dialogue(
+        &self,
+        texts: &[&str],
+        from: &LanguageId,
+        to: &LanguageId,
+    ) -> Result<Vec<String>, TranslateError> {
+        let dialogue = self.parse_dialogue(texts, from)?;
+        let target = self.engines.get(&to.0).ok_or_else(|| {
+            TranslateError::UnsupportedTargetLanguage {
+                language: to.0.clone(),
+            }
+        })?;
+
+        let mut outputs = Vec::new();
+        for utterance in &dialogue.utterances {
+            let il = Interlingua::Natural(utterance.clone());
+            let out = target.from_interlingua(&il).map_err(|e| {
+                TranslateError::InexpressibleInTarget {
+                    target: to.0.clone(),
+                    features: vec![format!("Generate error: {}", e)],
+                }
+            })?;
+            outputs.push(out);
+        }
+        Ok(outputs)
     }
 }
 
