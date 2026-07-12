@@ -1,5 +1,5 @@
 use lexflex::api::LexFlexAPI;
-use lexflex::core::graph::{EdgeKind, LinguisticGraph};
+use lexflex::core::graph::{self, EdgeKind, GraphNode, LinguisticGraph};
 use lexflex::core::interlingua::*;
 
 fn build_api() -> LexFlexAPI {
@@ -121,6 +121,81 @@ fn test_graph_find_verbs_and_instrumental_feature() {
     assert!(!verbs.is_empty());
     let instrumental = graph.find_words_with_feature(|f| f.case == Some(Case::Instrumental));
     assert!(!instrumental.is_empty(), "instrumental case on accompaniment NP");
+}
+
+/// Assert graph FrameNode verb_concept and entity concepts match the final IL frame.
+fn assert_graph_il_frame_sync(sentence: &Sentence) {
+    let graph = sentence.graph.as_ref().expect("graph must exist");
+    let frame = sentence.frames.first().expect("frame must exist");
+
+    let frame_node = graph
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            GraphNode::Frame(f) => Some(f),
+            _ => None,
+        })
+        .expect("FrameNode must exist");
+
+    let il_verb = graph::frame_verb_concept(frame);
+
+    assert_eq!(
+        frame_node.verb_concept.0, il_verb,
+        "graph FrameNode verb_concept must match IL frame"
+    );
+
+    for entity in frame.entities() {
+        let in_graph = graph.nodes.iter().any(|n| match n {
+            GraphNode::Entity(e) => e.concept == entity.concept && e.name == entity.name,
+            _ => false,
+        });
+        assert!(
+            in_graph,
+            "IL entity {:?}/{:?} must have matching EntityNode in graph",
+            entity.concept.0,
+            entity.name
+        );
+    }
+}
+
+#[test]
+fn test_graph_frame_matches_il_after_age_idiom() {
+    let api = build_api();
+    let il = api.parse("Mam 27 lat.", "pl").expect("parse");
+    let sentence = &il.as_natural().expect("natural").sentences[0];
+
+    match &sentence.frames[0] {
+        Frame::Possession { verb_concept, possessed, .. } => {
+            assert_eq!(verb_concept, "BE");
+            assert_eq!(possessed.concept.0, "YEAR");
+        }
+        other => panic!("expected Possession frame, got {:?}", other),
+    }
+
+    assert_graph_il_frame_sync(sentence);
+
+    let graph = sentence.graph.as_ref().unwrap();
+    let verb = graph.find_verbs().into_iter().next().expect("verb word");
+    assert_eq!(
+        verb.evokes.as_ref().map(|c| c.0.as_str()),
+        Some("BE"),
+        "verb word evokes must be BE after age idiom, not stale HAVE"
+    );
+}
+
+#[test]
+fn test_graph_frame_matches_il_existence_and_possession() {
+    let api = build_api();
+    for (input, lang) in [
+        ("Tomek mieszka z żoną.", "pl"),
+        ("Tomek ma kota.", "pl"),
+        ("I live with a wife.", "en"),
+        ("Tom has a cat.", "en"),
+    ] {
+        let il = api.parse(input, lang).unwrap();
+        let sentence = &il.as_natural().unwrap().sentences[0];
+        assert_graph_il_frame_sync(sentence);
+    }
 }
 
 #[test]

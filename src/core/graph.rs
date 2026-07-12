@@ -417,7 +417,7 @@ impl LinguisticGraph {
     }
 }
 
-fn frame_verb_concept(frame: &Frame) -> &str {
+pub fn frame_verb_concept(frame: &Frame) -> &str {
     match frame {
         Frame::Transfer { verb_concept, .. }
         | Frame::Motion { verb_concept, .. }

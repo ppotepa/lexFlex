@@ -893,7 +893,23 @@ impl PolishParser {
         // Add prepositional phrase entities to the main entities list
         entities.extend(pp_entities);
 
-        let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
+        let mut frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
+
+        // Data-driven age for "X lat": mutate frame BEFORE graph materialization so IL and graph stay in sync.
+        if (verb_lemma == "mieć" || verb_lemma == "ma" || verb_lemma == "mam")
+            && tokens.iter().any(|t| t.form.contains("lat") || t.form.contains("roku"))
+        {
+            if let Frame::Possession { verb_concept, possessed, .. } = &mut frame {
+                *verb_concept = "BE".to_string();
+                if possessed.concept.0 == "lat"
+                    || possessed.concept.0 == "rok"
+                    || possessed.name.as_deref() == Some("lat")
+                {
+                    *possessed = Entity::new(ConceptId::new("YEAR")).with_name("year");
+                }
+            }
+        }
+
         sentence.frames.push(frame.clone());
 
         let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
@@ -903,29 +919,6 @@ impl PolishParser {
             .collect();
         graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
         sentence.graph = Some(graph);
-
-        // Possession detection: driven by verb frame_type from lexicon (not hardcoded "ma" check)
-        // The verb entry for "ma"/"mieć" has frame_type "Possession" which is already used above.
-
-        // Data-driven age for "X lat": set verb_concept="BE" so normal possession path + realizer
-        // will use "am" (from BE + 1sg features) + "N years old" (from YEAR NP in generator).
-        // No HAVE_AGE, no force in pipeline, no hardcoded strings here.
-        if (verb_lemma == "mieć" || verb_lemma == "ma" || verb_lemma == "mam") &&
-           tokens.iter().any(|t| t.form.contains("lat") || t.form.contains("roku")) {
-            if let Some(last) = sentence.frames.last_mut() {
-                if let Frame::Possession { verb_concept, .. } = last {
-                    *verb_concept = "BE".to_string();
-                }
-            }
-            // Also ensure the theme/possessed for the frame gets YEAR if it was "lat"
-            if let Some(last) = sentence.frames.last_mut() {
-                if let Frame::Possession { possessed, .. } = last {
-                    if possessed.concept.0 == "lat" || possessed.concept.0 == "rok" || possessed.name.as_deref() == Some("lat") {
-                        *possessed = Entity::new(ConceptId::new("YEAR")).with_name("year");
-                    }
-                }
-            }
-        }
 
         Ok(Utterance::single_sentence(sentence))
     }
