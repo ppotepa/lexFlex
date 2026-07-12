@@ -577,6 +577,8 @@
     ("psa", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Accusative)))),
     ("psu", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Dative)))),
     ("psem", (lemma: "pies", pos: "Noun", concept: "DOG", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate), case: Some(Instrumental)))),
+    // Age idiom support (data-driven): "X lat" (gen pl of rok) -> YEAR concept for normal possession path (no HAVE_AGE hack)
+    ("lat", (lemma: "rok", pos: "Noun", concept: "YEAR", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Plural), case: Some(Genitive)))),
 
     // ═══ INFLECTED FORMS — common cases from Adam text ═══
     ("pokoje", (lemma: "pokój", pos: "Noun", concept: "ROOM", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Plural), case: Some(Accusative)))),
@@ -804,4 +806,14 @@
     ("dzisiaj", (lemma: "dzisiaj", pos: "Adverb", concept: "TODAY", frame_type: None, roles: [], paradigm: None, features: ())),
     ("jutro", (lemma: "jutro", pos: "Adverb", concept: "TOMORROW", frame_type: None, roles: [], paradigm: None, features: ())),
     ("wczoraj", (lemma: "wczoraj", pos: "Adverb", concept: "YESTERDAY", frame_type: None, roles: [], paradigm: None, features: ())),
+    // Added for Adam text to reduce "unknown"
+    ("inny", (lemma: "inny", pos: "Adjective", concept: "OTHER", frame_type: None, roles: [], paradigm: Some("adjective"), features: ())),
+    ("współpracownik", (lemma: "współpracownik", pos: "Noun", concept: "COLLEAGUE", frame_type: None, roles: [], paradigm: Some("masculine_personal"), features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
+    ("uprzejmy", (lemma: "uprzejmy", pos: "Adjective", concept: "POLITE", frame_type: None, roles: [], paradigm: Some("adjective"), features: ())),
+    ("spokojny", (lemma: "spokojny", pos: "Adjective", concept: "CALM", frame_type: None, roles: [], paradigm: Some("adjective"), features: ())),
+    ("chętnie", (lemma: "chętnie", pos: "Adverb", concept: "WILLINGLY", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("pomagać", (lemma: "pomagać", pos: "Verb", concept: "HELP", frame_type: Some("Communication"), roles: ["Speaker", "Addressee", "Message"], paradigm: Some("verb"), features: ())),
+    ("innym", (lemma: "inny", pos: "Adjective", concept: "OTHER", frame_type: None, roles: [], paradigm: Some("adjective"), features: (case: Some(Dative)))),
+    ("swój", (lemma: "swój", pos: "Adjective", concept: "OWN", frame_type: None, roles: [], paradigm: Some("adjective"), features: ())),
+    ("swoich", (lemma: "swój", pos: "Adjective", concept: "OWN", frame_type: None, roles: [], paradigm: Some("adjective"), features: (case: Some(Genitive), number: Some(Plural)))),
 ]

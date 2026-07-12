@@ -300,6 +300,35 @@ fn test_dialogue_graph_cross_utterance() {
 }
 
 #[test]
+fn test_graph_coordination_drives_plural_agreement() {
+    use lexflex::core::graph;
+    let graph = graph_from_parse("Tomek i Iza ma kota.", "pl");
+    let api = build_api();
+    let il = api.parse("Tomek i Iza ma kota.", "pl").unwrap();
+    let sentence = &il.as_natural().unwrap().sentences[0];
+    let agent = &sentence.frames[0].entities()[0];
+    assert!(graph::has_coordination_topology(&graph, agent));
+    assert!(graph::entity_needs_plural_agreement(agent, sentence.graph.as_ref()));
+}
+
+#[test]
+fn test_age_idiom_uses_year_concept_not_lemma_hacks() {
+    let api = build_api();
+    let il = api.parse("Mam 27 lat.", "pl").unwrap();
+    let sentence = &il.as_natural().unwrap().sentences[0];
+    match &sentence.frames[0] {
+        Frame::Possession { verb_concept, possessed, .. } => {
+            assert_eq!(verb_concept, "BE");
+            assert_eq!(possessed.concept.0, "YEAR");
+        }
+        other => panic!("expected Possession: {:?}", other),
+    }
+    assert_graph_il_frame_sync(sentence);
+    let out = api.translate("Mam 27 lat.", "pl", "en").unwrap();
+    assert_eq!(out, "I am 27 years old.");
+}
+
+#[test]
 fn test_translate_dialogue() {
     let api = build_api();
     let outs = api

@@ -26,6 +26,7 @@
             "ku": Goal,
             "w kierunku": Goal,
             "z": Source,
+            "razem z": Accompaniment,
             "od": Source,
             "ze": Instrument,
             "za pomocą": Instrument,

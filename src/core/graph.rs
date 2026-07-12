@@ -881,6 +881,67 @@ pub fn frame_role_entities(frame: &Frame) -> Vec<(SemanticRole, &Entity)> {
     }
 }
 
+/// Locate the EntityNode id matching an IL entity (concept + name).
+pub fn find_entity_node_id(graph: &LinguisticGraph, entity: &Entity) -> Option<NodeId> {
+    graph.nodes.iter().find_map(|n| match n {
+        GraphNode::Entity(e) if e.concept == entity.concept && e.name == entity.name => Some(e.id),
+        _ => None,
+    })
+}
+
+/// True when graph has a CoordinationNode linking this entity.
+pub fn has_coordination_topology(graph: &LinguisticGraph, entity: &Entity) -> bool {
+    find_entity_node_id(graph, entity)
+        .and_then(|id| graph.find_coordination_for_entity(id))
+        .is_some()
+}
+
+/// Reconstruct coordination members from graph topology (CoordinatesWith chain).
+pub fn coordination_from_graph(
+    graph: &LinguisticGraph,
+    entity: &Entity,
+) -> Option<(String, Vec<Entity>)> {
+    let eid = find_entity_node_id(graph, entity)?;
+    let coord = graph.find_coordination_for_entity(eid)?;
+    let items: Vec<Entity> = coord
+        .member_entities
+        .iter()
+        .filter_map(|mid| entity_node_to_il(graph, *mid))
+        .collect();
+    if items.len() < 2 {
+        return None;
+    }
+    Some((coord.conjunction.clone(), items))
+}
+
+fn entity_node_to_il(graph: &LinguisticGraph, id: NodeId) -> Option<Entity> {
+    graph.nodes.iter().find_map(|n| match n {
+        GraphNode::Entity(e) if e.id == id => Some(Entity {
+            concept: e.concept.clone(),
+            name: e.name.clone(),
+            features: e.features.clone(),
+            reference: Reference::Direct,
+            id: None,
+            coordination: None,
+            adjectives: vec![],
+        }),
+        _ => None,
+    })
+}
+
+/// Subject/agent uses plural agreement when graph shows coordination or plural features.
+pub fn entity_needs_plural_agreement(entity: &Entity, graph: Option<&LinguisticGraph>) -> bool {
+    if entity.features.number == Some(Number::Plural) {
+        return true;
+    }
+    if let Some(g) = graph {
+        if has_coordination_topology(g, entity) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Match an entity to contributing token indices by name/lemma/form.
 pub fn match_entity_to_tokens(entity: &Entity, tokens: &[Token]) -> Vec<usize> {
     let name = entity.name.as_deref().unwrap_or("");

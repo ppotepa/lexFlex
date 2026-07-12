@@ -1,3 +1,4 @@
+use crate::core::graph::{self, LinguisticGraph};
 use crate::core::interlingua::*; // Degree etc. for realize impls
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
@@ -10,6 +11,7 @@ use crate::generation::LanguageRealizer;
 pub struct EnglishGenerator {
     lexicon: Lexicon,
     morphology: EnglishMorphology,
+    #[allow(dead_code)]
     descriptor: LanguageDescriptor,
     phonology: DefaultPhonology,
 }
@@ -87,7 +89,7 @@ impl EnglishGenerator {
             }
 
             // Generate theme as subject
-            let theme_str = self.generate_entity_form(&theme, true)?;
+            let theme_str = self.generate_entity_form_legacy(&theme, true)?;
             words.push(theme_str);
 
             // Add "be" auxiliary (past tense for now)
@@ -108,7 +110,7 @@ impl EnglishGenerator {
             // Add "by" phrase for agent
             if let Some(agent_entity) = agent {
                 words.push("by".to_string());
-                let agent_str = self.generate_entity_form(&agent_entity, true)?;
+                let agent_str = self.generate_entity_form_legacy(&agent_entity, true)?;
                 words.push(agent_str);
             }
         }
@@ -217,7 +219,7 @@ impl EnglishGenerator {
                 if verb_concept == "HAVE_NAME" {
                     // For HAVE_NAME, generate "I am called [name]"
                     // possessed is the name, possessor is implicit "I"
-                    let name_form = self.generate_entity_form(possessed, false)?;
+                    let name_form = self.generate_entity_form_legacy(possessed, false)?;
                     let verb_form = self.morphology.inflect_verb(
                         "be called",
                         sentence.tense.unwrap_or(Tense::Present),
@@ -243,7 +245,7 @@ impl EnglishGenerator {
     ) -> Result<Vec<String>, GenerateError> {
         let verb_lemma = resolve_surface_verb(frame, &self.lexicon);
 
-        let agent_form = self.generate_entity_form(agent, false)?;
+        let agent_form = self.generate_entity_form_legacy(agent, false)?;
         let pol = GenerationPolicy::new(&self.descriptor);
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
@@ -259,8 +261,8 @@ impl EnglishGenerator {
                 Some(Number::Singular),
             )?
         };
-        let theme_form = self.generate_entity_form(theme, true)?;
-        let recipient_form = self.generate_entity_form(recipient, false)?;
+        let theme_form = self.generate_entity_form_legacy(theme, true)?;
+        let recipient_form = self.generate_entity_form_legacy(recipient, false)?;
 
         let mut words = vec![];
         if pol.should_emit_subject(agent) {
@@ -291,7 +293,7 @@ impl EnglishGenerator {
             verb_concept: verb_concept.to_string(),
         };
         let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
-        let mover_form = self.generate_entity_form(mover, false)?;
+        let mover_form = self.generate_entity_form_legacy(mover, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
@@ -302,13 +304,13 @@ impl EnglishGenerator {
         let mut words = vec![mover_form, verb_form];
 
         if let Some(ref g) = goal {
-            let goal_form = self.generate_entity_form(g, false)?;
+            let goal_form = self.generate_entity_form_legacy(g, false)?;
             words.push("to".to_string());
             words.push(goal_form);
         }
 
         if let Some(ref s) = source {
-            let source_form = self.generate_entity_form(s, false)?;
+            let source_form = self.generate_entity_form_legacy(s, false)?;
             words.push("from".to_string());
             words.push(source_form);
         }
@@ -326,11 +328,11 @@ impl EnglishGenerator {
         let pol = GenerationPolicy::new(&self.descriptor);
         let verb_lemma = self.find_verb_for_frame(frame)?;
 
-        let subject_form = self.generate_entity_form(subject, false)?;
+        let subject_form = self.generate_entity_form_legacy(subject, false)?;
         let emit_sub = pol.should_emit_subject(subject);
 
         // Use AgreementEngine for correct number (coord -> Plural)
-        let num = if subject.coordination.is_some() || subject.features.number == Some(Number::Plural) {
+        let num = if graph::entity_needs_plural_agreement(subject, sentence.graph.as_ref()) {
             Some(Number::Plural)
         } else {
             subject.features.number.or(Some(Number::Singular))
@@ -350,7 +352,7 @@ impl EnglishGenerator {
                 num,
             )?
         };
-        let object_form = self.generate_entity_form(object, true)?;
+        let object_form = self.generate_entity_form_legacy(object, true)?;
 
         let mut words = vec![];
         if emit_sub {
@@ -390,19 +392,19 @@ impl EnglishGenerator {
             verb_concept: verb_concept.to_string(),
         };
         let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
-        let speaker_form = self.generate_entity_form(speaker, false)?;
+        let speaker_form = self.generate_entity_form_legacy(speaker, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
             Some(Person::Third),
             Some(Number::Singular),
         )?;
-        let message_form = self.generate_entity_form(message, true)?;
+        let message_form = self.generate_entity_form_legacy(message, true)?;
 
         let mut words = vec![speaker_form, verb_form];
 
         if let Some(addr) = addressee {
-            let addr_form = self.generate_entity_form(addr, false)?;
+            let addr_form = self.generate_entity_form_legacy(addr, false)?;
             words.push("to".to_string());
             words.push(addr_form);
         }
@@ -418,8 +420,8 @@ impl EnglishGenerator {
         property: &Entity,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let subject_form = self.generate_entity_form(subject, false)?;
-        let property_form = self.generate_entity_form(property, false)?;
+        let subject_form = self.generate_entity_form_legacy(subject, false)?;
+        let property_form = self.generate_entity_form_legacy(property, false)?;
 
         let verb = match sentence.tense {
             Some(Tense::Past) => "was",
@@ -442,7 +444,7 @@ impl EnglishGenerator {
         sentence: &Sentence,
         verb_concept: &str,
     ) -> Result<Vec<String>, GenerateError> {
-        let entity_form = self.generate_entity_form(entity, true)?;
+        let entity_form = self.generate_entity_form_legacy(entity, true)?;
 
         // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
         let verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
@@ -468,7 +470,7 @@ impl EnglishGenerator {
         let mut words = vec![verb, entity_form];
 
         if let Some(loc) = location {
-            let loc_form = self.generate_entity_form(loc, false)?;
+            let loc_form = self.generate_entity_form_legacy(loc, false)?;
             words.push("in".to_string());
             words.push(loc_form);
         }
@@ -476,41 +478,68 @@ impl EnglishGenerator {
         Ok(words)
     }
 
+    fn is_year_concept(entity: &Entity, entry_concept: Option<&str>) -> bool {
+        entity.concept.0 == "YEAR" || entry_concept == Some("YEAR")
+    }
+
+    fn realize_coordination_parts(
+        &self,
+        items: &[Entity],
+        conjunction: &str,
+        needs_article: bool,
+        _graph: Option<&LinguisticGraph>,
+    ) -> Result<String, GenerateError> {
+        let mut parts: Vec<String> = vec![];
+        for item in items {
+            // Members must not re-expand coordination (avoids infinite recursion via graph).
+            parts.push(self.generate_entity_form(item, needs_article, None)?);
+        }
+        let conj = match conjunction {
+            "i" | "oraz" | "and" => "and",
+            "albo" | "lub" | "or" => "or",
+            "," => ", ",
+            _ => "and",
+        };
+        if conj == ", " && parts.len() > 1 {
+            let last = parts.pop().unwrap();
+            return Ok(format!("{}, and {}", parts.join(", "), last));
+        }
+        if parts.len() > 2 {
+            let last = parts.pop().unwrap();
+            return Ok(format!("{}, {} {}", parts.join(", "), conj, last));
+        }
+        Ok(parts.join(&format!(" {} ", conj)))
+    }
+
+    fn generate_entity_form_legacy(
+        &self,
+        entity: &Entity,
+        needs_article: bool,
+    ) -> Result<String, GenerateError> {
+        self.generate_entity_form(entity, needs_article, None)
+    }
+
     fn generate_entity_form(
         &self,
         entity: &Entity,
         needs_article: bool,
+        graph: Option<&LinguisticGraph>,
     ) -> Result<String, GenerateError> {
         let policy = GenerationPolicy::new(&self.descriptor);
         let do_articles = policy.should_add_article(entity, needs_article)
             && entity.concept.0 != "DUMMY_SUBJECT"
             && entity.concept.0 != "PRONOUN";
 
-        // Handle coordination first: expand items and join with appropriate conjunction
+        // Graph-first coordination (CoordinatesWith topology)
+        if let Some(g) = graph {
+            if let Some((conj, items)) = graph::coordination_from_graph(g, entity) {
+                return self.realize_coordination_parts(&items, &conj, needs_article, graph);
+            }
+        }
+
+        // IL coordination fallback when graph unavailable
         if let Some(ref coord) = entity.coordination {
-            let mut parts: Vec<String> = vec![];
-            for item in &coord.items {
-                parts.push(self.generate_entity_form(item, needs_article)?);
-            }
-            // Map source conjunction to target EN conjunction
-            let conj = match coord.conjunction.as_str() {
-                "i" | "oraz" | "and" => "and",
-                "albo" | "lub" | "or" => "or",
-                "," => ", ",
-                _ => "and",
-            };
-            // For comma-separated lists, use Oxford comma: "A, B, and C"
-            if conj == ", " && parts.len() > 1 {
-                let last = parts.pop().unwrap();
-                return Ok(format!("{}, and {}", parts.join(", "), last));
-            }
-            // For "and"/"or" with 3+ items, use Oxford comma: "A, B, and C"
-            if parts.len() > 2 {
-                let last = parts.pop().unwrap();
-                return Ok(format!("{}, {} {}", parts.join(", "), conj, last));
-            }
-            // 2 items: "A and B" or "A or B"
-            return Ok(parts.join(&format!(" {} ", conj)));
+            return self.realize_coordination_parts(&coord.items, &coord.conjunction, needs_article, graph);
         }
 
         // Clean potential source surface leaks on adjs/nouns for target EN (use concept to target lemma if name looks non-EN).
@@ -563,6 +592,10 @@ impl EnglishGenerator {
                         return Ok(format!("{} {}", article, noun_form));
                     }
                 }
+                if Self::is_year_concept(&entity, Some(&e.concept)) {
+                    let aged = if number == Number::Plural { "years old" } else { "year old" };
+                    return Ok(aged.to_string());
+                }
                 return Ok(noun_form);
             }
         }
@@ -591,7 +624,11 @@ impl EnglishGenerator {
         }
 
         let number = eff.features.number.unwrap_or(Number::Singular);
-        let noun_form = self.morphology.inflect_noun(&lemma, number)?;
+        let mut noun_form = self.morphology.inflect_noun(&lemma, number)?;
+
+        if Self::is_year_concept(&eff, entry.map(|e| e.concept.as_str())) {
+            noun_form = if number == Number::Plural { "years old".to_string() } else { "year old".to_string() };
+        }
 
         if do_articles && number == Number::Singular {
             let is_definite = eff.features.definiteness == Some(Definiteness::Definite);
@@ -694,6 +731,7 @@ impl LanguageRealizer for EnglishGenerator {
         features: &mut FeatureBundle,
         desc: &LanguageDescriptor,
         lexicon: &Lexicon,
+        graph: Option<&LinguisticGraph>,
     ) -> Result<Vec<String>, GenerateError> {
         let policy = GenerationPolicy::new(desc);
         // Respect adjusted features
@@ -706,16 +744,35 @@ impl LanguageRealizer for EnglishGenerator {
             if e.features.initial_sound.is_some() { tmp.features.initial_sound = e.features.initial_sound.clone(); }
         }
 
-        // Coordination first
+        // Graph-first coordination
+        if let Some(g) = graph {
+            if let Some((conj, items)) = graph::coordination_from_graph(g, &tmp) {
+                let mut item_reals: Vec<Vec<String>> = vec![];
+                for item in &items {
+                    let mut f = item.features.clone();
+                    if let Some(c) = features.case.or(tmp.features.case) {
+                        f.case = Some(c);
+                    }
+                    let r = self
+                        .realize_noun_phrase(item, &mut f, desc, lexicon, None)
+                        .unwrap_or_else(|_| vec!["?".to_string()]);
+                    item_reals.push(r);
+                }
+                return self.realize_coordinations(item_reals, &conj, desc);
+            }
+        }
+
+        // IL coordination fallback
         if let Some(ref coord) = tmp.coordination {
             let mut item_reals: Vec<Vec<String>> = vec![];
             for item in &coord.items {
                 let mut f = item.features.clone();
-                if let Some(c) = features.case.or(tmp.features.case) { f.case = Some(c); }
-                if features.number == Some(Number::Plural) || tmp.features.number == Some(Number::Plural) {
-                    f.number = Some(Number::Plural);
+                if let Some(c) = features.case.or(tmp.features.case) {
+                    f.case = Some(c);
                 }
-                let r = self.realize_noun_phrase(item, &mut f, desc, lexicon).unwrap_or_else(|_| vec!["?".to_string()]);
+                let r = self
+                    .realize_noun_phrase(item, &mut f, desc, lexicon, None)
+                    .unwrap_or_else(|_| vec!["?".to_string()]);
                 item_reals.push(r);
             }
             return self.realize_coordinations(item_reals, &coord.conjunction, desc);
@@ -731,7 +788,7 @@ impl LanguageRealizer for EnglishGenerator {
             if let Some(d) = features.degree {
                 f.degree = Some(d);
             }
-            let mut adj_form = self.generate_entity_form(adj, false)?;  // no article on bare adj
+            let mut adj_form = self.generate_entity_form(adj, false, graph)?;
             if let Some(d) = adj.features.degree {
                 adj_form = self.realize_degree(&adj_form, d, desc);
             }
@@ -739,7 +796,7 @@ impl LanguageRealizer for EnglishGenerator {
         }
 
         // head without article
-        let noun_form = self.generate_entity_form(&tmp, false)?;
+        let noun_form = self.generate_entity_form(&tmp, false, graph)?;
         result.push(noun_form);
 
         // now decide article for the whole NP (based on first pronounced word's sound: first adj or head)
@@ -856,7 +913,7 @@ impl LanguageRealizer for EnglishGenerator {
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }
 
-        // Map source conjunction to target
+        // Map + build single phrase (no lone "," tokens -> avoids "a wife , a dog" on space-join)
         let target_conj = match conjunction {
             "i" | "oraz" | "and" => "and",
             "albo" | "lub" | "or" => "or",
@@ -864,33 +921,17 @@ impl LanguageRealizer for EnglishGenerator {
             _ => "and",
         };
 
-        let mut res = vec![];
-        for (i, item) in items.iter().enumerate() {
-            if i > 0 {
-                if target_conj == "," {
-                    // Comma-separated list: Oxford comma before last item
-                    if i == items.len() - 1 {
-                        res.push(",".to_string());
-                        res.push("and".to_string());
-                    } else {
-                        res.push(",".to_string());
-                    }
-                } else if items.len() > 2 {
-                    // Oxford comma for 3+ items: "A, B, and C"
-                    if i == items.len() - 1 {
-                        res.push(",".to_string());
-                        res.push(target_conj.to_string());
-                    } else {
-                        res.push(",".to_string());
-                    }
-                } else {
-                    // 2 items: just the conjunction
-                    res.push(target_conj.to_string());
-                }
-            }
-            res.extend(item.clone());
-        }
-        Ok(res)
+        let phrases: Vec<String> = items.into_iter().map(|it| it.join(" ")).collect();
+        let list = if phrases.len() > 2 || target_conj == "," {
+            let last = phrases.last().unwrap();
+            let pre = &phrases[0..phrases.len()-1];
+            format!("{}, and {}", pre.join(", "), last)
+        } else {
+            let last = phrases.last().unwrap();
+            let pre = &phrases[0..phrases.len()-1];
+            format!("{} {} {}", pre.join(" "), target_conj, last)
+        };
+        Ok(vec![list])
     }
 
     fn get_article(&self, entity: &Entity, needs: bool, desc: &LanguageDescriptor) -> Option<String> {

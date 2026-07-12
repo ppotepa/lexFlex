@@ -898,18 +898,25 @@ impl PolishParser {
 
         let mut frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
 
-        // Data-driven age for "X lat": mutate frame BEFORE graph materialization so IL and graph stay in sync.
-        if (verb_lemma == "mieć" || verb_lemma == "ma" || verb_lemma == "mam")
-            && tokens.iter().any(|t| t.form.contains("lat") || t.form.contains("roku"))
-        {
-            if let Frame::Possession { verb_concept, possessed, .. } = &mut frame {
+        // Age idiom: YEAR concept token in possession frame → BE + YEAR (concept-driven, no lemma/form hacks).
+        if frame_type == "Possession" {
+            let year_token = tokens.iter().find(|t| {
+                self.lexicon
+                    .lookup_by_form(&t.form)
+                    .or_else(|| {
+                        t.lemma
+                            .as_ref()
+                            .and_then(|l| self.lexicon.lookup_by_lemma(l))
+                    })
+                    .map_or(false, |e| e.concept == "YEAR")
+            });
+            if let (Some(yt), Frame::Possession { verb_concept, possessed, .. }) =
+                (year_token, &mut frame)
+            {
                 *verb_concept = "BE".to_string();
-                if possessed.concept.0 == "lat"
-                    || possessed.concept.0 == "rok"
-                    || possessed.name.as_deref() == Some("lat")
-                {
-                    *possessed = Entity::new(ConceptId::new("YEAR")).with_name("year");
-                }
+                let mut year_ent = Entity::new(ConceptId::new("YEAR")).with_name("year");
+                year_ent.features = yt.features.clone();
+                *possessed = year_ent;
             }
         }
 

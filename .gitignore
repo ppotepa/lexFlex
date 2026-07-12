@@ -5,20 +5,19 @@
 /scratch/
 *.bak*
 
-# Generated output
-concat.txt
-benchmark_output.txt
+# Generated results and benchmark run outputs (always go here)
+results/
 
 # Tool-generated
 .codegraph/
 .qwen/
 
-# Scratch / test inputs (untracked data files)
+# Legacy scratch / test inputs (kept for safety)
 benchmark_extended*.txt
 input*.txt
 pl
 
-# Test binaries
+# Test binaries (should not be committed)
 test_passive
 test_passive.rs
 

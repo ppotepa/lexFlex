@@ -13,9 +13,9 @@
 # - both directions PL->EN / EN->PL
 #
 # Usage:
-#   ./scripts/generate_benchmark.sh > benchmark_sentences.txt
-#   or
-#   ./scripts/generate_benchmark.sh | head -520 > benchmark_sentences.txt
+#   ./scripts/generate_benchmark.sh                    # writes to results/benchmarks/benchmark_sentences.txt
+#   ./scripts/generate_benchmark.sh benchmarks/my.txt  # explicit file
+#   ./scripts/generate_benchmark.sh | head -100        # pipe mode (no default file)
 #
 # All words and structures come from existing data/lexicons and morphology.
 # When extending pipeline, update this header + all docs for two-way consistency.
@@ -24,6 +24,13 @@
 set -euo pipefail
 
 OUTFILE="${1:-}"
+
+# Default to results/ for all generated benchmark data
+if [[ -z "$OUTFILE" ]]; then
+    mkdir -p "results/benchmarks"
+    OUTFILE="results/benchmarks/benchmark_sentences.txt"
+    echo "No output file specified — defaulting to $OUTFILE" >&2
+fi
 
 # ----------------------------- PL vocabulary -----------------------------
 PL_PERSONS=(Tomek Iza Mama Tata Student Profesor)
@@ -337,3 +344,5 @@ if [[ -n "$OUTFILE" ]]; then
 else
     main
 fi
+
+echo "Tip: benchmark data lives under results/benchmarks/ or benchmarks/ (committed test sets)" >&2

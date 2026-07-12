@@ -1,3 +1,4 @@
+use crate::core::graph::LinguisticGraph;
 use crate::core::interlingua::{Degree, Entity, FeatureBundle, Quantifier, TemporalReference};
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
@@ -12,6 +13,7 @@ pub trait LanguageRealizer {
         features: &mut FeatureBundle,
         desc: &LanguageDescriptor,
         lexicon: &Lexicon,
+        graph: Option<&LinguisticGraph>,
     ) -> Result<Vec<String>, GenerateError>;
 
     fn realize_verb(
@@ -27,7 +29,8 @@ pub trait LanguageRealizer {
         conjunction: &str,
         desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
-        // Default algorithmic: use provided conjunction, map to target lang
+        // Default algorithmic: build a single phrase token for the coordinated list.
+        // This prevents spaced punctuation like "wife , daughter" when top-level result is words.join(" ").
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }
 
@@ -39,35 +42,31 @@ pub trait LanguageRealizer {
             _ => if desc.language == "pl" { "i" } else { "and" },
         };
 
-        let mut res = vec![];
-        for (i, item) in items.iter().enumerate() {
-            if i > 0 {
-                if target_conj == "," {
-                    // Comma-separated list: Oxford comma before last item (EN) or just "i" (PL)
-                    if i == items.len() - 1 {
-                        if desc.language != "pl" {
-                            res.push(",".to_string());
-                        }
-                        res.push(if desc.language == "pl" { "i" } else { "and" }.to_string());
-                    } else {
-                        res.push(",".to_string());
-                    }
-                } else if items.len() > 2 && desc.language != "pl" {
-                    // Oxford comma for 3+ items in EN: "A, B, and C"
-                    if i == items.len() - 1 {
-                        res.push(",".to_string());
-                        res.push(target_conj.to_string());
-                    } else {
-                        res.push(",".to_string());
-                    }
+        // First, stringify each sub-item (may be "a wife" etc)
+        let phrases: Vec<String> = items.into_iter().map(|it| it.join(" ")).collect();
+
+        // Build the list phrase with proper separators (no lone punct tokens)
+        let list_str = if target_conj == "," || (phrases.len() > 2 && desc.language != "pl") {
+            // Oxford style for EN: "A, B, and C"
+            if phrases.len() > 1 {
+                let last = phrases.last().unwrap();
+                let prefix = &phrases[..phrases.len()-1];
+                if desc.language == "pl" {
+                    format!("{} i {}", prefix.join(", "), last)
                 } else {
-                    // 2 items or PL: just the conjunction
-                    res.push(target_conj.to_string());
+                    format!("{}, and {}", prefix.join(", "), last)
                 }
+            } else {
+                phrases.join(" ")
             }
-            res.extend(item.clone());
-        }
-        Ok(res)
+        } else {
+            // simple "A and B"
+            let last = phrases.last().unwrap();
+            let prefix = &phrases[..phrases.len()-1];
+            format!("{} {} {}", prefix.join(" "), target_conj, last)  // note: caller may adjust
+        };
+
+        Ok(vec![list_str])
     }
 
     fn adjust_for_quantifier(&self, features: &mut FeatureBundle, q: &Quantifier, desc: &LanguageDescriptor) {

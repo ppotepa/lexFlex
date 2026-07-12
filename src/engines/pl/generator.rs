@@ -4,11 +4,13 @@ use crate::data::lexicon::Lexicon;
 use crate::engines::pl::morphology::PolishMorphology;
 use crate::engines::policy::{GenerationPolicy, resolve_surface_verb};
 use crate::error::GenerateError;
+use crate::core::graph::{self, LinguisticGraph};
 use crate::generation::LanguageRealizer;
 
 pub struct PolishGenerator {
     lexicon: Lexicon,
     morphology: PolishMorphology,
+    #[allow(dead_code)]
     descriptor: LanguageDescriptor,
 }
 
@@ -700,6 +702,7 @@ impl LanguageRealizer for PolishGenerator {
         features: &mut FeatureBundle,
         desc: &LanguageDescriptor,
         lexicon: &Lexicon,
+        graph: Option<&LinguisticGraph>,
     ) -> Result<Vec<String>, GenerateError> {
         // Respect adjusted features
         let mut tmp = entity.clone();
@@ -710,16 +713,38 @@ impl LanguageRealizer for PolishGenerator {
         if features.gender.is_some() { tmp.features.gender = features.gender; }
         if features.definiteness.is_some() { tmp.features.definiteness = features.definiteness; }
 
-        // Coordination
+        // Graph-first coordination
+        if let Some(g) = graph {
+            if let Some((conj, items)) = graph::coordination_from_graph(g, &tmp) {
+                let mut item_reals: Vec<Vec<String>> = vec![];
+                for item in &items {
+                    let mut f = item.features.clone();
+                    if let Some(c) = features.case.or(tmp.features.case) {
+                        f.case = Some(c);
+                    }
+                    let r = self
+                        .realize_noun_phrase(item, &mut f, desc, lexicon, None)
+                        .unwrap_or_else(|_| vec!["?".to_string()]);
+                    item_reals.push(r);
+                }
+                return self.realize_coordinations(item_reals, &conj, desc);
+            }
+        }
+
+        // IL coordination fallback
         if let Some(ref coord) = tmp.coordination {
             let mut item_reals: Vec<Vec<String>> = vec![];
             for item in &coord.items {
                 let mut f = item.features.clone();
-                if let Some(c) = features.case.or(tmp.features.case) { f.case = Some(c); }
+                if let Some(c) = features.case.or(tmp.features.case) {
+                    f.case = Some(c);
+                }
                 if features.number == Some(Number::Plural) || tmp.features.number == Some(Number::Plural) {
                     f.number = Some(Number::Plural);
                 }
-                let r = self.realize_noun_phrase(item, &mut f, desc, lexicon).unwrap_or_else(|_| vec!["?".to_string()]);
+                let r = self
+                    .realize_noun_phrase(item, &mut f, desc, lexicon, None)
+                    .unwrap_or_else(|_| vec!["?".to_string()]);
                 item_reals.push(r);
             }
             return self.realize_coordinations(item_reals, &coord.conjunction, desc);

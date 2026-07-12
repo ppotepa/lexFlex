@@ -128,7 +128,7 @@ pub fn generate_sentence(
     } else if is_q && is_en && !is_past {
         // Do-support for present questions. Use entity number (from coord or plural) rather than string "tomek i" or verb lists.
         let use_do = sentence.frames.iter().flat_map(|f| f.entities()).next().map_or(false, |e| {
-            e.features.number == Some(Number::Plural) || e.coordination.is_some()
+            graph::entity_needs_plural_agreement(e, sentence.graph.as_ref())
         });
         let aux = if use_do { "Do" } else { "Does" };
         if !words.first().map_or(false, |f| f == "Did" || f == "Does" || f == "Do") {
@@ -209,7 +209,9 @@ fn generate_frame(
         let agr = DefaultAgreement;
         let item_vec: Vec<Entity> = vec![(*first).clone()];
         let resolved = agr.resolve_for_coordination(&item_vec);
-        if resolved.number == Some(Number::Plural) || first.coordination.is_some() {
+        if resolved.number == Some(Number::Plural)
+            || graph::entity_needs_plural_agreement(first, sentence.graph.as_ref())
+        {
             verb_feats.number = Some(Number::Plural);
         } else if let Some(n) = first.features.number {
             verb_feats.number = Some(n);
@@ -263,7 +265,7 @@ fn generate_frame(
             }
             let mut agent_for_real = agent.clone();
             lexicon.normalize_entity(&mut agent_for_real);
-            let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon)?;
+            let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon, sentence.graph.as_ref())?;
             TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()), involved_nodes: vec![], involved_edges: vec![] }));
 
             let mut ft = theme.features.clone();
@@ -287,7 +289,7 @@ fn generate_frame(
             let mut theme_for_real = theme.clone();
             let theme_proper = theme.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
             if !theme_proper { lexicon.normalize_entity(&mut theme_for_real); }
-            let mut theme_form = realizer.realize_noun_phrase(&theme_for_real, &mut ft, desc, lexicon)?;
+            let mut theme_form = realizer.realize_noun_phrase(&theme_for_real, &mut ft, desc, lexicon, sentence.graph.as_ref())?;
             TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("theme={}", theme_form.join(" ")), reason: None, involved_nodes: vec![], involved_edges: vec![] }));
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 theme_form = prefix_cardinal(theme_form, *n);
@@ -300,7 +302,7 @@ fn generate_frame(
             if let Some(ref q) = sentence.quantification {
                 realizer.adjust_for_quantifier(&mut fr, q, desc);
             }
-            let mut recip_form = realizer.realize_noun_phrase(recipient, &mut fr, desc, lexicon)?;
+            let mut recip_form = realizer.realize_noun_phrase(recipient, &mut fr, desc, lexicon, sentence.graph.as_ref())?;
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 recip_form = prefix_cardinal(recip_form, *n);
             }
@@ -326,7 +328,7 @@ fn generate_frame(
             // Special handling for HAVE_NAME: "I am called Adam"
             if verb_concept == "HAVE_NAME" {
                 // For HAVE_NAME, generate "I am called [name]"
-                let name_form = realizer.realize_noun_phrase(possessed, &mut possessed.features.clone(), desc, lexicon)?;
+                let name_form = realizer.realize_noun_phrase(possessed, &mut possessed.features.clone(), desc, lexicon, sentence.graph.as_ref())?;
                 let verb_form = if desc.language == "en" {
                     // Use "am called" for 1st person singular present
                     "am called".to_string()
@@ -351,7 +353,7 @@ fn generate_frame(
             if let Some(ref q) = sentence.quantification {
                 realizer.adjust_for_quantifier(&mut fp, q, desc);
             }
-            let p = realizer.realize_noun_phrase(possessor, &mut fp, desc, lexicon)?;
+            let p = realizer.realize_noun_phrase(possessor, &mut fp, desc, lexicon, sentence.graph.as_ref())?;
 
             let mut fo = possessed.features.clone();
             if desc.language == "pl" {
@@ -371,7 +373,7 @@ fn generate_frame(
                     realizer.adjust_for_quantifier(&mut fo, q, desc);
                 }
             }
-            let mut o = realizer.realize_noun_phrase(&poss_for_real, &mut fo, desc, lexicon)?;
+            let mut o = realizer.realize_noun_phrase(&poss_for_real, &mut fo, desc, lexicon, sentence.graph.as_ref())?;
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 o = prefix_cardinal(o, *n);
             }
@@ -397,7 +399,7 @@ fn generate_frame(
             }
             let mut agent_for_real = agent.clone();
             lexicon.normalize_entity(&mut agent_for_real);
-            let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon)?;
+            let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon, sentence.graph.as_ref())?;
 
             let mut fp = patient.features.clone();
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
@@ -414,7 +416,7 @@ fn generate_frame(
             let mut patient_for_real = patient.clone();
             let patient_proper = patient.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()));
             if !patient_proper { lexicon.normalize_entity(&mut patient_for_real); }
-            let mut o = realizer.realize_noun_phrase(&patient_for_real, &mut fp, desc, lexicon)?;
+            let mut o = realizer.realize_noun_phrase(&patient_for_real, &mut fp, desc, lexicon, sentence.graph.as_ref())?;
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 o = prefix_cardinal(o, *n);
             }
@@ -439,7 +441,7 @@ fn generate_frame(
                 entity_for_real.name = Some("they".to_string());  // pro-drop 3rd plural fallback
             }
             lexicon.normalize_entity(&mut entity_for_real);
-            let e = realizer.realize_noun_phrase(&entity_for_real, &mut fe, desc, lexicon)?;
+            let e = realizer.realize_noun_phrase(&entity_for_real, &mut fe, desc, lexicon, sentence.graph.as_ref())?;
 
             // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
             let exist_verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
@@ -525,7 +527,7 @@ fn generate_frame(
                 }
                 let mut loc_for_real = loc.clone();
                 lexicon.normalize_entity(&mut loc_for_real);
-                let l = realizer.realize_noun_phrase(&loc_for_real, &mut fl, desc, lexicon)?;
+                let l = realizer.realize_noun_phrase(&loc_for_real, &mut fl, desc, lexicon, sentence.graph.as_ref())?;
                 words.extend(l);
             }
 
@@ -540,7 +542,7 @@ fn generate_frame(
             }
             let mut mover_for_real = mover.clone();
             lexicon.normalize_entity(&mut mover_for_real);
-            let m = realizer.realize_noun_phrase(&mover_for_real, &mut fm, desc, lexicon)?;
+            let m = realizer.realize_noun_phrase(&mover_for_real, &mut fm, desc, lexicon, sentence.graph.as_ref())?;
 
             let mut words = vec![];
             if !m.is_empty() {
@@ -560,7 +562,7 @@ fn generate_frame(
                 }
                 let mut goal_for_real = g.clone();
                 lexicon.normalize_entity(&mut goal_for_real);
-                let g_np = realizer.realize_noun_phrase(&goal_for_real, &mut fg, desc, lexicon)?;
+                let g_np = realizer.realize_noun_phrase(&goal_for_real, &mut fg, desc, lexicon, sentence.graph.as_ref())?;
                 if desc.language == "en" {
                     words.push("to".to_string());
                 }
@@ -579,7 +581,7 @@ fn generate_frame(
                 }
                 let mut source_for_real = s.clone();
                 lexicon.normalize_entity(&mut source_for_real);
-                let s_np = realizer.realize_noun_phrase(&source_for_real, &mut fs, desc, lexicon)?;
+                let s_np = realizer.realize_noun_phrase(&source_for_real, &mut fs, desc, lexicon, sentence.graph.as_ref())?;
                 if desc.language == "en" {
                     words.push("from".to_string());
                 }
@@ -612,7 +614,7 @@ fn generate_frame(
                 if let Some(ref q) = sentence.quantification {
                     realizer.adjust_for_quantifier(&mut f, q, desc);
                 }
-                let np = realizer.realize_noun_phrase(e, &mut f, desc, lexicon)
+                let np = realizer.realize_noun_phrase(e, &mut f, desc, lexicon, sentence.graph.as_ref())
                     .unwrap_or_else(|_| vec!["?".to_string()]);
                 if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                     // prefix on non-first (object) roles
