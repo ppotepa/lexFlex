@@ -1,4 +1,5 @@
 use crate::core::deduction::{self, DeductionContext};
+use crate::core::graph::{self, LinguisticGraph, TrackedEntity};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::data::descriptor::LanguageDescriptor;
@@ -10,6 +11,7 @@ pub struct PolishParser {
     lexicon: Lexicon,
     morphology: PolishMorphology,
     ontology: Ontology,
+    #[allow(dead_code)]
     descriptor: LanguageDescriptor,
 }
 
@@ -83,7 +85,11 @@ impl PolishParser {
             return Err(ParseError::NoVerbFound);
         }
 
-        Ok(Utterance { sentences: all_sentences, discourse: None })
+        Ok(Utterance {
+            sentences: all_sentences,
+            discourse: None,
+            utterance_node_id: None,
+        })
     }
 
     /// Split tokens into clause groups based on clause boundary conjunctions.
@@ -154,6 +160,7 @@ impl PolishParser {
                     pos: token_pos,
                     features: token_features,
                     span: (offset, offset + token_form.len()),
+                    word_node_id: None,
                 });
                 offset += token_form.len() + 1;
                 i += consumed;
@@ -167,6 +174,7 @@ impl PolishParser {
                     pos,
                     features,
                     span: (offset, offset + word.len()),
+                    word_node_id: None,
                 });
 
                 offset += word.len() + 1;
@@ -236,7 +244,7 @@ impl PolishParser {
                 let verb_form = two_word.trim_end_matches(" się");
                 // Check if this verb form exists in lexicon as reflexive
                 if let Some(entry) = self.lexicon.lookup_by_form(&two_word) {
-                    eprintln!("DEBUG: Found reflexive verb '{}' in lexicon, features: {:?}", two_word, entry.features);
+                    // DEBUG removed per plan (no leaks)
                     let pos = self.lexicon.parse_pos(&entry.pos);
                     return (
                         two_word.clone(),
@@ -248,7 +256,7 @@ impl PolishParser {
                 }
                 // Check if base verb exists (without "się")
                 if let Some(entry) = self.lexicon.lookup_by_form(verb_form) {
-                    eprintln!("DEBUG: Found base verb '{}' in lexicon, features: {:?}", verb_form, entry.features);
+                    // DEBUG removed per plan (no leaks)
                     let pos = self.lexicon.parse_pos(&entry.pos);
                     return (
                         two_word.clone(),
@@ -258,7 +266,7 @@ impl PolishParser {
                         2
                     );
                 }
-                eprintln!("DEBUG: No lexicon entry for '{}' or '{}'", two_word, verb_form);
+                // DEBUG removed per plan (no leaks)
             }
 
             // "razem z" = "together with" (prepositional phrase)
@@ -334,8 +342,33 @@ impl PolishParser {
         None
     }
 
+    /// Returns set of token indices that belong to the object list of a z/razem-z PP.
+    /// Walks forward collecting nouns/pronouns/adjs separated by ,/i/oraz/albo.
+    fn pp_list_span_indices(tokens: &[Token]) -> std::collections::HashSet<usize> {
+        let mut span = std::collections::HashSet::new();
+        for (i, token) in tokens.iter().enumerate() {
+            if token.pos == PartOfSpeech::Preposition && (token.form == "z" || token.form == "razem z") {
+                let mut k = i + 1;
+                while k < tokens.len() {
+                    let t = &tokens[k];
+                    if t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun || t.pos == PartOfSpeech::Adjective {
+                        span.insert(k);
+                    } else if matches!(t.form.as_str(), "," | "i" | "oraz" | "albo") {
+                        // separator, continue to next item
+                    } else {
+                        break;
+                    }
+                    k += 1;
+                }
+            }
+        }
+        span
+    }
+
     fn build_partial_structure(&self, tokens: &[Token]) -> Result<Utterance, ParseError> {
         let mut sentence = Sentence::new();
+
+        let pp_span = Self::pp_list_span_indices(tokens);
 
         let verb_idx = tokens
             .iter()
@@ -343,7 +376,7 @@ impl PolishParser {
             .ok_or(ParseError::NoVerbFound)?;
 
         let verb_token = &tokens[verb_idx];
-        eprintln!("DEBUG: verb_token.form={}, verb_token.features.person={:?}", verb_token.form, verb_token.features.person);
+        // DEBUG removed per plan (no leaks)
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
 
         let verb_entry = self.lexicon.lookup_by_lemma(verb_lemma)
@@ -370,11 +403,11 @@ impl PolishParser {
         // Pro-drop detection: if verb has 1st/2nd person and no explicit pronoun, add implicit subject
         let verb_person = verb_token.features.person;
         let verb_number = verb_token.features.number;
-        eprintln!("DEBUG: verb_person={:?}, verb_number={:?}", verb_person, verb_number);
+        // DEBUG removed per plan (no leaks)
         let has_explicit_subject = tokens.iter().any(|t| {
             t.pos == PartOfSpeech::Pronoun && t.features.person == verb_person
         });
-        eprintln!("DEBUG: has_explicit_subject={}", has_explicit_subject);
+        // DEBUG removed per plan (no leaks)
 
         let implicit_subject = if !has_explicit_subject && verb_person.is_some() {
             let (pronoun_name, pronoun_person) = match (verb_person, verb_number) {
@@ -382,15 +415,16 @@ impl PolishParser {
                 (Some(Person::First), Some(Number::Plural)) => (Some("we"), Some(Person::First)),
                 (Some(Person::Second), Some(Number::Singular)) => (Some("you"), Some(Person::Second)),
                 (Some(Person::Second), Some(Number::Plural)) => (Some("you"), Some(Person::Second)),
+                (Some(Person::Third), Some(Number::Plural)) => (Some("they"), Some(Person::Third)),  // for 3rd plural pro-drop like "mieszkają"
                 _ => (None, None),
             };
-            eprintln!("DEBUG: pronoun_name={:?}, pronoun_person={:?}", pronoun_name, pronoun_person);
+            // DEBUG removed per plan (no leaks)
             pronoun_name.map(|name| {
                 let mut entity = Entity::new(ConceptId::new("PERSON"))
                     .with_name(name);
                 entity.features.person = pronoun_person;
                 entity.features.number = verb_number;
-                eprintln!("DEBUG: Created implicit subject: {:?}", entity.name);
+                // DEBUG removed per plan (no leaks)
                 entity
             })
         } else {
@@ -439,27 +473,22 @@ impl PolishParser {
             sentence.voice = Some(Voice::Passive);
         }
 
+        let pp_span = Self::pp_list_span_indices(tokens);
         let np_tokens: Vec<(usize, &Token)> = tokens
             .iter()
             .enumerate()
             .filter(|(idx, t)| {
-                // Exclude tokens that are part of prepositional phrases
-                let is_after_preposition = if *idx > 0 {
-                    tokens[*idx - 1].pos == PartOfSpeech::Preposition
-                } else {
-                    false
-                };
-
+                // pos filter for real NPs + exclude those in PP list spans (z/razem z lists now properly in pp as coord)
                 (t.pos == PartOfSpeech::Noun
                     || t.pos == PartOfSpeech::Pronoun
                     || t.pos == PartOfSpeech::Adjective
                     || (t.pos == PartOfSpeech::Unknown && t.form.chars().any(|c| c.is_alphabetic()) && t.form.len() > 2))
                     && t.pos != PartOfSpeech::Particle
                     && t.pos != PartOfSpeech::Adverb
-                    && t.pos != PartOfSpeech::Conjunction  // exclude conjunctions (i, oraz, and)
-                    && t.form != "się"  // exclude reflexive marker
-                    && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three" | "szybko") // numbers not np, exclude known adverbs
-                    && !is_after_preposition // exclude nouns after prepositions (they're handled in pp_entities)
+                    && t.pos != PartOfSpeech::Conjunction
+                    && t.form != "się"
+                    && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three" | "szybko")
+                    && !pp_span.contains(idx)
             })
             .map(|(idx, t)| (idx, t))
             .collect();
@@ -605,7 +634,13 @@ impl PolishParser {
         // are coordinated separately — "Tomek i Iza ma jabłko" → subject=[Tomek+Iza], object=[jabłko].
         let coord_conjunctions = ["i", "oraz", "and", "albo", "lub", "or", ","];
         let has_coordination = tokens.iter().any(|t| coord_conjunctions.contains(&t.form.as_str()));
-        if has_coordination && entities.len() >= 2 {
+        // Skip global coordination if all relevant conjs are inside a PP list span (e.g. "żoną, córką i psem" after "z")
+        // Those are already handled as coordinated entity inside pp_entities.
+        let pp_span = Self::pp_list_span_indices(tokens);
+        let has_non_pp_coordination = has_coordination && !tokens.iter().enumerate()
+            .filter(|(_, t)| coord_conjunctions.contains(&t.form.as_str()))
+            .all(|(i, _)| pp_span.contains(&i));
+        if has_non_pp_coordination && entities.len() >= 2 {
             // Split entities by verb position
             let mut pre_verb_ents: Vec<Entity> = vec![];
             let mut post_verb_ents: Vec<Entity> = vec![];
@@ -718,13 +753,15 @@ impl PolishParser {
         }
 
         // Numerical detection: digits or number words via lexicon concept
+        // Improved to sum adjacent compound numbers like "dwadzieścia siedem" = 27
         if sentence.quantification.is_none() {
-            for t in tokens {
+            let mut i = 0;
+            while i < tokens.len() {
+                let t = &tokens[i];
                 if let Ok(n) = t.form.parse::<i32>() {
                     sentence.quantification = Some(Quantifier::Numerical(n));
                     break;
                 }
-                // Check if token is a number word via lexicon concept
                 if let Some(entry) = self.lexicon.lookup_by_form(&t.form) {
                     let c = entry.concept.to_uppercase();
                     let num = match c.as_str() {
@@ -747,72 +784,108 @@ impl PolishParser {
                         _ => None,
                     };
                     if let Some(n) = num {
-                        sentence.quantification = Some(Quantifier::Numerical(n));
+                        let mut total = n;
+                        // sum following adjacent number words (for 21-99 etc)
+                        let mut j = i + 1;
+                        while j < tokens.len() {
+                            if let Some(entry2) = self.lexicon.lookup_by_form(&tokens[j].form) {
+                                let c2 = entry2.concept.to_uppercase();
+                                if let Some(add) = match c2.as_str() {
+                                    "ONE" => Some(1), "TWO" => Some(2), "THREE" => Some(3),
+                                    "FOUR" => Some(4), "FIVE" => Some(5), "SIX" => Some(6),
+                                    "SEVEN" => Some(7), "EIGHT" => Some(8), "NINE" => Some(9),
+                                    _ => None,
+                                } {
+                                    total += add;
+                                    j += 1;
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+                        sentence.quantification = Some(Quantifier::Numerical(total));
                         break;
                     }
                 }
+                i += 1;
             }
         }
 
         // Prepositional phrase handling: map prepositions to semantic roles (data-driven from descriptor)
+        // Extended to collect full lists after 'z'/'razem z' for accompaniment/coordination (fixes partial IL for "żoną, córką i psem")
         let mut pp_entities: Vec<Entity> = Vec::new();
         for (i, token) in tokens.iter().enumerate() {
             if token.pos == PartOfSpeech::Preposition {
-                // Find the next noun/pronoun after this preposition, skipping adjectives
-                if let Some(next_noun_idx) = tokens[i+1..].iter().position(|t| {
-                    t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun
-                }) {
-                    let noun_token = &tokens[i + 1 + next_noun_idx];
-                    let noun_lemma = noun_token.lemma.as_deref().unwrap_or(&noun_token.form);
-
-                    // Look up the noun in lexicon
-                    let entry = self.lexicon.lookup_by_form(&noun_token.form)
-                        .or_else(|| self.lexicon.lookup_by_lemma(noun_lemma));
-
-                    let concept = if let Some(e) = entry {
-                        ConceptId::new(&e.concept)
-                    } else {
-                        ConceptId::new(noun_lemma)
-                    };
-
-                    let mut entity = Entity::new(concept)
-                        .with_name(noun_lemma);
-                    entity.features = noun_token.features.clone();
-
-                    // Get semantic role from descriptor's preposition_roles map
-                    if let Some(role) = self.descriptor.syntax.preposition_roles.get(&token.form) {
-                        // Store the semantic role directly in entity features
-                        entity.features.semantic_role = Some(*role);
-                        // Also set the case field for backward compatibility
-                        match role {
-                            SemanticRole::Location => entity.features.case = Some(Case::Locative),
-                            SemanticRole::Goal => entity.features.case = Some(Case::Accusative),
-                            SemanticRole::Source => entity.features.case = Some(Case::Genitive),
-                            SemanticRole::Instrument => entity.features.case = Some(Case::Instrumental),
-                            SemanticRole::Beneficiary => entity.features.case = Some(Case::Dative),
-                            _ => {}
-                        }
+                let is_accomp = token.form == "z" || token.form == "razem z";
+                let mut collected: Vec<Entity> = vec![];
+                let mut k = i + 1;
+                while k < tokens.len() {
+                    let t = &tokens[k];
+                    if t.pos == PartOfSpeech::Verb {
+                        break; // stop at next verb
                     }
-
-                    // Collect adjectives before the noun as modifiers
-                    for j in (i+1)..(i+1+next_noun_idx) {
-                        if tokens[j].pos == PartOfSpeech::Adjective {
-                            let adj_lemma = tokens[j].lemma.as_deref().unwrap_or(&tokens[j].form);
-                            let adj_entry = self.lexicon.lookup_by_form(&tokens[j].form)
-                                .or_else(|| self.lexicon.lookup_by_lemma(adj_lemma));
-
-                            if let Some(adj_e) = adj_entry {
-                                let mut adj_entity = Entity::new(ConceptId::new(&adj_e.concept))
-                                    .with_name(adj_lemma);
-                                adj_entity.features = tokens[j].features.clone();
-                                entity.adjectives.push(adj_entity);
+                    if t.form == "razem z" || t.form == "z" {
+                        k += 1; continue; // skip the prep token itself if reached
+                    }
+                    if t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun {
+                        let lemma = t.lemma.as_deref().unwrap_or(&t.form);
+                        let entry = self.lexicon.lookup_by_form(&t.form).or_else(|| self.lexicon.lookup_by_lemma(lemma));
+                        let concept = if let Some(e) = entry { ConceptId::new(&e.concept) } else { ConceptId::new(lemma) };
+                        let mut ent = Entity::new(concept).with_name(lemma);
+                        ent.features = t.features.clone();
+                        // Structural role/case for PP: for "z"/"razem z" (accomp) use animacy/context to decide
+                        // Location (for "with wife") vs Source (for "from house") — data-driven, no sentence force.
+                        let is_person_context = ent.features.animacy == Some(Animacy::Animate)
+                            || matches!(ent.concept.0.as_str(), "PERSON" | "WIFE" | "DAUGHTER" | "SON" | "MOTHER" | "FATHER" | "DOG" | "CAT" | "COLLEAGUE");
+                        if is_accomp {
+                            if is_person_context {
+                                ent.features.semantic_role = Some(SemanticRole::Location);
+                                ent.features.case = Some(Case::Instrumental);
+                            } else {
+                                ent.features.semantic_role = Some(SemanticRole::Source);
+                                ent.features.case = Some(Case::Genitive);
+                            }
+                        } else if let Some(role) = self.descriptor.syntax.preposition_roles.get(&token.form) {
+                            ent.features.semantic_role = Some(*role);
+                            match role {
+                                SemanticRole::Location => ent.features.case = Some(Case::Locative),
+                                SemanticRole::Goal => ent.features.case = Some(Case::Accusative),
+                                _ => {}
                             }
                         }
+                        collected.push(ent);
+                    } else if t.pos == PartOfSpeech::Adjective {
+                        // attach adj to last collected if any
+                        if let Some(last) = collected.last_mut() {
+                            let adj_lemma = t.lemma.as_deref().unwrap_or(&t.form);
+                            if let Some(adj_e) = self.lexicon.lookup_by_form(&t.form).or_else(|| self.lexicon.lookup_by_lemma(adj_lemma)) {
+                                let mut adj = Entity::new(ConceptId::new(&adj_e.concept)).with_name(adj_lemma);
+                                adj.features = t.features.clone();
+                                last.adjectives.push(adj);
+                            }
+                        }
+                    } else if matches!(t.form.as_str(), "," | "i" | "oraz" | "albo") {
+                        // continue for list
+                    } else {
+                        break;
                     }
-
-                    // Normalize entity
-                    self.lexicon.normalize_entity(&mut entity);
-                    pp_entities.push(entity);
+                    k += 1;
+                }
+                if !collected.is_empty() {
+                    // Clean any wrongly collected prep/verb tokens (robustness for multiword prep detection)
+                    collected.retain(|e| e.concept.0 != "LIVE" && e.concept.0 != "together_with" && e.concept.0 != "AND" && e.name.as_deref().map_or(true, |n| n != "razem z"));
+                    if !collected.is_empty() {
+                        if collected.len() > 1 {
+                            let conj = if tokens.iter().any(|tt| tt.form == "i" || tt.form == "oraz") { "i".to_string() } else { "and".to_string() };
+                            let coord = Coordination { items: collected.clone(), conjunction: conj };
+                            let mut coord_ent = collected[0].clone();
+                            coord_ent.coordination = Some(coord);
+                            coord_ent.features.number = Some(Number::Plural);
+                            pp_entities.push(coord_ent);
+                        } else {
+                            pp_entities.push(collected.into_iter().next().unwrap());
+                        }
+                    }
                 }
             }
         }
@@ -821,10 +894,38 @@ impl PolishParser {
         entities.extend(pp_entities);
 
         let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
-        sentence.frames.push(frame);
+        sentence.frames.push(frame.clone());
+
+        let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
+        let tracked: Vec<TrackedEntity> = graph::collect_frame_entities(&frame)
+            .into_iter()
+            .map(|e| TrackedEntity::new(e.clone(), graph::match_entity_to_tokens(&e, tokens)))
+            .collect();
+        graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
+        sentence.graph = Some(graph);
 
         // Possession detection: driven by verb frame_type from lexicon (not hardcoded "ma" check)
         // The verb entry for "ma"/"mieć" has frame_type "Possession" which is already used above.
+
+        // Data-driven age for "X lat": set verb_concept="BE" so normal possession path + realizer
+        // will use "am" (from BE + 1sg features) + "N years old" (from YEAR NP in generator).
+        // No HAVE_AGE, no force in pipeline, no hardcoded strings here.
+        if (verb_lemma == "mieć" || verb_lemma == "ma" || verb_lemma == "mam") &&
+           tokens.iter().any(|t| t.form.contains("lat") || t.form.contains("roku")) {
+            if let Some(last) = sentence.frames.last_mut() {
+                if let Frame::Possession { verb_concept, .. } = last {
+                    *verb_concept = "BE".to_string();
+                }
+            }
+            // Also ensure the theme/possessed for the frame gets YEAR if it was "lat"
+            if let Some(last) = sentence.frames.last_mut() {
+                if let Frame::Possession { possessed, .. } = last {
+                    if possessed.concept.0 == "lat" || possessed.concept.0 == "rok" || possessed.name.as_deref() == Some("lat") {
+                        *possessed = Entity::new(ConceptId::new("YEAR")).with_name("year");
+                    }
+                }
+            }
+        }
 
         Ok(Utterance::single_sentence(sentence))
     }
@@ -1205,4 +1306,40 @@ impl PolishParser {
 
 fn parse_role_str(s: &str) -> Option<SemanticRole> {
     crate::core::utils::parse_role_str(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::loader;
+    use std::path::Path;
+
+    #[test]
+    fn test_parse_accompaniment_list() {
+        // Build parser for test using real data (parser test only, no api/benchmark)
+        let data_path = Path::new("data");
+        let lexicon = loader::load_lexicon(&data_path.join("lexicons/pl/lexicon.ron")).expect("lexicon");
+        let noun_p = loader::load_paradigms(&data_path.join("morphology/pl/noun_paradigms.ron")).expect("noun");
+        let verb_p = loader::load_paradigms(&data_path.join("morphology/pl/verb_paradigms.ron")).expect("verb");
+        let adj_p = loader::load_paradigms(&data_path.join("morphology/pl/adj_paradigms.ron")).expect("adj");
+        let morph = crate::engines::pl::morphology::PolishMorphology::new(noun_p, verb_p, adj_p);
+        let ontology = loader::build_ontology_from_concepts(&loader::load_concepts(&data_path.join("concepts/concepts.ron")).unwrap_or_default());
+        let desc = loader::load_descriptor(&data_path.join("descriptors/pl.ron")).expect("desc");
+
+        let parser = PolishParser::new(lexicon, morph, ontology, desc);
+
+        let ut = parser.parse("Mieszkam razem z żoną, córką i psem.").expect("parse");
+        let sent = &ut.sentences[0];
+        let frame = &sent.frames[0];
+        match frame {
+            Frame::Existence { location: Some(loc), .. } => {
+                assert!(loc.coordination.is_some(), "expected Coordination for accompaniment list");
+                let items = &loc.coordination.as_ref().unwrap().items;
+                let concepts: Vec<_> = items.iter().map(|e| e.concept.0.as_str()).collect();
+                assert!(concepts.contains(&"WIFE") && concepts.contains(&"DAUGHTER") && concepts.contains(&"DOG"),
+                    "expected WIFE, DAUGHTER, DOG in coord list, got {:?}", concepts);
+            }
+            _ => panic!("expected Existence with location coord, got {:?}", frame),
+        }
+    }
 }

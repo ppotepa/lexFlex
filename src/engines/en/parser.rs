@@ -1,4 +1,5 @@
 use crate::core::deduction::{self, DeductionContext};
+use crate::core::graph::{self, LinguisticGraph, TrackedEntity};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::data::descriptor::LanguageDescriptor;
@@ -11,6 +12,7 @@ pub struct EnglishParser {
     lexicon: Lexicon,
     _morphology: EnglishMorphology,
     ontology: Ontology,
+    #[allow(dead_code)]
     descriptor: LanguageDescriptor,
 }
 
@@ -59,6 +61,7 @@ impl EnglishParser {
                 pos,
                 features,
                 span: (offset, offset + word.len()),
+                word_node_id: None,
             });
 
             offset += word.len() + 1;
@@ -339,7 +342,15 @@ impl EnglishParser {
         }
 
         let frame = self.build_frame(&frame_type, &roles, &entities, &verb_concept)?;
-        sentence.frames.push(frame);
+        sentence.frames.push(frame.clone());
+
+        let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
+        let tracked: Vec<TrackedEntity> = graph::collect_frame_entities(&frame)
+            .into_iter()
+            .map(|e| TrackedEntity::new(e.clone(), graph::match_entity_to_tokens(&e, tokens)))
+            .collect();
+        graph.materialize_semantic(&frame, &tracked, &word_ids, Some(verb_idx));
+        sentence.graph = Some(graph);
 
         Ok(Utterance::single_sentence(sentence))
     }

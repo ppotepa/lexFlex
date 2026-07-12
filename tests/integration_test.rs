@@ -302,8 +302,11 @@ fn test_capability_checking() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);
@@ -414,8 +417,11 @@ fn test_en_question_formation() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);
@@ -451,8 +457,11 @@ fn test_en_negation() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);
@@ -488,8 +497,11 @@ fn test_en_question_and_negation() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);
@@ -528,8 +540,11 @@ fn test_en_passive_voice_generation() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);
@@ -576,8 +591,11 @@ fn test_pl_passive_voice_generation() {
             temporal: None,
             quantification: None,
             resolved_refs: vec![],
+            graph: None,
+            sentence_node_id: None,
         }],
         discourse: None,
+        utterance_node_id: None,
     };
 
     let il = Interlingua::Natural(utterance);

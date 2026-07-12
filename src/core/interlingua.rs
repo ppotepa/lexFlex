@@ -21,6 +21,12 @@ impl fmt::Display for ConceptId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EntityId(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NodeId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct EdgeId(pub u32);
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LanguageId(pub String);
 
@@ -234,6 +240,7 @@ pub enum SemanticRole {
     Content,
     Speaker,
     Message,
+    Accompaniment,
 }
 
 // ─── Reference ───────────────────────────────────────────────────────────────
@@ -587,6 +594,10 @@ pub struct Sentence {
     pub temporal: Option<TemporalReference>,
     pub quantification: Option<Quantifier>,
     pub resolved_refs: Vec<(String, EntityId)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph: Option<crate::core::graph::LinguisticGraph>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sentence_node_id: Option<NodeId>,
 }
 
 impl Sentence {
@@ -603,6 +614,8 @@ impl Sentence {
             temporal: None,
             quantification: None,
             resolved_refs: Vec::new(),
+            graph: None,
+            sentence_node_id: None,
         }
     }
 }
@@ -629,6 +642,8 @@ pub struct Discourse {
 pub struct Utterance {
     pub sentences: Vec<Sentence>,
     pub discourse: Option<Discourse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub utterance_node_id: Option<NodeId>,
 }
 
 impl Utterance {
@@ -636,6 +651,7 @@ impl Utterance {
         Self {
             sentences: Vec::new(),
             discourse: None,
+            utterance_node_id: None,
         }
     }
 
@@ -643,6 +659,7 @@ impl Utterance {
         Self {
             sentences: vec![sentence],
             discourse: None,
+            utterance_node_id: None,
         }
     }
 }
@@ -681,6 +698,8 @@ pub struct Token {
     pub pos: PartOfSpeech,
     pub features: FeatureBundle,
     pub span: (usize, usize),
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub word_node_id: Option<NodeId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
