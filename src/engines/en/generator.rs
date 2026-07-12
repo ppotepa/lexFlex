@@ -81,7 +81,12 @@ impl EnglishGenerator {
                 Frame::Possession { possessor, possessed, .. } => (possessed.clone(), Some(possessor.clone())),
                 Frame::Custom { .. } => return Ok(words),
             };
-            let mut verb_lemma = resolve_surface_verb(frame, &self.lexicon);
+            let mut verb_lemma = resolve_surface_verb(
+                frame,
+                &self.lexicon,
+                sentence.graph.as_ref(),
+                &self.descriptor.language,
+            );
 
             // Passive auxiliary: concept-driven (BE/BECOME) not surface-lemma check.
             let vc = graph::frame_verb_concept(frame);
@@ -219,22 +224,8 @@ impl EnglishGenerator {
             Frame::Existence { entity, location, verb_concept } => {
                 self.generate_existence(entity, location.as_ref(), sentence, verb_concept)
             }
-            Frame::Possession { possessor, possessed, verb_concept } => {
-                // Special handling for HAVE_NAME: "I am called Adam" (possessed is subject)
-                if verb_concept == "HAVE_NAME" {
-                    // For HAVE_NAME, generate "I am called [name]"
-                    // possessed is the name, possessor is implicit "I"
-                    let name_form = self.generate_entity_form_legacy(possessed, false)?;
-                    let verb_form = self.morphology.inflect_verb(
-                        "be called",
-                        sentence.tense.unwrap_or(Tense::Present),
-                        Some(Person::First),
-                        Some(Number::Singular),
-                    )?;
-                    return Ok(vec!["I".to_string(), verb_form, name_form]);
-                } else {
-                    self.generate_two_role(frame, possessor, possessed, sentence)
-                }
+            Frame::Possession { possessor, possessed, .. } => {
+                self.generate_two_role(frame, possessor, possessed, sentence)
             }
             Frame::Custom { .. } => Ok(Vec::new()),
         }
@@ -248,7 +239,12 @@ impl EnglishGenerator {
         frame: &Frame,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let verb_lemma = resolve_surface_verb(frame, &self.lexicon);
+        let verb_lemma = resolve_surface_verb(
+            frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        );
 
         let agent_form = self.generate_entity_form_legacy(agent, false)?;
         let pol = GenerationPolicy::new(&self.descriptor);
@@ -297,7 +293,12 @@ impl EnglishGenerator {
             path: None,
             verb_concept: verb_concept.to_string(),
         };
-        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
+        let verb_lemma = resolve_surface_verb(
+            &tmp_frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        );
         let mover_form = self.generate_entity_form_legacy(mover, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
@@ -396,7 +397,12 @@ impl EnglishGenerator {
             message: message.clone(),
             verb_concept: verb_concept.to_string(),
         };
-        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
+        let verb_lemma = resolve_surface_verb(
+            &tmp_frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        );
         let speaker_form = self.generate_entity_form_legacy(speaker, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
@@ -483,10 +489,6 @@ impl EnglishGenerator {
         Ok(words)
     }
 
-    fn is_year_concept(entity: &Entity, entry_concept: Option<&str>) -> bool {
-        entity.concept.0 == "YEAR" || entry_concept == Some("YEAR")
-    }
-
     fn realize_coordination_parts(
         &self,
         items: &[Entity],
@@ -547,18 +549,8 @@ impl EnglishGenerator {
             return self.realize_coordination_parts(&coord.items, &coord.conjunction, needs_article, graph);
         }
 
-        // Clean potential source surface leaks on adjs/nouns for target EN (use concept to target lemma if name looks non-EN).
         let mut entity = entity.clone();
-        if let Some(name) = &entity.name {
-            if name.chars().any(|c| "ąćęłńóśźż".contains(c)) || name.ends_with("ego") || name.ends_with("ą") || name.ends_with("y") {
-                if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
-                    entity.name = Some(e.lemma.clone());
-                } else {
-                    // fallback concept name
-                    entity.name = Some(entity.concept.0.to_lowercase());
-                }
-            }
-        }
+        self.lexicon.normalize_entity(&mut entity);
 
         // Early norm should have cleaned name/concept already; use lexicon directly (no PL surface maps).
         if let Some(ref name) = entity.name {
@@ -582,7 +574,7 @@ impl EnglishGenerator {
                 }
 
                 let number = entity.features.number.unwrap_or(Number::Singular);
-                let noun_form = self.morphology.inflect_noun(&e.lemma, number)?;
+                let noun_form = self.morphology.inflect_noun(&e.lemma, number, e.paradigm.as_deref())?;
                 if do_articles && number == Number::Singular {
                     let is_definite = entity.features.definiteness == Some(Definiteness::Definite);
                     if is_definite {
@@ -596,10 +588,6 @@ impl EnglishGenerator {
                         let article = if is_vowel { "an" } else { "a" };
                         return Ok(format!("{} {}", article, noun_form));
                     }
-                }
-                if Self::is_year_concept(&entity, Some(&e.concept)) {
-                    let aged = if number == Number::Plural { "years old" } else { "year old" };
-                    return Ok(aged.to_string());
                 }
                 return Ok(noun_form);
             }
@@ -629,11 +617,7 @@ impl EnglishGenerator {
         }
 
         let number = eff.features.number.unwrap_or(Number::Singular);
-        let mut noun_form = self.morphology.inflect_noun(&lemma, number)?;
-
-        if Self::is_year_concept(&eff, entry.map(|e| e.concept.as_str())) {
-            noun_form = if number == Number::Plural { "years old".to_string() } else { "year old".to_string() };
-        }
+        let mut noun_form = self.morphology.inflect_noun(&lemma, number, entry.and_then(|e| e.paradigm.as_deref()))?;
 
         if do_articles && number == Number::Singular {
             let is_definite = eff.features.definiteness == Some(Definiteness::Definite);
@@ -702,7 +686,12 @@ impl EnglishGenerator {
 
     fn find_verb_for_frame(&self, frame: &Frame) -> Result<String, GenerateError> {
         // Delegate to shared resolver (prefers verb_concept, no large maps/hardcodes).
-        Ok(resolve_surface_verb(frame, &self.lexicon))
+        Ok(resolve_surface_verb(
+            frame,
+            &self.lexicon,
+            None,
+            &self.descriptor.language,
+        ))
     }
 
     fn generate_temporal(&self, temporal: &TemporalReference) -> Option<String> {
@@ -749,6 +738,14 @@ impl LanguageRealizer for EnglishGenerator {
             if e.features.initial_sound.is_some() { tmp.features.initial_sound = e.features.initial_sound.clone(); }
         }
 
+        crate::generation::realizer::adjust_age_idiom_entity(
+            &mut tmp,
+            features,
+            graph,
+            lexicon,
+            &desc.language,
+        );
+
         // Graph-first coordination
         if let Some(g) = graph {
             if let Some((conj, items)) = graph::coordination_from_graph(g, &tmp) {
@@ -783,26 +780,37 @@ impl LanguageRealizer for EnglishGenerator {
             return self.realize_coordinations(item_reals, &coord.conjunction, desc);
         }
 
-        // Realize adjectival modifiers + head, decide article once at NP level (before first word).
+        // Age idiom (years old): post-nominal adjective order per construction registry.
+        let age_idiom = graph.map_or(false, |g| g.has_construction("AgeIdiom"));
         let mut result: Vec<String> = vec![];
-        for adj in &tmp.adjectives {
-            let mut f = adj.features.clone();
-            if f.gender.is_none() { f.gender = tmp.features.gender; }
-            if f.number.is_none() { f.number = tmp.features.number; }
-            if f.case.is_none() { f.case = features.case.or(tmp.features.case); }
-            if let Some(d) = features.degree {
-                f.degree = Some(d);
+        if age_idiom {
+            let noun_form = self.generate_entity_form(&tmp, false, graph)?;
+            result.push(noun_form);
+            for adj in &tmp.adjectives {
+                let mut adj_form = self.generate_entity_form(adj, false, graph)?;
+                if let Some(d) = adj.features.degree {
+                    adj_form = self.realize_degree(&adj_form, d, desc);
+                }
+                result.push(adj_form);
             }
-            let mut adj_form = self.generate_entity_form(adj, false, graph)?;
-            if let Some(d) = adj.features.degree {
-                adj_form = self.realize_degree(&adj_form, d, desc);
+        } else {
+            for adj in &tmp.adjectives {
+                let mut f = adj.features.clone();
+                if f.gender.is_none() { f.gender = tmp.features.gender; }
+                if f.number.is_none() { f.number = tmp.features.number; }
+                if f.case.is_none() { f.case = features.case.or(tmp.features.case); }
+                if let Some(d) = features.degree {
+                    f.degree = Some(d);
+                }
+                let mut adj_form = self.generate_entity_form(adj, false, graph)?;
+                if let Some(d) = adj.features.degree {
+                    adj_form = self.realize_degree(&adj_form, d, desc);
+                }
+                result.push(adj_form);
             }
-            result.push(adj_form);
+            let noun_form = self.generate_entity_form(&tmp, false, graph)?;
+            result.push(noun_form);
         }
-
-        // head without article
-        let noun_form = self.generate_entity_form(&tmp, false, graph)?;
-        result.push(noun_form);
 
         // now decide article for the whole NP (based on first pronounced word's sound: first adj or head)
         // skip for proper names (uppercase start, no article)

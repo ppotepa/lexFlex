@@ -219,107 +219,47 @@ impl PolishParser {
         if start_idx >= words.len() {
             return (String::new(), String::new(), PartOfSpeech::Unknown, FeatureBundle::default(), 0);
         }
-        
-        // Check for 3-word expressions first (more specific)
-        if start_idx + 2 < words.len() {
-            let word1 = words[start_idx].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
-            let word2 = words[start_idx + 1].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
-            let word3 = words[start_idx + 2].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
-            let three_word = format!("{} {} {}", word1, word2, word3);
-            
-            // "mam na imię" = "my name is" (idiom for introducing oneself)
-            if three_word == "mam na imię" {
-                return (
-                    "mam na imię".to_string(),
-                    "have_name".to_string(),
-                    PartOfSpeech::Verb,
-                    FeatureBundle {
-                        tense: Some(Tense::Present),
-                        person: Some(Person::First),
-                        number: Some(Number::Singular),
-                        ..Default::default()
-                    },
-                    3
-                );
-            }
+
+        if let Some((entry, surface, consumed)) = self.lexicon.lookup_multiword(words, start_idx) {
+            let pos = self.lexicon.parse_pos(&entry.pos);
+            return (
+                surface,
+                entry.lemma.clone(),
+                pos,
+                entry.features.clone(),
+                consumed,
+            );
         }
-        
-        // Check for 2-word expressions
+
+        // Reflexive particle composition: verb + "się" (morphological, not a fixed idiom string)
         if start_idx + 1 < words.len() {
             let word1 = words[start_idx].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
             let word2 = words[start_idx + 1].trim_matches(|c: char| c.is_ascii_punctuation()).to_lowercase();
-            let two_word = format!("{} {}", word1, word2);
-            
-            // "na imię" = "my name is" (idiom for introducing oneself)
-            if two_word == "na imię" {
-                return (
-                    "na imię".to_string(),
-                    "have_name".to_string(),
-                    PartOfSpeech::Verb,
-                    FeatureBundle {
-                        tense: Some(Tense::Present),
-                        person: Some(Person::First),
-                        number: Some(Number::Singular),
-                        ..Default::default()
-                    },
-                    2
-                );
-            }
-            
-            // Reflexive verbs with "się"
-            if two_word.ends_with(" się") {
-                let verb_form = two_word.trim_end_matches(" się");
-                // Check if this verb form exists in lexicon as reflexive
+            if word2 == "się" {
+                let two_word = format!("{} {}", word1, word2);
                 if let Some(entry) = self.lexicon.lookup_by_form(&two_word) {
-                    // DEBUG removed per plan (no leaks)
                     let pos = self.lexicon.parse_pos(&entry.pos);
                     return (
-                        two_word.clone(),
+                        two_word,
                         entry.lemma.clone(),
                         pos,
                         entry.features.clone(),
-                        2
+                        2,
                     );
                 }
-                // Check if base verb exists (without "się")
-                if let Some(entry) = self.lexicon.lookup_by_form(verb_form) {
-                    // DEBUG removed per plan (no leaks)
+                if let Some(entry) = self.lexicon.lookup_by_form(&word1) {
                     let pos = self.lexicon.parse_pos(&entry.pos);
                     return (
-                        two_word.clone(),
+                        two_word,
                         entry.lemma.clone(),
                         pos,
                         entry.features.clone(),
-                        2
+                        2,
                     );
                 }
-                // DEBUG removed per plan (no leaks)
-            }
-
-            // "razem z" = "together with" (prepositional phrase)
-            if two_word == "razem z" {
-                return (
-                    "razem z".to_string(),
-                    "together_with".to_string(),
-                    PartOfSpeech::Preposition,
-                    FeatureBundle::default(),
-                    2
-                );
-            }
-            
-            // "w porze" = "at the time of" (temporal expression)
-            if two_word == "w porze" {
-                return (
-                    "w porze".to_string(),
-                    "at_time".to_string(),
-                    PartOfSpeech::Preposition,
-                    FeatureBundle::default(),
-                    2
-                );
             }
         }
-        
-        // No multi-word expression found
+
         (String::new(), String::new(), PartOfSpeech::Unknown, FeatureBundle::default(), 0)
     }
 
@@ -670,13 +610,14 @@ impl PolishParser {
         // First-class Coordination: group NPs joined by conjunctions into Coordination struct.
         // Split by verb position so pre-verb entities (subjects) and post-verb entities (objects)
         // are coordinated separately — "Tomek i Iza ma jabłko" → subject=[Tomek+Iza], object=[jabłko].
-        let coord_conjunctions = ["i", "oraz", "and", "albo", "lub", "or", ","];
-        let has_coordination = tokens.iter().any(|t| coord_conjunctions.contains(&t.form.as_str()));
+        let is_coord_token =
+            |t: &Token| t.pos == PartOfSpeech::Conjunction || t.form == ",";
+        let has_coordination = tokens.iter().any(is_coord_token);
         // Skip global coordination if all relevant conjs are inside a PP list span (e.g. "żoną, córką i psem" after "z")
         // Those are already handled as coordinated entity inside pp_entities.
         let pp_span = Self::pp_list_span_indices(tokens);
         let has_non_pp_coordination = has_coordination && !tokens.iter().enumerate()
-            .filter(|(_, t)| coord_conjunctions.contains(&t.form.as_str()))
+            .filter(|(_, t)| is_coord_token(t))
             .all(|(i, _)| pp_span.contains(&i));
         if has_non_pp_coordination && entities.len() >= 2 {
             // Split entities by verb position
@@ -692,7 +633,7 @@ impl PolishParser {
 
             // Find conjunction tokens split by verb position
             let conj_tokens: Vec<(usize, &str)> = tokens.iter().enumerate()
-                .filter(|(_, t)| coord_conjunctions.contains(&t.form.as_str()))
+                .filter(|(_, t)| is_coord_token(t))
                 .map(|(i, t)| (i, t.form.as_str()))
                 .collect();
 
@@ -935,26 +876,42 @@ impl PolishParser {
         graph.materialize_phrases(tokens, &word_ids);
         graph.attach_concept_layer(&self.lexicon, &self.ontology);
 
-        // Populate full node types for AC1 (SentenceNode etc for multi-sentence Adam support)
+        // Find a FrameNode id from the just-materialized content for real linking.
+        let frame_node_id = graph.nodes.iter().rev().find_map(|n| {
+            if let GraphNode::Frame(f) = n { Some(f.id) } else { None }
+        });
+
+        // Collect real EntityNode ids that were materialized for this sentence (for discourse).
+        let entity_node_ids: Vec<NodeId> = graph.nodes.iter().rev().filter_map(|n| {
+            if let GraphNode::Entity(e) = n { Some(e.id) } else { None }
+        }).take(16).collect();
+
+        // Populate full node types with real links (not stubs).
         let sent_node_id = graph.alloc_node_id();
         graph.nodes.push(GraphNode::Sentence(crate::core::graph::SentenceNode {
             id: sent_node_id,
-            frame_id: sentence.frames.last().and_then(|f| { /* simplistic */ None }),
+            frame_id: frame_node_id,
         }));
+        // Link sentence to its frame if we have one
+        if let Some(fid) = frame_node_id {
+            graph.add_edge(sent_node_id, fid, EdgeKind::Introduces);
+        }
+
         let utt_node_id = graph.alloc_node_id();
         graph.nodes.push(GraphNode::Utterance(crate::core::graph::UtteranceNode {
             id: utt_node_id,
             sentence_ids: vec![sent_node_id],
             discourse: None,
         }));
+
         let disc_id = graph.alloc_node_id();
         graph.nodes.push(GraphNode::Discourse(crate::core::graph::DiscourseNode {
             id: disc_id,
             speaker: None,
             addressee: None,
-            entities: vec![],
+            entities: entity_node_ids.clone(),
         }));
-        // Clause stub for multi
+
         if tokens.len() > 0 {
             let cl_id = graph.alloc_node_id();
             graph.nodes.push(GraphNode::Clause(crate::core::graph::ClauseNode {
@@ -962,10 +919,23 @@ impl PolishParser {
                 sentence_id: Some(sent_node_id),
                 words: word_ids.clone(),
             }));
+            // Link clause -> sentence
+            graph.add_edge(cl_id, sent_node_id, EdgeKind::PartOfConstruction("clause_of".into()));
+        }
+
+        // Add a few Realizes edges from words to entities when possible (best effort)
+        for (i, &wid) in word_ids.iter().enumerate() {
+            if let Some(tok) = tokens.get(i) {
+                if tok.pos == PartOfSpeech::Noun {
+                    if let Some(eid) = entity_node_ids.first() {
+                        graph.add_edge(wid, *eid, EdgeKind::Realizes);
+                    }
+                }
+            }
         }
 
         sentence.graph = Some(graph);
-        deduction::apply_graph_inference(&mut sentence, &self.ontology)
+        deduction::apply_graph_inference(&mut sentence, &self.lexicon, &self.ontology)
             .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
@@ -987,9 +957,15 @@ impl PolishParser {
             return None;
         }
         let possessor = entities.first()?.clone();
-        let mut possessed = Entity::new(ConceptId::new("YEAR")).with_name("rok");
-        possessed.features.number = Some(Number::Plural);
-        possessed.features.case = Some(Case::Genitive);
+        let year_entry = tokens.iter().find_map(|t| {
+            self.lexicon
+                .lookup_by_form(&t.form.to_lowercase())
+                .filter(|e| e.concept == "YEAR")
+        })?;
+        let mut possessed =
+            Entity::new(ConceptId::new(&year_entry.concept)).with_name(&year_entry.lemma);
+        possessed.features.number = year_entry.features.number.or(Some(Number::Plural));
+        possessed.features.case = year_entry.features.case.or(Some(Case::Genitive));
         Some(Frame::Possession {
             possessor,
             possessed,

@@ -11,6 +11,17 @@ thiserror = "1"
 clap = { version = "4", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde_json = "1.0"
+
+# Pull in the lexical deduction service so lexflex can automatically
+# learn concepts for unknown words using the same clean, data-driven
+# logic (LocalKnowledge + is_a mapping + scoped context) instead of
+# ad-hoc word hacks.
+lexflex-learner = { path = "lexflex-learner" }
+
+# Pin to keep builds working across the two crates
+idna = "=0.5.0"
+tokio = { version = "1.39", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 insta = "1"

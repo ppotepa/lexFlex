@@ -1,3 +1,4 @@
+use crate::core::graph::LinguisticGraph;
 use crate::core::interlingua::{Aspect, Entity, Frame, Number, Sentence};
 use crate::data::descriptor::{AspectType, LanguageDescriptor, WordOrder};
 use crate::data::lexicon::Lexicon;
@@ -84,37 +85,38 @@ impl<'a> GenerationPolicy<'a> {
 /// stored in the frame (looked up in lexicon). Fallback is lowercased concept.
 /// Only minimal handling for consumption liquid (DRINK vs EAT) using patient features.
 /// No language-specific string literals for lemmas.
-pub fn resolve_surface_verb(frame: &Frame, lexicon: &Lexicon) -> String {
-    let (concept, is_liquid) = match frame {
-        Frame::Consumption { patient, verb_concept, .. } => {
-            let liquid = patient.features.countability == Some(crate::core::interlingua::Countability::Mass)
-                && matches!(
-                    patient.concept.0.as_str(),
-                    "WATER" | "MILK" | "JUICE" | "COFFEE" | "TEA" | "BEER" | "WINE"
-                );
-            (verb_concept.as_str(), liquid)
-        }
-        _ => {
-            let vc = match frame {
-                Frame::Transfer { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Motion { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Perception { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Cognition { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Emotion { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Destruction { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Communication { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Creation { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Statement { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Existence { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Possession { verb_concept, .. } => verb_concept.as_str(),
-                Frame::Custom { name, .. } => name.as_str(),
-                _ => "UNKNOWN",
-            };
-            (vc, false)
-        }
+pub fn resolve_surface_verb(
+    frame: &Frame,
+    lexicon: &Lexicon,
+    graph: Option<&LinguisticGraph>,
+    lang: &str,
+) -> String {
+    let concept = match frame {
+        Frame::Transfer { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Motion { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Perception { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Cognition { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Emotion { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Destruction { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Consumption { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Communication { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Creation { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Statement { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Existence { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Possession { verb_concept, .. } => verb_concept.as_str(),
+        Frame::Custom { name, .. } => name.as_str(),
+        _ => "UNKNOWN",
     };
 
-    let chosen = if is_liquid { "DRINK" } else { concept };
+    let age_idiom_have = graph.map_or(false, |g| g.has_construction("AgeIdiom"))
+        && lang == "pl"
+        && matches!(frame, Frame::Possession { verb_concept, .. } if verb_concept == "BE");
+
+    let chosen = if age_idiom_have {
+        "HAVE"
+    } else {
+        concept
+    };
 
     // Prefer verb_concept via lexicon lookup (first match wins; data order + RON morphology drive surface like "jeść" -> "jadł").
     // No per-concept string overrides or ad-hoc cases here.
@@ -227,7 +229,7 @@ mod tests {
             verb_concept: "GIVE".to_string(),
         };
         // Empty lexicon -> lowercased concept as final fallback (no panic).
-        let res = resolve_surface_verb(&f, &Lexicon::new());
+        let res = resolve_surface_verb(&f, &Lexicon::new(), None, "en");
         assert_eq!(res, "give");
     }
 }

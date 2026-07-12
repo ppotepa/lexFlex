@@ -4,7 +4,7 @@ use crate::error::GenerateError;
 
 pub struct EnglishMorphology {
     verb_paradigms: Vec<MorphParadigm>,
-    _noun_paradigms: Vec<MorphParadigm>,
+    noun_paradigms: Vec<MorphParadigm>,
 }
 
 impl EnglishMorphology {
@@ -14,7 +14,7 @@ impl EnglishMorphology {
     ) -> Self {
         Self {
             verb_paradigms,
-            _noun_paradigms: noun_paradigms,
+            noun_paradigms,
         }
     }
 
@@ -104,30 +104,46 @@ impl EnglishMorphology {
         &self,
         lemma: &str,
         number: Number,
+        paradigm: Option<&str>,
     ) -> Result<String, GenerateError> {
+        let features = FeatureBundle {
+            number: Some(number),
+            ..Default::default()
+        };
+
+        if let Some(name) = paradigm {
+            if let Some(p) = self.noun_paradigms.iter().find(|p| p.name == name) {
+                if let Some(form) = morphology::apply_rules(lemma, &p.rules, &features) {
+                    return Ok(form);
+                }
+            }
+        }
+
+        for p in &self.noun_paradigms {
+            if let Some(form) = morphology::apply_rules(lemma, &p.rules, &features) {
+                if number == Number::Singular || form != lemma {
+                    return Ok(form);
+                }
+            }
+        }
+
         match number {
-            Number::Singular => Ok(lemma.to_string()),
+            Number::Singular | Number::Dual => Ok(lemma.to_string()),
             Number::Plural => {
-                if lemma == "wife" || lemma == "life" || lemma == "knife" || lemma == "wolf" || lemma == "leaf" {
-                    // Common *f / *fe -> ves irregulars (data-driven would come from paradigm; algorithmic here)
-                    let stem = if lemma.ends_with("fe") { &lemma[..lemma.len()-2] } else { &lemma[..lemma.len()-1] };
-                    Ok(format!("{}ves", stem))
-                } else if lemma.ends_with('s') || lemma.ends_with("sh") || lemma.ends_with("ch") || lemma.ends_with('x') {
+                if lemma.ends_with('s') || lemma.ends_with("sh") || lemma.ends_with("ch") || lemma.ends_with('x') {
                     Ok(format!("{}es", lemma))
-                } else if lemma.ends_with('y') && !lemma.ends_with("ay") && !lemma.ends_with("ey") && !lemma.ends_with("oy") && !lemma.ends_with("uy") {
+                } else if lemma.ends_with('y')
+                    && !lemma.ends_with("ay")
+                    && !lemma.ends_with("ey")
+                    && !lemma.ends_with("oy")
+                    && !lemma.ends_with("uy")
+                {
                     let stem = &lemma[..lemma.len() - 1];
                     Ok(format!("{}ies", stem))
-                } else if lemma.ends_with("fe") {
-                    let stem = &lemma[..lemma.len()-2];
-                    Ok(format!("{}ves", stem))
-                } else if lemma.ends_with('f') && !lemma.ends_with("ff") {
-                    let stem = &lemma[..lemma.len()-1];
-                    Ok(format!("{}ves", stem))
                 } else {
                     Ok(format!("{}s", lemma))
                 }
             }
-            Number::Dual => Ok(lemma.to_string()),
         }
     }
 }

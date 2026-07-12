@@ -333,13 +333,14 @@ impl EnglishParser {
             entity_pre_verb = grouped_pre_verb;
         }
 
-        let coord_conjunctions = ["i", "oraz", "and", "albo", "lub", "or", ","];
-        let has_coordination = tokens.iter().any(|t| coord_conjunctions.contains(&t.form.as_str()));
+        let is_coord_token =
+            |t: &Token| t.pos == PartOfSpeech::Conjunction || t.form == ",";
+        let has_coordination = tokens.iter().any(is_coord_token);
         let has_non_pp_coordination = has_coordination
             && !tokens
                 .iter()
                 .enumerate()
-                .filter(|(_, t)| coord_conjunctions.contains(&t.form.as_str()))
+                .filter(|(_, t)| is_coord_token(t))
                 .all(|(i, _)| pp_span.contains(&i));
         if has_non_pp_coordination && entities.len() >= 2 {
             let mut pre_verb_ents: Vec<Entity> = vec![];
@@ -354,7 +355,7 @@ impl EnglishParser {
             let conj_tokens: Vec<(usize, &str)> = tokens
                 .iter()
                 .enumerate()
-                .filter(|(_, t)| coord_conjunctions.contains(&t.form.as_str()))
+                .filter(|(_, t)| is_coord_token(t))
                 .map(|(i, t)| (i, t.form.as_str()))
                 .collect();
             let pre_verb_conj = conj_tokens
@@ -424,20 +425,7 @@ impl EnglishParser {
         // detect numerical
         if sentence.quantification.is_none() {
             for t in tokens {
-                if let Ok(n) = t.form.parse::<i32>() {
-                    sentence.quantification = Some(Quantifier::Numerical(n));
-                    break;
-                }
-                let num = match t.form.as_str() {
-                    "three" => Some(3),
-                    "four" => Some(4),
-                    "five" => Some(5),
-                    "ten" => Some(10),
-                    "twenty" => Some(20),
-                    "thirty" => Some(30),
-                    _ => None,
-                };
-                if let Some(n) = num {
+                if let Some(n) = self.lexicon.cardinal_from_token(t) {
                     sentence.quantification = Some(Quantifier::Numerical(n));
                     break;
                 }
@@ -505,7 +493,7 @@ impl EnglishParser {
         }
 
         sentence.graph = Some(graph);
-        deduction::apply_graph_inference(&mut sentence, &self.ontology)
+        deduction::apply_graph_inference(&mut sentence, &self.lexicon, &self.ontology)
             .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
@@ -610,12 +598,8 @@ impl EnglishParser {
                 }
                 if t.pos == PartOfSpeech::Noun || t.pos == PartOfSpeech::Pronoun {
                     let mut ent = self.token_to_entity(t);
-                    let is_person_context = ent.features.animacy == Some(Animacy::Animate)
-                        || matches!(
-                            ent.concept.0.as_str(),
-                            "PERSON" | "WIFE" | "DAUGHTER" | "SON" | "MOTHER" | "FATHER"
-                                | "DOG" | "CAT" | "COLLEAGUE" | "HUSBAND" | "CHILD"
-                        );
+                    let is_person_context =
+                        self.ontology.is_animate_entity(&ent);
                     if is_with && is_person_context {
                         ent.features.semantic_role = Some(SemanticRole::Location);
                         ent.features.case = Some(Case::Instrumental);
@@ -677,16 +661,34 @@ impl EnglishParser {
             self.lexicon
                 .lookup_by_form(&t.form.to_lowercase())
                 .map_or(false, |e| e.concept == "YEAR")
-        }) || tokens
-            .iter()
-            .any(|t| matches!(t.form.to_lowercase().as_str(), "years" | "year" | "old"));
-        let has_number = tokens.iter().any(|t| t.form.parse::<i32>().is_ok());
-        if !has_year || !has_number {
+        });
+        let has_old = tokens.iter().any(|t| {
+            self.lexicon
+                .lookup_by_form(&t.form.to_lowercase())
+                .map_or(false, |e| e.concept == "OLD")
+        });
+        let has_number = tokens.iter().any(|t| self.lexicon.cardinal_from_token(t).is_some());
+        if !has_year || !has_number || !has_old {
             return None;
         }
         let possessor = entities.first()?.clone();
-        let mut possessed = Entity::new(ConceptId::new("YEAR")).with_name("year");
+        let year_entry = tokens.iter().find_map(|t| {
+            self.lexicon
+                .lookup_by_form(&t.form.to_lowercase())
+                .filter(|e| e.concept == "YEAR")
+        })?;
+        let mut possessed =
+            Entity::new(ConceptId::new(&year_entry.concept)).with_name(&year_entry.lemma);
         possessed.features.number = Some(Number::Plural);
+        if let Some(old_entry) = self
+            .lexicon
+            .lookup_by_form("old")
+            .or_else(|| self.lexicon.lookup_concept("OLD"))
+        {
+            let mut adj = Entity::new(ConceptId::new(&old_entry.concept)).with_name(&old_entry.lemma);
+            adj.features = old_entry.features.clone();
+            possessed.adjectives.push(adj);
+        }
         Some(Frame::Possession {
             possessor,
             possessed,
@@ -697,91 +699,17 @@ impl EnglishParser {
     fn build_frame(
         &self,
         frame_type: &str,
-        _roles: &[SemanticRole],
+        roles: &[SemanticRole],
         entities: &[Entity],
         verb_concept: &str,
     ) -> Result<Frame, ParseError> {
-        // English SVO: first NP = Agent, second NP = Theme/Patient, third NP = Recipient
-        // For Transfer: Agent V Theme (to Recipient)
-        let agent = entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown")));
-        let theme = entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown")));
-        let recipient = entities.get(2).cloned();
-
-        match frame_type {
-            "Possession" => Ok(Frame::Possession {
-                possessor: agent,
-                possessed: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Transfer" => Ok(Frame::Transfer {
-                agent,
-                recipient: recipient.unwrap_or(Entity::new(ConceptId::new("unknown"))),
-                theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Motion" => Ok(Frame::Motion {
-                mover: agent,
-                source: None,
-                goal: entities.get(1).cloned(),
-                path: None,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Perception" => Ok(Frame::Perception {
-                experiencer: agent,
-                stimulus: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Cognition" => Ok(Frame::Cognition {
-                cognizer: agent,
-                content: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Emotion" => Ok(Frame::Emotion {
-                experiencer: agent,
-                stimulus: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Destruction" => Ok(Frame::Destruction {
-                agent,
-                patient: theme,
-                instrument: None,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Consumption" => Ok(Frame::Consumption {
-                agent,
-                patient: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Communication" => Ok(Frame::Communication {
-                speaker: agent,
-                addressee: recipient,
-                message: theme,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Creation" => Ok(Frame::Creation {
-                creator: agent,
-                created: theme,
-                material: None,
-                verb_concept: verb_concept.to_string(),
-            }),
-            "Existence" => {
-                let location = entities.iter().skip(1).find(|e| {
-                    e.features.semantic_role == Some(SemanticRole::Location)
-                        || e.features.case == Some(Case::Locative)
-                        || e.features.case == Some(Case::Instrumental)
-                }).cloned();
-                Ok(Frame::Existence {
-                    entity: agent,
-                    location,
-                    verb_concept: verb_concept.to_string(),
-                })
-            }
-            _ => Ok(Frame::Statement {
-                subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
-                property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
-                verb_concept: verb_concept.to_string(),
-            }),
-        }
+        Ok(crate::core::frame_builder::build_frame_from_roles(
+            frame_type,
+            roles,
+            entities,
+            verb_concept,
+            &self.lexicon,
+        ))
     }
 }
 

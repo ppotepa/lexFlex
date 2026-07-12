@@ -1,8 +1,45 @@
 use crate::core::graph::LinguisticGraph;
-use crate::core::interlingua::{Degree, Entity, FeatureBundle, Quantifier, TemporalReference};
+use crate::core::interlingua::{
+    Case, Degree, Entity, FeatureBundle, Number, Quantifier, TemporalReference,
+};
 use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::error::GenerateError;
+
+/// Apply AgeIdiom construction features from graph before NP realization.
+pub fn adjust_age_idiom_entity(
+    entity: &mut Entity,
+    features: &mut FeatureBundle,
+    graph: Option<&LinguisticGraph>,
+    lexicon: &Lexicon,
+    lang: &str,
+) {
+    if !graph.map_or(false, |g| g.has_construction("AgeIdiom")) || entity.concept.0 != "YEAR" {
+        return;
+    }
+    if lang == "pl" {
+        entity.adjectives.clear();
+        let case = Case::Genitive;
+        entity.features.case = Some(case);
+        features.case = Some(case);
+        entity.features.number = Some(Number::Plural);
+        features.number = Some(Number::Plural);
+        let lemma = lexicon
+            .lookup_concept("YEAR")
+            .map(|e| e.lemma.clone())
+            .or_else(|| entity.name.clone())
+            .unwrap_or_default();
+        if let Some(surface) = lexicon.lookup_inflected_surface(&lemma, case, Number::Plural) {
+            entity.name = Some(surface);
+        }
+    } else {
+        entity.features.number = Some(Number::Plural);
+        features.number = Some(Number::Plural);
+        if let Some(entry) = lexicon.lookup_concept("YEAR") {
+            entity.name = Some(entry.lemma.clone());
+        }
+    }
+}
 
 /// LanguageRealizer isolates language-specific realization.
 /// Default implementations are no-ops or identities for unsupported features (e.g. no cases in EN).

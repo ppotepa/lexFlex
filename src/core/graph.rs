@@ -26,6 +26,10 @@ pub enum EdgeKind {
     ComplementOf,
     MatchesPattern(String),
     ConceptRelation(String),
+    Introduces,
+    Answers,
+    Elaborates,
+    Contrasts,
 }
 
 /// Declarative construction pattern (registered at runtime or from defaults).
@@ -123,14 +127,39 @@ pub struct SentenceNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClauseNode {
+    pub id: NodeId,
+    pub sentence_id: Option<NodeId>,
+    pub words: Vec<NodeId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtteranceNode {
+    pub id: NodeId,
+    pub sentence_ids: Vec<NodeId>,
+    pub discourse: Option<Discourse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DiscourseNode {
+    pub id: NodeId,
+    pub speaker: Option<Entity>,
+    pub addressee: Option<Entity>,
+    pub entities: Vec<NodeId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GraphNode {
     Word(WordNode),
     Phrase(PhraseNode),
+    Clause(ClauseNode),
+    Sentence(SentenceNode),
+    Utterance(UtteranceNode),
+    Discourse(DiscourseNode),
     Entity(EntityNode),
     Frame(FrameNode),
     Coordination(CoordinationNode),
     Concept(ConceptNode),
-    Sentence(SentenceNode),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -316,7 +345,7 @@ impl LinguisticGraph {
         Self::default()
     }
 
-    fn alloc_node_id(&mut self) -> NodeId {
+    pub(crate) fn alloc_node_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node);
         self.next_node += 1;
         id
@@ -340,11 +369,14 @@ impl LinguisticGraph {
             let id = match node {
                 GraphNode::Word(w) => w.id,
                 GraphNode::Phrase(p) => p.id,
+                GraphNode::Clause(c) => c.id,
+                GraphNode::Sentence(s) => s.id,
+                GraphNode::Utterance(u) => u.id,
+                GraphNode::Discourse(d) => d.id,
                 GraphNode::Entity(e) => e.id,
                 GraphNode::Frame(f) => f.id,
                 GraphNode::Coordination(c) => c.id,
                 GraphNode::Concept(c) => c.id,
-                GraphNode::Sentence(s) => s.id,
             };
             self.node_index.insert(id, i);
         }
@@ -501,7 +533,7 @@ impl LinguisticGraph {
     pub fn word_nodes(&self) -> impl Iterator<Item = &WordNode> {
         self.nodes.iter().filter_map(|n| match n {
             GraphNode::Word(w) => Some(w),
-            _ => None,
+            GraphNode::Clause(_) | GraphNode::Utterance(_) | GraphNode::Discourse(_) | _ => None,
         })
     }
 
@@ -512,14 +544,14 @@ impl LinguisticGraph {
     pub fn get_word(&self, id: NodeId) -> Option<&WordNode> {
         self.nodes.get(id.0 as usize).and_then(|n| match n {
             GraphNode::Word(w) => Some(w),
-            _ => None,
+            GraphNode::Clause(_) | GraphNode::Utterance(_) | GraphNode::Discourse(_) | _ => None,
         })
     }
 
     pub fn get_entity(&self, id: NodeId) -> Option<&EntityNode> {
         self.nodes.get(id.0 as usize).and_then(|n| match n {
             GraphNode::Entity(e) => Some(e),
-            _ => None,
+            GraphNode::Clause(_) | GraphNode::Utterance(_) | GraphNode::Discourse(_) | _ => None,
         })
     }
 
@@ -609,6 +641,16 @@ impl LinguisticGraph {
         visited == expected_count
     }
 
+    /// True when any edge marks participation in a named construction (e.g. AgeIdiom, Accompaniment).
+    pub fn has_construction(&self, name: &str) -> bool {
+        self.edges.iter().any(|e| {
+            matches!(
+                &e.kind,
+                EdgeKind::PartOfConstruction(c) if c == name
+            )
+        })
+    }
+
     pub fn location_uses_instrumental(&self, location_entity_id: NodeId) -> bool {
         self.realizing_words_for_entity(location_entity_id)
             .iter()
@@ -655,6 +697,29 @@ impl LinguisticGraph {
             _ => None,
         })
     }
+
+    pub fn get_clause(&self, id: NodeId) -> Option<&ClauseNode> {
+        self.nodes.get(id.0 as usize).and_then(|n| match n {
+            GraphNode::Clause(c) => Some(c),
+            _ => None,
+        })
+    }
+
+    pub fn get_utterance(&self, id: NodeId) -> Option<&UtteranceNode> {
+        self.nodes.get(id.0 as usize).and_then(|n| match n {
+            GraphNode::Utterance(u) => Some(u),
+            _ => None,
+        })
+    }
+
+    pub fn get_discourse(&self, id: NodeId) -> Option<&DiscourseNode> {
+        self.nodes.get(id.0 as usize).and_then(|n| match n {
+            GraphNode::Discourse(d) => Some(d),
+            _ => None,
+        })
+    }
+
+    // find_accompaniment_paths already exists via PathBuilder; removed duplicate to avoid E0592.
 
     pub fn concept_related(&self, concept: &str, relation: &str) -> Vec<ConceptId> {
         let c = concept.to_uppercase();
@@ -1195,11 +1260,11 @@ impl From<&LinguisticGraph> for GraphSnapshot {
             match node {
                 GraphNode::Word(w) => words.push(w.clone()),
                 GraphNode::Phrase(p) => phrases.push(p.clone()),
+                GraphNode::Clause(_) | GraphNode::Utterance(_) | GraphNode::Discourse(_) | GraphNode::Sentence(_) => {}
                 GraphNode::Entity(e) => entities.push(e.clone()),
                 GraphNode::Frame(f) => frames.push(f.clone()),
                 GraphNode::Coordination(c) => coordinations.push(c.clone()),
                 GraphNode::Concept(c) => concepts.push(c.clone()),
-                GraphNode::Sentence(_) => {}
             }
         }
         Self {

@@ -174,10 +174,18 @@ pub fn generate_sentence(
 
 
     let mut result = words.join(" ");
-    
-    // Reflexive insertion removed - should be handled inside realizer or IL (per plan AC1, no manual word-list surgery)
-    
-    // Capitalization removed (per plan, avoid post-facto); basic punctuation only
+
+    let age_idiom = sentence
+        .graph
+        .as_ref()
+        .map_or(false, |g| g.has_construction("AgeIdiom"));
+    if age_idiom && desc.language == "pl" {
+        if let Some(first) = result.get_mut(0..1) {
+            let upper = first.to_uppercase();
+            result.replace_range(0..1, &upper);
+        }
+    }
+
     match sentence.illocution {
         Illocution::Question => result.push('?'),
         Illocution::Exclamation => result.push('!'),
@@ -198,7 +206,7 @@ fn generate_frame(
     desc: &LanguageDescriptor,
     lexicon: &Lexicon,
 ) -> Result<Vec<String>, GenerateError> {
-    let verb_lemma = resolve_surface_verb(frame, lexicon);
+    let verb_lemma = resolve_surface_verb(frame, lexicon, sentence.graph.as_ref(), &desc.language);
     let (verb_nodes, verb_edges) = verb_trace(sentence.graph.as_ref());
     TRACE.with(|t| t.borrow_mut().push(TraceStep {
         stage: "resolve_verb".to_string(),
@@ -357,74 +365,30 @@ fn generate_frame(
             }
             Ok(words)
         }
-        Frame::Possession { possessor, possessed, verb_concept } => {
-            // Special handling for HAVE_NAME: "I am called Adam"
-            if verb_concept == "HAVE_NAME" {
-                // For HAVE_NAME, generate "I am called [name]"
-                let name_form = realizer.realize_noun_phrase(possessed, &mut possessed.features.clone(), desc, lexicon, sentence.graph.as_ref())?;
-                let verb_form = if desc.language == "en" {
-                    // Use "am called" for 1st person singular present
-                    "am called".to_string()
-                } else {
-                    v.clone()
-                };
-                let mut words = vec![];
-                if desc.language == "en" {
-                    words.push("I".to_string());
-                }
-                words.push(verb_form);
-                words.extend(name_form);
-                return Ok(words);
-            }
-
-            if possessed.concept.0 == "YEAR"
-                && (verb_concept == "BE" || verb_concept == "HAVE")
-                && matches!(sentence.quantification, Some(Quantifier::Numerical(_)))
-            {
-                if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
-                    if desc.language == "pl" {
-                        return Ok(vec!["Mam".to_string(), n.to_string(), "lat".to_string()]);
-                    }
-                    if desc.language == "en" {
-                        let mut pf = possessor.features.clone();
-                        pf.case = Some(Case::Nominative);
-                        let subj = if possessor.features.person == Some(Person::First) {
-                            vec!["I".to_string()]
-                        } else {
-                            realizer
-                                .realize_noun_phrase(possessor, &mut pf, desc, lexicon, sentence.graph.as_ref())
-                                .unwrap_or_else(|_| vec!["I".to_string()])
-                        };
-                        return Ok(vec![
-                            subj,
-                            vec!["am".to_string()],
-                            vec![n.to_string()],
-                            vec!["years".to_string()],
-                            vec!["old".to_string()],
-                        ]
-                        .into_iter()
-                        .flatten()
-                        .collect());
-                    }
-                }
-            }
-
+        Frame::Possession { possessor, possessed, verb_concept: _ } => {
             let mut fp = possessor.features.clone();
             fp.case = Some(Case::Nominative);
             if let Some(ref q) = sentence.quantification {
                 realizer.adjust_for_quantifier(&mut fp, q, desc);
             }
-            let p = realizer.realize_noun_phrase(possessor, &mut fp, desc, lexicon, sentence.graph.as_ref())?;
+            let p = realizer.realize_noun_phrase(
+                possessor,
+                &mut fp,
+                desc,
+                lexicon,
+                sentence.graph.as_ref(),
+            )?;
 
             let mut fo = possessed.features.clone();
             if desc.language == "pl" {
                 fo.case = Some(Case::Accusative);
             }
-            // Early norm (in parser) ensures correct concept/name; no force contains here.
-            let mut poss_for_real = possessed.clone();
-            lexicon.normalize_entity(&mut poss_for_real);
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
-                fo.number = if *n == 1 { Some(Number::Singular) } else { Some(Number::Plural) };
+                fo.number = if *n == 1 {
+                    Some(Number::Singular)
+                } else {
+                    Some(Number::Plural)
+                };
                 if desc.language == "pl" && *n >= 5 {
                     fo.case = Some(Case::Genitive);
                 } else if desc.language == "pl" {
@@ -434,18 +398,21 @@ fn generate_frame(
                     realizer.adjust_for_quantifier(&mut fo, q, desc);
                 }
             }
-            let mut o = realizer.realize_noun_phrase(&poss_for_real, &mut fo, desc, lexicon, sentence.graph.as_ref())?;
+
+            let mut o = realizer.realize_noun_phrase(
+                possessed,
+                &mut fo,
+                desc,
+                lexicon,
+                sentence.graph.as_ref(),
+            )?;
             if let Some(Quantifier::Numerical(n)) = &sentence.quantification {
                 o = prefix_cardinal(o, *n);
             }
 
-            // Normal path only. Age idiom ("am N years old") will be achieved by:
-            // - parser setting verb_concept="BE" for "lat" cases (data from tokens)
-            // - YEAR entity realization appending "old" in the EN generator/realizer
-            // No if on YEAR or HAVE_AGE here.
-
+            let policy = GenerationPolicy::new(desc);
             let mut words = vec![];
-            if !p.is_empty() {
+            if policy.should_emit_subject(possessor) && !p.is_empty() {
                 words.extend(p);
             }
             words.push(v);
@@ -498,9 +465,6 @@ fn generate_frame(
                 realizer.adjust_for_quantifier(&mut fe, q, desc);
             }
             let mut entity_for_real = entity.clone();
-            if entity_for_real.concept.0 == "unknown" && entity_for_real.name.is_none() {
-                entity_for_real.name = Some("they".to_string());  // pro-drop 3rd plural fallback
-            }
             lexicon.normalize_entity(&mut entity_for_real);
             let e = realizer.realize_noun_phrase(&entity_for_real, &mut fe, desc, lexicon, sentence.graph.as_ref())?;
 

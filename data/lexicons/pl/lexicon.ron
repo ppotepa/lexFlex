@@ -248,6 +248,8 @@
     ("mam na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
     ("na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: (tense: Some(Present), person: Some(First), number: Some(Singular)))),
     ("mieć na imię", (lemma: "have_name", pos: "Verb", concept: "HAVE_NAME", frame_type: Some("Possession"), roles: ["Agent", "Theme"], paradigm: None, features: ())),
+    ("razem z", (lemma: "razem z", pos: "Preposition", concept: "WITH", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("w porze", (lemma: "w porze", pos: "Preposition", concept: "AT_TIME", frame_type: None, roles: [], paradigm: None, features: ())),
 
     // ═══ 1ST PERSON PRESENT FORMS — data-driven exceptions ═══
     // Common 1st person singular present forms that need explicit lexicon entries

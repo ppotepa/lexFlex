@@ -1,0 +1,36 @@
+# Rust build artifacts
+target/
+**/target/
+**/*.rs.bk
+
+# Results and traces (large, generated)
+results/
+**/results/
+
+# Git and IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Docker itself
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Unnecessary for runtime
+docs/
+*.md
+!README.md
+scripts/
+benchmarks/*.txt  # optional: you can include specific ones if wanted
+tests/
+goal/
+*.lock  # cargo lock is needed, but we copy manifests first
+
+# Keep data and source
+!data/
+!Cargo.toml
+!Cargo.lock
+!lexflex-learner/
+!src/

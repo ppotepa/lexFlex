@@ -1,4 +1,4 @@
-use crate::core::graph;
+use crate::core::graph::{self, EdgeKind};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::core::temporal;
@@ -35,6 +35,7 @@ pub fn deduce(
 /// Graph-native inference pass (runs after graph materialization in parsers).
 pub fn apply_graph_inference(
     sentence: &mut Sentence,
+    _lexicon: &Lexicon,
     ontology: &Ontology,
 ) -> Result<(), DeductionError> {
     let Some(ref mut graph) = sentence.graph else {
@@ -69,6 +70,30 @@ pub fn apply_graph_inference(
         }
     }
 
+    // Age idiom: YEAR + numerical quantification → AgeIdiom construction on graph
+    if matches!(sentence.quantification, Some(Quantifier::Numerical(_))) {
+        for frame in &mut sentence.frames {
+            if let Frame::Possession { possessed, .. } = frame {
+                if possessed.concept.0 == "YEAR" {
+                    if possessed.adjectives.iter().all(|a| a.concept.0 != "OLD") {
+                        if let Some(old_entry) = _lexicon
+                            .lookup_by_form("old")
+                            .or_else(|| _lexicon.lookup_concept("OLD"))
+                        {
+                            let mut adj = Entity::new(ConceptId::new(&old_entry.concept))
+                                .with_name(&old_entry.lemma);
+                            adj.features = old_entry.features.clone();
+                            possessed.adjectives.push(adj);
+                        }
+                    }
+                    if let Some(eid) = graph::find_entity_node_id(graph, possessed) {
+                        graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("AgeIdiom".into()));
+                    }
+                }
+            }
+        }
+    }
+
     // Ontology inheritance still applies for features not set by graph
     for frame in &mut sentence.frames {
         for entity in frame.entities_mut() {
@@ -90,6 +115,12 @@ fn apply_verb_frames(
     for frame in &mut sentence.frames {
         for entity in frame.entities_mut() {
             context.ontology.inherit_features(entity);
+        }
+        if let Frame::Consumption { patient, verb_concept, .. } = frame {
+            let liquid = context.ontology.is_liquid(&patient.concept);
+            if liquid && verb_concept.eq_ignore_ascii_case("EAT") {
+                *verb_concept = "DRINK".to_string();
+            }
         }
     }
 

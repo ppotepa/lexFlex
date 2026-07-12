@@ -44,6 +44,22 @@ impl Ontology {
         )
     }
 
+    pub fn is_liquid(&self, concept: &ConceptId) -> bool {
+        self.is_a(concept, &ConceptId::new("LIQUID"))
+    }
+
+    pub fn is_animate_entity(&self, entity: &Entity) -> bool {
+        if entity.features.animacy == Some(crate::core::interlingua::Animacy::Animate) {
+            return true;
+        }
+        if let Some(entry) = self.get(&entity.concept) {
+            if entry.features.animacy == Some(crate::core::interlingua::Animacy::Animate) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn is_quantifier_concept(&self, concept: &str) -> bool {
         matches!(
             concept.to_uppercase().as_str(),

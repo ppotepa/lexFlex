@@ -147,7 +147,12 @@ impl PolishGenerator {
                 Frame::Possession { possessor, possessed, .. } => (possessed.clone(), Some(possessor.clone())),
                 Frame::Custom { .. } => return Ok(words),
             };
-            let verb_surface = resolve_surface_verb(frame, &self.lexicon);
+            let verb_surface = resolve_surface_verb(
+                frame,
+                &self.lexicon,
+                sentence.graph.as_ref(),
+                &self.descriptor.language,
+            );
 
             // Generate theme as subject (NOM case)
             let theme_str = self.generate_entity_form(&theme, Some(Case::Nominative))?;
@@ -220,7 +225,7 @@ impl PolishGenerator {
         _sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
         let pol = GenerationPolicy::new(&self.descriptor);
-        let verb_lemma = self.find_verb_for_frame(frame)?;
+        let verb_lemma = self.find_verb_for_frame(frame, _sentence)?;
 
         let agent_form = self.generate_entity_form(agent, Some(Case::Nominative))?;
         let num = if agent.coordination.is_some() || agent.features.number == Some(Number::Plural) {
@@ -274,7 +279,12 @@ impl PolishGenerator {
             path: None,
             verb_concept: verb_concept.to_string(),
         };
-        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
+        let verb_lemma = resolve_surface_verb(
+            &tmp_frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        );
         let mover_form = self.generate_entity_form(mover, Some(Case::Nominative))?;
         let num = if mover.coordination.is_some() || mover.features.number == Some(Number::Plural) {
             Some(Number::Plural)
@@ -309,7 +319,7 @@ impl PolishGenerator {
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
         let pol = GenerationPolicy::new(&self.descriptor);
-        let verb_lemma = self.find_verb_for_frame(frame)?;
+        let verb_lemma = self.find_verb_for_frame(frame, sentence)?;
 
         let subject_form = self.generate_entity_form(subject, Some(Case::Nominative))?;
         let num = if subject.coordination.is_some() || subject.features.number == Some(Number::Plural) {
@@ -360,7 +370,12 @@ impl PolishGenerator {
             message: message.clone(),
             verb_concept: verb_concept.to_string(),
         };
-        let verb_lemma = resolve_surface_verb(&tmp_frame, &self.lexicon);
+        let verb_lemma = resolve_surface_verb(
+            &tmp_frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        );
         let speaker_form = self.generate_entity_form(speaker, Some(Case::Nominative))?;
         let num = if speaker.coordination.is_some() || speaker.features.number == Some(Number::Plural) {
             Some(Number::Plural)
@@ -451,11 +466,15 @@ impl PolishGenerator {
         // Always use normalize_entity (data driven) + explicit concept lookup for robustness in EN->PL etc.
         let mut entity = entity.clone();
         self.lexicon.normalize_entity(&mut entity);
+        let name_is_proper = entity.name.as_ref().map_or(false, |n| {
+            n.chars().next().map_or(false, |c| c.is_uppercase())
+        }) || entity.name.as_ref().and_then(|n| {
+            self.lexicon.lookup_by_form(&n.to_lowercase())
+                .or_else(|| self.lexicon.lookup_by_lemma(n))
+        }).map_or(false, |e| e.lemma.chars().next().map_or(false, |c| c.is_uppercase()));
         if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
-            // Force replace for common nouns to guarantee target lemma (proper names protected by normalize)
-            if !entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase())) {
+            if !name_is_proper {
                 entity.name = Some(e.lemma.clone());
-                // propagate key features from target entry
                 if entity.features.gender.is_none() { entity.features.gender = e.features.gender; }
                 if entity.features.countability.is_none() { entity.features.countability = e.features.countability; }
                 if entity.features.initial_sound.is_none() { entity.features.initial_sound = e.features.initial_sound.clone(); }
@@ -494,15 +513,23 @@ impl PolishGenerator {
         entity: &Entity,
         case: Option<Case>,
     ) -> Result<String, GenerateError> {
-        // Prefer concept-driven lookup in *this* (target) lexicon to guarantee cross-lang lemma (kills "apple" leak).
-        let effective_name = if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
-            if !entity.name.as_ref().map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase())) {
+        let effective_name = if let Some(name) = &entity.name {
+            if let Some(e) = self.lexicon
+                .lookup_by_form(&name.to_lowercase())
+                .or_else(|| self.lexicon.lookup_by_lemma(name))
+            {
+                e.lemma.clone()
+            } else if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                name.clone()
+            } else if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
                 e.lemma.clone()
             } else {
-                entity.name.clone().unwrap_or_else(|| e.lemma.clone())
+                name.clone()
             }
+        } else if let Some(e) = self.lexicon.lookup_concept(&entity.concept.0) {
+            e.lemma.clone()
         } else {
-            entity.name.clone().unwrap_or_default()
+            String::new()
         };
 
         // First try to find by (effective) name in this lexicon
@@ -624,14 +651,6 @@ impl PolishGenerator {
             }
             return Ok(e.lemma.clone());
         }
-        if concept_str == "apple" {
-            // Use target lexicon data to resolve (jabłko entry carries the APPLE concept)
-            if let Some(e) = self.lexicon.entries.values().find(|ee| ee.lemma == "jabłko" || ee.concept.to_uppercase() == "APPLE") {
-                return Ok(e.lemma.clone());
-            }
-            return Ok("jabłko".to_string());
-        }
-        // avoid forcing cap on unknown concepts for common nouns
         Ok(concept_str)
     }
 
@@ -680,9 +699,13 @@ impl PolishGenerator {
         }
     }
 
-    fn find_verb_for_frame(&self, frame: &Frame) -> Result<String, GenerateError> {
-        // Delegate to shared resolver (prefers verb_concept, no large maps/hardcodes).
-        Ok(resolve_surface_verb(frame, &self.lexicon))
+    fn find_verb_for_frame(&self, frame: &Frame, sentence: &Sentence) -> Result<String, GenerateError> {
+        Ok(resolve_surface_verb(
+            frame,
+            &self.lexicon,
+            sentence.graph.as_ref(),
+            &self.descriptor.language,
+        ))
     }
 
     fn generate_temporal(&self, temporal: &TemporalReference) -> Option<String> {
@@ -725,25 +748,15 @@ impl LanguageRealizer for PolishGenerator {
         if features.gender.is_some() { tmp.features.gender = features.gender; }
         if features.definiteness.is_some() { tmp.features.definiteness = features.definiteness; }
 
-        // Graph-first coordination
-        if let Some(g) = graph {
-            if let Some((conj, items)) = graph::coordination_from_graph(g, &tmp) {
-                let mut item_reals: Vec<Vec<String>> = vec![];
-                for item in &items {
-                    let mut f = item.features.clone();
-                    if let Some(c) = features.case.or(tmp.features.case) {
-                        f.case = Some(c);
-                    }
-                    let r = self
-                        .realize_noun_phrase(item, &mut f, desc, lexicon, None)
-                        .unwrap_or_else(|_| vec!["?".to_string()]);
-                    item_reals.push(r);
-                }
-                return self.realize_coordinations(item_reals, &conj, desc);
-            }
-        }
+        crate::generation::realizer::adjust_age_idiom_entity(
+            &mut tmp,
+            features,
+            graph,
+            lexicon,
+            &desc.language,
+        );
 
-        // IL coordination fallback
+        // IL coordination (parser-authoritative); graph topology only when IL marks coordination
         if let Some(ref coord) = tmp.coordination {
             let mut item_reals: Vec<Vec<String>> = vec![];
             for item in &coord.items {
@@ -757,6 +770,25 @@ impl LanguageRealizer for PolishGenerator {
                 item_reals.push(r);
             }
             return self.realize_coordinations(item_reals, &coord.conjunction, desc);
+        }
+
+        if tmp.coordination.is_some() {
+            if let Some(g) = graph {
+                if let Some((conj, items)) = graph::coordination_from_graph(g, &tmp) {
+                    let mut item_reals: Vec<Vec<String>> = vec![];
+                    for item in &items {
+                        let mut f = item.features.clone();
+                        if let Some(c) = features.case.or(tmp.features.case) {
+                            f.case = Some(c);
+                        }
+                        let r = self
+                            .realize_noun_phrase(item, &mut f, desc, lexicon, None)
+                            .unwrap_or_else(|_| vec!["?".to_string()]);
+                        item_reals.push(r);
+                    }
+                    return self.realize_coordinations(item_reals, &conj, desc);
+                }
+            }
         }
 
         // Realize adjectival modifiers using proper structure (no name-concat).

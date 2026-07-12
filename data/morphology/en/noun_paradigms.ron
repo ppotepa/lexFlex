@@ -5,4 +5,17 @@
         (conditions: [NumberIs(Singular)], operations: []),
         (conditions: [NumberIs(Plural)], operations: [AddSuffix("s")]),
     ]),
+    (name: "noun_f_ves", rules: [
+        (conditions: [NumberIs(Singular)], operations: []),
+        (conditions: [NumberIs(Plural)], operations: [ReplaceSuffix(from: "fe", to: "ves")]),
+        (conditions: [NumberIs(Plural)], operations: [ReplaceSuffix(from: "f", to: "ves")]),
+    ]),
+    (name: "noun_y_ies", rules: [
+        (conditions: [NumberIs(Singular)], operations: []),
+        (conditions: [NumberIs(Plural)], operations: [ReplaceSuffix(from: "y", to: "ies")]),
+    ]),
+    (name: "noun_es", rules: [
+        (conditions: [NumberIs(Singular)], operations: []),
+        (conditions: [NumberIs(Plural)], operations: [AddSuffix("es")]),
+    ]),
 ]
