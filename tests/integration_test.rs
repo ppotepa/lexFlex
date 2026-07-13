@@ -997,3 +997,122 @@ fn test_unknown_concept_pl_np_unknown() {
     });
     assert!(has_preserved_name, "PL NP unknown surface 'xyzqwe' must be preserved in .name");
 }
+
+// === Plan-driven precision tests (from plan.md) ===
+// These start loose / documenting current state and become strict as phases complete.
+
+#[test]
+fn test_precision_baseline_copula_and_demonstrative() {
+    let api = build_api();
+
+    // Phase 0 baseline scaffolding (loose for initial capture; will be strengthened per plan phases)
+    // Motivating cases per AC1.
+    let out1 = api.translate("To jest czerwony kot.", "pl", "en").unwrap_or_default();
+    assert!(out1.to_lowercase().contains("this is") && out1.to_lowercase().contains("red cat"), "copula should be 'This is a red cat' style: {}", out1);
+
+    let out2 = api.translate("To jest dom.", "pl", "en").unwrap_or_default();
+    assert!(out2.to_lowercase().contains("this is") && out2.to_lowercase().contains("house"), "copula house: {}", out2);
+
+    // Strict IL frame assert for copula (no leakage of THIS on entity)
+    let utt = api.parse("To jest czerwony kot.", "pl").expect("parse copula");
+    let natural = utt.as_natural().expect("natural");
+    let has_clean_existence = natural.sentences[0].frames.iter().any(|f| {
+        if let lexflex::core::interlingua::Frame::Existence { entity, location, .. } = f {
+            entity.concept.0 == "CAT" && location.is_none() && !entity.adjectives.iter().any(|a| a.concept.0 == "THIS")
+        } else { false }
+    });
+    assert!(has_clean_existence, "copula should produce clean Existence frame with CAT entity, no THIS leakage");
+
+    // Demonstrative + perception baseline
+    let out3 = api.translate("Ten kot czyta książkę.", "pl", "en").unwrap_or_default();
+    assert!(out3.to_lowercase().contains("this cat") || out3.to_lowercase().contains("the cat"), "demonstrative should resolve to 'this cat' or 'the cat': {}", out3);
+    assert!(out3.to_lowercase().contains("read") || out3.to_lowercase().contains("book"), "should have read/book semantics: {}", out3);
+    assert!(!out3.to_lowercase().contains("ten "), "must not leak raw 'ten': {}", out3);
+    assert!(!out1.contains("in a") && !out1.contains("were read"), "no old leak paths for copula");
+
+    // Plural adj copula baseline (graph/lexicon driven)
+    let out_pl = api.translate("To są niebieskie koty.", "pl", "en").unwrap_or_default();
+    assert!(out_pl.to_lowercase().contains("these are") && out_pl.to_lowercase().contains("blue"), "plural adj copula: {}", out_pl);
+    assert!(!out_pl.contains("they") && !out_pl.contains("in ") , "no leaks plural: {}", out_pl);
+}
+
+#[test]
+fn test_role_consistency_perception() {
+    // Data-driven: verbs declaring Perception frame_type should use Experiencer/Stimulus roles (or documented equivalent).
+    // This test documents the expectation and will catch regressions.
+    let pl_lex = lexflex::data::loader::load_lexicon(std::path::Path::new("data/lexicons/pl/lexicon.ron")).expect("load pl");
+    let mut checked = 0usize;
+    for (_form, entry) in &pl_lex.entries {
+        if entry.frame_type.as_deref() == Some("Perception") {
+            // Accept the canonical or the historical Agent/Theme for now, but prefer canonical.
+            let roles = &entry.roles;
+            let ok = roles == &vec!["Experiencer".to_string(), "Stimulus".to_string()];
+            assert!(ok, "Perception verb {} must use canonical Experiencer/Stimulus roles: {:?}", entry.lemma, roles);
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "should have checked some Perception verbs");
+}
+
+// Phase 2: demonstrative features test (strengthened)
+#[test]
+fn test_demonstrative_features() {
+    let api = build_api();
+    let utt = api.parse("Ten kot czyta książkę.", "pl").expect("parse");
+    let natural = utt.as_natural().expect("natural");
+    let sent = &natural.sentences[0];
+    // Find entity for "kot" which should have THIS as adj/det with features
+    let has_this = sent.frames.iter().any(|f| {
+        f.entities().iter().any(|e| {
+            if e.concept.0 == "CAT" {
+                e.adjectives.iter().any(|adj| adj.concept.0 == "THIS") ||
+                e.features.definiteness.is_some()
+            } else { false }
+        })
+    });
+    assert!(has_this, "Ten should contribute THIS/demonstrative features to the NP");
+}
+
+// Phase 4 construction test
+#[test]
+fn test_constructions_attached() {
+    let api = build_api();
+    let utt = api.parse("Ten kot czyta książkę.", "pl").expect("parse");
+    let natural = utt.as_natural().expect("natural");
+    let g = natural.sentences[0].graph.as_ref().expect("graph");
+    assert!(g.has_construction("DemonstrativeNP"), "DemonstrativeNP construction should be attached for 'Ten'");
+
+    let utt2 = api.parse("To jest czerwony kot.", "pl").expect("parse copula");
+    let natural2 = utt2.as_natural().expect("natural");
+    let g2 = natural2.sentences[0].graph.as_ref().expect("graph");
+    assert!(g2.has_construction("IdentificationalCopula"), "IdentificationalCopula should be attached for 'To jest'");
+
+    // For plural copula + adj (data driven via lexicon concepts RED/BLUE etc on attached adjectives).
+    // Parser must produce grouped entity (CAT/HOUSE + adjectives with correct concept); no "they", no dups, no raw PL surface.
+    let utt3 = api.parse("To są czerwone koty.", "pl").expect("parse plural");
+    let natural3 = utt3.as_natural().expect("natural");
+    let g3 = natural3.sentences[0].graph.as_ref().expect("graph");
+    let has_copula = g3.has_construction("IdentificationalCopula");
+    // Write debug IL (for evidence)
+    let debug = format!("PLURAL IL: {:#?}\nhas_copula: {}\n", natural3, has_copula);
+    std::fs::write("/tmp/grok-goal-89d79c20138f/implementer/debug-plural-il.txt", debug).ok();
+    let out_red = api.translate("To są czerwone koty.", "pl", "en").unwrap_or_default();
+    assert!(out_red.to_lowercase().contains("these are") && out_red.to_lowercase().contains("red"), "plural copula red cats: {}", out_red);
+    assert!(!out_red.contains("they") && !out_red.contains("in ") && !out_red.contains("czerw"), "no leaks for plural copula: {}", out_red);
+
+    // Additional variants using BLUE + different noun (domy) -- prove general, lexicon/graph source (no per-adj hardcode).
+    let out_blue = api.translate("To są niebieskie koty.", "pl", "en").unwrap_or_default();
+    assert!(out_blue.to_lowercase().contains("these are") && out_blue.to_lowercase().contains("blue"), "niebieskie -> blue: {}", out_blue);
+    let out_house = api.translate("To są czerwone domy.", "pl", "en").unwrap_or_default();
+    assert!(out_house.to_lowercase().contains("these are") && out_house.to_lowercase().contains("red") && out_house.to_lowercase().contains("house"), "czerwone domy -> red houses: {}", out_house);
+
+    // IL check: the entity for plural copula must have adjectives attached with RED/BLUE concept (from lexicon).
+    let has_grouped_adj = natural3.sentences[0].frames.iter().any(|f| {
+        if let lexflex::core::interlingua::Frame::Existence { entity, location: None, .. } = f {
+            !entity.adjectives.is_empty() && entity.adjectives.iter().any(|a| a.concept.0 == "RED" || a.concept.0 == "BLUE")
+        } else { false }
+    });
+    assert!(has_grouped_adj || has_copula, "IL must carry adj concept on grouped entity or construction for copula");
+}
+
+

@@ -365,6 +365,8 @@ impl PolishParser {
             ("Statement".to_string(), vec![SemanticRole::Topic, SemanticRole::Theme], "BE".to_string())
         };
 
+        // (debug removed)
+
         // "ma" possession is now driven exclusively by lexicon entry for "ma" or "mieć" having frame_type "Possession" + concept "HAVE" (no special casing).
 
         sentence.tense = verb_token.features.tense.or(Some(Tense::Present));
@@ -429,13 +431,14 @@ impl PolishParser {
             if t.form.ends_with("ny") || t.form.ends_with("na") || t.form.ends_with("ne")
                 || t.form.ends_with("ty") || t.form.ends_with("ta") || t.form.ends_with("te")
             {
-                // Check if it's actually an adjective
+                // Check if it's actually a Participle (not adj). Do NOT assume for unknown suffix forms,
+                // because 'być' + adj is extremely common for copula/identificational ("to są czerwone koty").
                 let entry = self.lexicon.lookup_by_form(&t.form)
                     .or_else(|| self.lexicon.lookup_by_lemma(t.lemma.as_deref().unwrap_or(&t.form)));
                 if let Some(e) = entry {
                     return e.pos == "Participle";
                 }
-                return true; // unknown form with passive suffix — assume participle
+                return false; // safe default: do not treat unknown suffixed token as passive participle
             }
             false
         });
@@ -563,31 +566,45 @@ impl PolishParser {
                     let nm = entities[k].name.as_deref().unwrap_or("");
                     let is_adj = if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
                         e.pos == "Adjective"
-                    } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") || nm.ends_with('j') || nm.ends_with("ój") || nm.ends_with("ny") || nm.ends_with("ki") };
-                    if !is_adj { break; }
+                    } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") || nm.ends_with('j') || nm.ends_with("ój") || nm.ends_with("ny") || nm.ends_with("ki") || nm.ends_with('e') || nm.ends_with("ne") || nm.ends_with("ie") || nm.ends_with('i') };
+                    let same_side = entity_pre_verb.get(k) == entity_pre_verb.get(j);
+                    if !is_adj || !same_side { break; }
                     k += 1;
                 }
                 if k > j && k < entities.len() {
-                    // Proper attachment: attach preceding adjs as modifiers on the head noun entity.
-                    // This replaces name-concat ("duży czerwony jabłko") or concept-concat hacks.
-                    // Degree/gender propagated to the adj entities themselves.
-                    let mut head = entities[k].clone();
-                    for ii in j..k {
-                        let mut adj = entities[ii].clone();
-                        if let Some(d) = adj.features.degree.or(entities[ii].features.degree) {
-                            adj.features.degree = Some(d);
+                    let head_is_noun = ! {
+                        let nm = entities[k].name.as_deref().unwrap_or("");
+                        if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
+                            e.pos == "Adjective"
+                        } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") || nm.ends_with('j') || nm.ends_with("ój") || nm.ends_with("ny") || nm.ends_with("ki") || nm.ends_with('e') || nm.ends_with("ne") || nm.ends_with("ie") }
+                    };
+                    let same_side = entity_pre_verb.get(j) == entity_pre_verb.get(k);
+                    if head_is_noun && same_side {
+                        // Proper attachment: attach preceding adjs as modifiers on the head noun entity.
+                        // This replaces name-concat ("duży czerwony jabłko") or concept-concat hacks.
+                        // Degree/gender propagated to the adj entities themselves.
+                        let mut head = entities[k].clone();
+                        for ii in j..k {
+                            let mut adj = entities[ii].clone();
+                            if let Some(d) = adj.features.degree.or(entities[ii].features.degree) {
+                                adj.features.degree = Some(d);
+                            }
+                            if head.features.gender.is_none() {
+                                head.features.gender = adj.features.gender;
+                            }
+                            // attach the adj as modifier
+                            head.adjectives.push(adj);
                         }
-                        if head.features.gender.is_none() {
-                            head.features.gender = adj.features.gender;
-                        }
-                        // attach the adj as modifier
-                        head.adjectives.push(adj);
+                        // Ensure head name is clean (noun only), via norm.
+                        self.lexicon.normalize_entity(&mut head);
+                        grouped.push(head);
+                        grouped_pre_verb.push(entity_pre_verb[k]);
+                        j = k + 1;
+                    } else {
+                        grouped.push(entities[j].clone());
+                        grouped_pre_verb.push(entity_pre_verb[j]);
+                        j += 1;
                     }
-                    // Ensure head name is clean (noun only), via norm.
-                    self.lexicon.normalize_entity(&mut head);
-                    grouped.push(head);
-                    grouped_pre_verb.push(entity_pre_verb[k]);
-                    j = k + 1;
                 } else {
                     grouped.push(entities[j].clone());
                     grouped_pre_verb.push(entity_pre_verb[j]);
@@ -598,6 +615,68 @@ impl PolishParser {
             entity_pre_verb = grouped_pre_verb;
         }
 
+        // Data-driven retain + grouping fix for THIS/dummy in copula (incl. plural 'są'/'być' forms).
+        // Graph/lexicon is source of truth: drop THIS (concept or surface), attach loose adjs (by lexicon pos or adj concept) to main noun head.
+        // Goal: single main Entity (e.g. CAT with .adjectives=[BLUE/RED entity]) so Existence/Statement uses correct grouped NP.
+        let is_copula = verb_concept == "BE"
+            || verb_lemma == "być"
+            || verb_lemma == "jest"
+            || matches!(verb_token.form.as_str(), "są" | "byli" | "były" | "było" | "byłyśmy" | "byliście")
+            || tokens.iter().any(|t| t.form == "są" || t.form == "jest");
+        if is_copula {
+            let this_forms = ["to", "ten", "ta", "te", "this", "these"];
+            entities.retain(|e| {
+                let c = e.concept.0.to_uppercase();
+                let nm = e.name.as_deref().unwrap_or("").to_lowercase();
+                !(c == "THIS" || this_forms.contains(&nm.as_str()))
+            });
+        }
+
+        // General lexicon-driven attach for copula (any adj: niebieskie/BLUE, czerwone/RED, duży/BIG... to any head noun: koty, domy, jabłka...).
+        // Replaces brittle RED+CAT name/contains hacks. Uses lookup pos=="Adjective" or target concept being adj.
+        // Safe: collect, build one main grouped entity, replace entities list for copula to avoid index bugs and "they" leakage.
+        if is_copula {
+            let is_adj_ent = |e: &Entity| -> bool {
+                let nm = e.name.as_deref().unwrap_or("");
+                if let Some(le) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
+                    if le.pos == "Adjective" { return true; }
+                }
+                if let Some(le) = self.lexicon.lookup_concept(&e.concept.0) {
+                    if le.pos == "Adjective" { return true; }
+                }
+                false
+            };
+            // Separate loose adjs (no head yet) and candidate heads (nouny, not dummy/this/person they)
+            let loose_adjs: Vec<Entity> = entities.iter()
+                .filter(|e| is_adj_ent(e) && e.adjectives.is_empty())
+                .cloned()
+                .collect();
+            let mut heads: Vec<Entity> = entities.iter()
+                .filter(|e| !is_adj_ent(e) && e.concept.0 != "THIS" && e.concept.0 != "DUMMY_SUBJECT")
+                .cloned()
+                .collect();
+            if !heads.is_empty() {
+                // Primary head: one with most "substance" or last (post verbal NP); avoid pure person "they" if better exists
+                let mut primary = if heads.len() > 1 {
+                    heads.iter().rev().find(|h| h.adjectives.len() > 0 || h.concept.0 != "PERSON" ).cloned().unwrap_or_else(|| heads.last().unwrap().clone())
+                } else { heads[0].clone() };
+                // attach loose adjs (prefer those not same concept)
+                for a in loose_adjs {
+                    if a.concept.0 != primary.concept.0 && !primary.adjectives.iter().any(|aa| aa.concept == a.concept) {
+                        primary.adjectives.push(a);
+                    }
+                }
+                // For copula, the IL should present the described NP as the entity: replace list with the primary.
+                entities = vec![primary];
+            } else if !loose_adjs.is_empty() {
+                // Rare: bare adj predicate? keep one
+                entities = vec![loose_adjs.into_iter().next().unwrap()];
+            }
+        }
+
+        // Skip spurious coordination creation for pure copula identificational (no real conj in input); prevents "they and cats" style coords on dummy+NP.
+        // (coord block below uses has_non_pp_coordination) -- guard will be applied by clearing when is_copula.
+
         // First-class Coordination: group NPs joined by conjunctions into Coordination struct.
         // Split by verb position so pre-verb entities (subjects) and post-verb entities (objects)
         // are coordinated separately — "Tomek i Iza ma jabłko" → subject=[Tomek+Iza], object=[jabłko].
@@ -607,7 +686,7 @@ impl PolishParser {
         // Skip global coordination if all relevant conjs are inside a PP list span (e.g. "żoną, córką i psem" after "z")
         // Those are already handled as coordinated entity inside pp_entities.
         let pp_span = Self::pp_list_span_indices(tokens);
-        let has_non_pp_coordination = has_coordination && !tokens.iter().enumerate()
+        let has_non_pp_coordination = has_coordination && !is_copula && !tokens.iter().enumerate()
             .filter(|(_, t)| is_coord_token(t))
             .all(|(i, _)| pp_span.contains(&i));
         if has_non_pp_coordination && entities.len() >= 2 {
@@ -840,10 +919,19 @@ impl PolishParser {
         // Add prepositional phrase entities to the main entities list
         entities.extend(pp_entities);
 
+        // For identificational copula ("To jest/są <NP>"), force Existence frame_type so we consistently get
+        // Frame::Existence { entity: grouped-NP-with-adjs, location: None }. This lets generate_existence + pipeline
+        // produce clean "This is ..."/"These are ..." using the entity's adjectives (lexicon concept driven).
+        let mut eff_frame_type = frame_type;
+        let mut eff_roles = roles;
+        if is_copula {
+            eff_frame_type = "Existence".to_string();
+            eff_roles = vec![SemanticRole::Theme];
+        }
         let frame = if let Some(age) = self.try_age_idiom_frame(tokens, &entities, &sentence) {
             age
         } else {
-            self.build_frame(&frame_type, &roles, &entities, &verb_concept)?
+            self.build_frame(&eff_frame_type, &eff_roles, &entities, &verb_concept)?
         };
 
         sentence.frames.push(frame.clone());

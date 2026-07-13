@@ -147,8 +147,20 @@ impl Lexicon {
             return;
         }
         if let Some(e) = by_form.or(by_lemma) {
-            entity.concept = ConceptId::new(&e.concept);
-            entity.name = Some(e.lemma.clone());
+            // Protect closed-class IL concepts like THIS from homograph hijack in target lexicon
+            // (e.g. PL "Ten" name lookup finding EN "ten" Particle with concept TEN).
+            let incoming = entity.concept.0.to_uppercase();
+            let looked = e.concept.to_uppercase();
+            if incoming == "THIS" && looked != "THIS" {
+                // keep the IL concept for THIS; do not let homograph overwrite.
+                // set name to target surface for THIS from lexicon if possible, else keep.
+                if let Some(target) = self.lookup_concept("THIS") {
+                    entity.name = Some(target.lemma.clone());
+                }
+            } else {
+                entity.concept = ConceptId::new(&e.concept);
+                entity.name = Some(e.lemma.clone());
+            }
             let f = &mut entity.features;
             if let Some(bf) = by_form.as_ref() {
                 if bf.features.case.is_some() {

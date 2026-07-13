@@ -106,6 +106,41 @@ pub fn apply_graph_inference(
         }
     }
 
+    // Phase 4: attach lightweight constructions for copula and demonstrative (data driven via frames/entities)
+    for frame in &mut sentence.frames {
+        if let Frame::Existence { location, .. } = frame {
+            if location.is_none() {
+                // IdentificationalCopula - attach to the entity if we can identify one
+                for e in frame.entities_mut() {
+                    if let Some(eid) = graph::find_entity_node_id(graph, e) {
+                        graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("IdentificationalCopula".into()));
+                        break;
+                    }
+                }
+            }
+        }
+        if let Frame::Statement { subject, property, verb_concept } = frame {
+            if verb_concept == "BE" {
+                // Identificational copula Statement case (e.g. plural 'To są' produces Statement)
+                // attach to the main descriptive entity (the property or the noun one)
+                let target = if property.adjectives.len() > 0 || property.concept.0 != "unknown" { property } else { subject };
+                if let Some(eid) = graph::find_entity_node_id(graph, target) {
+                    graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("IdentificationalCopula".into()));
+                }
+            }
+        }
+    }
+    // For demonstrative: look for THIS in adjectives
+    for frame in &mut sentence.frames {
+        for entity in frame.entities_mut() {
+            if entity.adjectives.iter().any(|a| a.concept.0 == "THIS") {
+                if let Some(eid) = graph::find_entity_node_id(graph, entity) {
+                    graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("DemonstrativeNP".into()));
+                }
+            }
+        }
+    }
+
     // Ontology inheritance still applies for features not set by graph
     for frame in &mut sentence.frames {
         for entity in frame.entities_mut() {

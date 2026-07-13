@@ -149,7 +149,7 @@
     (id: "HATE", frame_type: Some("Emotion"), roles: ["Experiencer", "Stimulus"], inherent_features: ()),
     (id: "EAT", frame_type: Some("Consumption"), roles: ["Agent", "Patient"], inherent_features: ()),
     (id: "DRINK", frame_type: Some("Consumption"), roles: ["Agent", "Patient"], inherent_features: ()),
-    (id: "READ", frame_type: Some("Perception"), roles: ["Agent", "Theme"], inherent_features: ()),
+    (id: "READ", frame_type: Some("Perception"), roles: ["Experiencer", "Stimulus"], inherent_features: ()),
     (id: "WRITE", frame_type: Some("Creation"), roles: ["Agent", "Theme", "Instrument"], inherent_features: ()),
     (id: "BUY", frame_type: Some("Transfer"), roles: ["Agent", "Theme", "Source"], inherent_features: ()),
     (id: "SELL", frame_type: Some("Transfer"), roles: ["Agent", "Theme", "Recipient"], inherent_features: ()),
@@ -257,7 +257,7 @@
     (id: "WAKE_UP", frame_type: Some("Motion"), roles: ["Agent"], inherent_features: ()),
     (id: "TRY", frame_type: Some("Cognition"), roles: ["Agent"], inherent_features: ()),
     (id: "COOK", frame_type: Some("Creation"), roles: ["Agent", "Created"], inherent_features: ()),
-    (id: "LISTEN", frame_type: Some("Perception"), roles: ["Agent", "Theme"], inherent_features: ()),
+    (id: "LISTEN", frame_type: Some("Perception"), roles: ["Experiencer", "Stimulus"], inherent_features: ()),
     (id: "CLEAN_UP", frame_type: Some("Custom"), roles: ["Agent", "Theme"], inherent_features: ()),
 
     // ═══ ADDITIONAL PROPERTIES ═══
@@ -265,4 +265,7 @@
     (id: "NICE", frame_type: None, roles: [], inherent_features: ()),
     (id: "THIS", frame_type: None, roles: [], inherent_features: ()),
     (id: "MY", frame_type: None, roles: [], inherent_features: ()),
+    // Closed-class / grammatical concepts added per enrichment plan for precision (determiners, copula distinctions).
+    (id: "DETERMINER", frame_type: None, roles: [], inherent_features: ()),
+    (id: "IDENTITY", frame_type: Some("Existence"), roles: ["Theme"], inherent_features: ()),
 ]

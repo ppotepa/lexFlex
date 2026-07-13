@@ -58,6 +58,9 @@ impl EnglishGenerator {
             }
             return Ok(result);
         }
+        // Fall through to pipeline (now that parser produces clean Existence{loc=None, entity with .adjectives via lexicon concepts}).
+        // pipeline + realize_noun_phrase will handle adjs (BLUE->blue etc) + "this is"/"these are".
+        // Capitalization of first word is handled in final or passive path; pipeline loc=None produces the phrase.
         crate::generation::pipeline::generate_sentence(sentence, self, &self.descriptor, &self.lexicon)
     }
 
@@ -87,16 +90,6 @@ impl EnglishGenerator {
                 sentence.graph.as_ref(),
                 &self.descriptor.language,
             );
-
-            // Passive auxiliary: concept-driven (BE/BECOME) not surface-lemma check.
-            let vc = graph::frame_verb_concept(frame);
-            if vc == "BE" || vc == "BECOME" {
-                verb_lemma = self
-                    .lexicon
-                    .lookup_concept("READ")
-                    .map(|e| e.lemma.clone())
-                    .unwrap_or_else(|| "read".to_string());
-            }
 
             // Generate theme as subject
             let theme_str = self.generate_entity_form_legacy(&theme, true)?;
@@ -455,15 +448,19 @@ impl EnglishGenerator {
         sentence: &Sentence,
         verb_concept: &str,
     ) -> Result<Vec<String>, GenerateError> {
-        let entity_form = self.generate_entity_form_legacy(entity, true)?;
-
         // "To jest ..." / identificational copula without location -> "This is <entity>"
-        // Algorithmic fix for copula identification sentences (no location case).
+        // Use realize_noun_phrase so .adjectives (e.g. BLUE entity) are realized via lexicon concept -> "blue".
         if location.is_none() {
+            let mut fe = entity.features.clone();
+            fe.case = Some(Case::Nominative);
+            let e = self.realize_noun_phrase(entity, &mut fe, &self.descriptor, &self.lexicon, sentence.graph.as_ref())?;
             let this = if entity.features.number == Some(Number::Plural) { "These" } else { "This" };
             let verb = if entity.features.number == Some(Number::Plural) { "are" } else { "is" };
-            return Ok(vec![this.to_string(), verb.to_string(), entity_form]);
+            let mut res = vec![this.to_string(), verb.to_string()];
+            res.extend(e);
+            return Ok(res);
         }
+        let entity_form = self.generate_entity_form_legacy(entity, true)?;
 
         // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
         let verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
@@ -560,44 +557,69 @@ impl EnglishGenerator {
         let mut entity = entity.clone();
         self.lexicon.normalize_entity(&mut entity);
 
+        // Concept-driven realization for closed-class items like THIS (demonstrative).
+        if entity.concept.0.to_uppercase() == "THIS" {
+            let num = entity.features.number.unwrap_or(Number::Singular);
+            return Ok(if num == Number::Plural { "these".to_string() } else { "this".to_string() });
+        }
+
+        // Force target lemma for any adjective concept (prevents PL surfaces like "czerwone" leaking for RED etc.)
+        let c = entity.concept.0.clone();
+        if let Some(e) = self.lexicon.lookup_concept(&c) {
+            if e.pos == "Adjective" {
+                return Ok(e.lemma.clone());
+            }
+        }
+
         // Early norm should have cleaned name/concept already; use lexicon directly (no PL surface maps).
         if let Some(ref name) = entity.name {
             // Proper noun (single word, no article).
             let has_space = name.chars().any(|c| c == ' ');
             if name.chars().next().map_or(false, |c| c.is_uppercase()) && !has_space {
-                return Ok(name.clone());
+                let c = entity.concept.0.to_uppercase();
+                // Do not raw-return capitalized surface for closed-class like THIS ("Ten" at sentence start);
+                // let concept lookup produce the target lemma ("this").
+                if c != "THIS" && c != "TEN" {
+                    return Ok(name.clone());
+                }
             }
 
             let by_name = self.lexicon.lookup_by_form(&name.to_lowercase())
                 .or_else(|| self.lexicon.lookup_by_lemma(name));
             if let Some(e) = by_name {
-                // Don't add article for adjectives
-                if e.pos == "Adjective" {
-                    return Ok(e.lemma.clone());
-                }
-                
-                // Don't inflect pronouns - return lemma directly
-                if e.pos == "Pronoun" {
-                    return Ok(e.lemma.clone());
-                }
+                // Only trust name lookup if it matches the entity's concept (prevents homographs like "ten"(TEN number) hijacking "THIS" adj)
+                // or if it's explicitly adj/pronoun.
+                let concept_matches = e.concept.to_uppercase() == entity.concept.0.to_uppercase();
+                if concept_matches || e.pos == "Adjective" || e.pos == "Pronoun" {
+                    // Don't add article for adjectives
+                    if e.pos == "Adjective" {
+                        return Ok(e.lemma.clone());
+                    }
+                    
+                    // Don't inflect pronouns - return lemma directly
+                    if e.pos == "Pronoun" {
+                        return Ok(e.lemma.clone());
+                    }
 
-                let number = entity.features.number.unwrap_or(Number::Singular);
-                let noun_form = self.morphology.inflect_noun(&e.lemma, number, e.paradigm.as_deref())?;
-                if do_articles && number == Number::Singular {
-                    let is_definite = entity.features.definiteness == Some(Definiteness::Definite);
-                    if is_definite {
-                        return Ok(format!("the {}", noun_form));
+                    let number = entity.features.number.unwrap_or(Number::Singular);
+                    let noun_form = self.morphology.inflect_noun(&e.lemma, number, e.paradigm.as_deref())?;
+                    if do_articles && number == Number::Singular {
+                        let is_definite = entity.features.definiteness == Some(Definiteness::Definite);
+                        if is_definite {
+                            return Ok(format!("the {}", noun_form));
+                        }
+                        let is_countable = e.features.countability != Some(Countability::Mass);
+                        if is_countable {
+                            // Use target's initial_sound (prefer entry over carried IL).
+                            let sound = self.phonology.classify_initial(&e.lemma, &e.features).or_else(|| self.phonology.classify_initial(entity.name.as_deref().unwrap_or(""), &entity.features));
+                            let is_vowel = sound.as_deref() == Some("vowel");
+                            let article = if is_vowel { "an" } else { "a" };
+                            return Ok(format!("{} {}", article, noun_form));
+                        }
                     }
-                    let is_countable = e.features.countability != Some(Countability::Mass);
-                    if is_countable {
-                        // Use target's initial_sound (prefer entry over carried IL).
-                        let sound = self.phonology.classify_initial(&e.lemma, &e.features).or_else(|| self.phonology.classify_initial(entity.name.as_deref().unwrap_or(""), &entity.features));
-                        let is_vowel = sound.as_deref() == Some("vowel");
-                        let article = if is_vowel { "an" } else { "a" };
-                        return Ok(format!("{} {}", article, noun_form));
-                    }
+                    return Ok(noun_form);
                 }
-                return Ok(noun_form);
+                // else: homograph (e.g. "ten" number vs THIS), fall through to concept-based lookup below
             }
         }
 
@@ -865,7 +887,8 @@ impl LanguageRealizer for EnglishGenerator {
             false
         };
         let do_art = policy.should_add_article(&tmp, true) && !is_proper && !has_possessive && !is_bare_adj
-            && tmp.concept.0 != "DUMMY_SUBJECT" && tmp.concept.0 != "PRONOUN";
+            && tmp.concept.0 != "DUMMY_SUBJECT" && tmp.concept.0 != "PRONOUN"
+            && !result.first().map_or(false, |w| matches!(w.as_str(), "this" | "these" | "that" | "those"));
         if do_art && num == Number::Singular {
             let is_def = tmp.features.definiteness == Some(Definiteness::Definite) || features.definiteness == Some(Definiteness::Definite);
             if is_def {

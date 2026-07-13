@@ -408,6 +408,18 @@ impl LinguisticGraph {
             prep_forms: vec![],
             concept_filter: vec!["YEAR".into(), "BE".into()],
         });
+        // Plan enrichment: lightweight named constructions for demonstratives and copulas.
+        // These allow declarative handling instead of many special cases in parser/generator.
+        self.register_construction(ConstructionPattern {
+            name: "DemonstrativeNP".into(),
+            prep_forms: vec![],
+            concept_filter: vec!["THIS".into()],
+        });
+        self.register_construction(ConstructionPattern {
+            name: "IdentificationalCopula".into(),
+            prep_forms: vec![],
+            concept_filter: vec!["BE".into()],
+        });
     }
 
     /// Find nodes participating in a named construction anchored at a word.
