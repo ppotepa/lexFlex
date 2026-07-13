@@ -79,7 +79,8 @@ pub fn generate_sentence(
         }
     } else {
         for frame in &sentence.frames {
-            let frame_words = generate_frame(frame, sentence, realizer, desc, lexicon)?;
+            let frame_words =
+                generate_frame(frame, None, sentence, realizer, desc, lexicon)?;
             words.extend(frame_words);
         }
     }
@@ -217,19 +218,35 @@ pub fn generate_sentence(
 /// Uses resolve_surface_verb (lexicon-driven from verb_concept) so "HAVE" -> "ma"/"have".
 /// Applies quant adjust + cardinality prefix for Numerical on object-like roles.
 /// Small lang-specific for "to" in EN transfer.
+fn construction_is(construction: Option<&ConceptId>, id: &str) -> bool {
+    construction.map(|c| c.0 == id).unwrap_or(false)
+}
+
+fn uses_demonstrative_copula(construction: Option<&ConceptId>) -> bool {
+    construction_is(construction, "IDENTIFICATION")
+        || construction_is(construction, "DEMONSTRATIVE_REFERENCE")
+}
+
+fn uses_zero_anaphora(construction: Option<&ConceptId>) -> bool {
+    construction_is(construction, "ZERO_ANAPHORA")
+        || construction_is(construction, "TOPIC_CONTINUATION")
+        || construction_is(construction, "CONTINUING_AGENT")
+}
+
 fn generate_frame_with_construction(
     frame: &Frame,
-    _construction: Option<&ConceptId>,
+    construction: Option<&ConceptId>,
     sentence: &Sentence,
     realizer: &dyn LanguageRealizer,
     desc: &LanguageDescriptor,
     lexicon: &Lexicon,
 ) -> Result<Vec<String>, GenerateError> {
-    generate_frame(frame, sentence, realizer, desc, lexicon)
+    generate_frame(frame, construction, sentence, realizer, desc, lexicon)
 }
 
 fn generate_frame(
     frame: &Frame,
+    construction: Option<&ConceptId>,
     sentence: &Sentence,
     realizer: &dyn LanguageRealizer,
     desc: &LanguageDescriptor,
@@ -324,6 +341,7 @@ fn generate_frame(
 
     match frame {
         Frame::Transfer { agent, recipient, theme, .. } => {
+            let policy = GenerationPolicy::new(desc);
             let mut fa = agent.features.clone();
             fa.case = Some(Case::Nominative);
             if let Some(ref q) = sentence.quantification {
@@ -332,6 +350,9 @@ fn generate_frame(
             let mut agent_for_real = agent.clone();
             lexicon.normalize_entity(&mut agent_for_real);
             let a = realizer.realize_noun_phrase(&agent_for_real, &mut fa, desc, lexicon, sentence.graph.as_ref())?;
+            let emit_agent = uses_zero_anaphora(construction)
+                || matches!(agent.reference, Reference::Anaphoric(_))
+                || policy.should_emit_subject(&agent);
             let (an, ae) = entity_trace(sentence.graph.as_ref(), agent);
             TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("agent={}", a.join(" ")), reason: Some("nominative + quant adjust".to_string()), involved_nodes: an, involved_edges: ae }));
 
@@ -379,7 +400,7 @@ fn generate_frame(
             TRACE.with(|tt| tt.borrow_mut().push(TraceStep { stage: "realize_np".to_string(), decision: format!("recipient={}", recip_form.join(" ")), reason: None, involved_nodes: rn, involved_edges: re }));
 
             let mut words = vec![];
-            if !a.is_empty() {
+            if emit_agent && !a.is_empty() {
                 words.extend(a);
             }
             words.push(v);
@@ -520,11 +541,17 @@ fn generate_frame(
 
             let policy = GenerationPolicy::new(desc);
             let mut words = vec![];
-            if location.is_none() {
-                // Fix for "To jest ..." identificational: produce "this is <entity>" not "<entity> is"
-                let this = if entity.features.number == Some(Number::Plural) { "these are" } else { "this is" };
-                words.push(this.to_string());
+            if location.is_none() && uses_demonstrative_copula(construction) {
+                let copula = if entity.features.number == Some(Number::Plural) {
+                    "these are"
+                } else {
+                    "this is"
+                };
+                words.push(copula.to_string());
                 words.extend(e);
+            } else if location.is_none() {
+                words.extend(e.clone());
+                words.push(exist_verb);
             } else if !e.is_empty() && policy.should_emit_subject(&entity) {
                 words.extend(e);
                 words.push(exist_verb);
@@ -570,7 +597,8 @@ fn generate_frame(
                                     .filter(|e| {
                                         matches!(
                                             e.kind,
-                                            EdgeKind::PartOfConstruction(ref c) if c == "Accompaniment"
+                                            EdgeKind::PartOfConstruction(ref c)
+                                                if c == "ACCOMPANIMENT" || c == "Accompaniment"
                                         )
                                     })
                                     .map(|e| e.id)
@@ -611,8 +639,12 @@ fn generate_frame(
             lexicon.normalize_entity(&mut mover_for_real);
             let m = realizer.realize_noun_phrase(&mover_for_real, &mut fm, desc, lexicon, sentence.graph.as_ref())?;
 
+            let policy = GenerationPolicy::new(desc);
+            let emit_mover = uses_zero_anaphora(construction)
+                || matches!(mover.reference, Reference::Anaphoric(_))
+                || policy.should_emit_subject(mover);
             let mut words = vec![];
-            if !m.is_empty() {
+            if emit_mover && !m.is_empty() {
                 words.extend(m);
             }
             words.push(v);

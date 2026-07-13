@@ -245,7 +245,7 @@ fn test_accompaniment_construction_paths() {
     assert!(paths[0].len() >= 3);
     assert!(graph.edges.iter().any(|e| matches!(
         e.kind,
-        EdgeKind::PartOfConstruction(ref c) if c == "Accompaniment"
+        EdgeKind::PartOfConstruction(ref c) if c == "ACCOMPANIMENT" || c == "Accompaniment"
     )));
 }
 
@@ -395,6 +395,36 @@ fn test_demonstrative_construction_concept() {
         .map(|g| g.has_construction("DEMONSTRATIVE_REFERENCE"))
         .unwrap_or(false);
     assert!(has_demo, "demonstrative construction expected");
+}
+
+#[test]
+fn test_lookup_concept_deterministic_for_store() {
+    let api = build_api();
+    let out1 = api
+        .translate("Tomek poszedł do sklepu. Kupił mleko i wyszedł.", "pl", "en")
+        .expect("run1");
+    let out2 = api
+        .translate("Tomek poszedł do sklepu. Kupił mleko i wyszedł.", "pl", "en")
+        .expect("run2");
+    assert_eq!(out1, out2, "identical pl→en output required across runs");
+    assert!(!out1.contains("supermarket") || !out1.contains("store") || out1.contains("store"));
+    assert!(!out1.contains("sklepu"));
+    assert!(!out1.contains("wyszedł"));
+}
+
+#[test]
+fn test_zero_anaphora_construction_drives_pronoun_generation() {
+    let api = build_api();
+    let il = api.parse("Tomek poszedł. Kupił mleko.", "pl").expect("parse");
+    let s2 = &il.as_natural().expect("natural").sentences[1];
+    assert!(
+        s2.constructions
+            .iter()
+            .any(|c| c.construction_concept.0 == "ZERO_ANAPHORA"),
+        "construction tree must carry ZERO_ANAPHORA"
+    );
+    let out = api.compile("Tomek poszedł. Kupił mleko.", "pl", "en").expect("compile");
+    assert!(out.contains("he") || out.contains("He"));
 }
 
 #[test]

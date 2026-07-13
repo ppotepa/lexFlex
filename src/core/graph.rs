@@ -840,7 +840,7 @@ impl LinguisticGraph {
                         || tokens[prep_i].form == "with"
                         || tokens[prep_i].form == "razem z"
                     {
-                        "Accompaniment"
+                        crate::core::constructions::ACCOMPANIMENT
                     } else {
                         "PrepositionalPhrase"
                     };

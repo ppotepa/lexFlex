@@ -44,12 +44,23 @@ impl Lexicon {
     }
 
     pub fn lookup_by_lemma(&self, lemma: &str) -> Option<&LexEntry> {
-        self.entries.values().find(|e| e.lemma == lemma)
+        self.entries
+            .values()
+            .filter(|e| e.lemma == lemma)
+            .min_by_key(|e| e.lemma.clone())
     }
 
+    /// Deterministic concept lookup: when multiple entries share a concept, pick lexicographically smallest lemma.
     pub fn lookup_concept(&self, concept: &str) -> Option<&LexEntry> {
         let c = concept.to_uppercase();
-        self.entries.values().find(|e| e.concept.to_uppercase() == c)
+        self.entries
+            .values()
+            .filter(|e| e.concept.to_uppercase() == c)
+            .min_by(|a, b| {
+                a.lemma
+                    .cmp(&b.lemma)
+                    .then_with(|| a.pos.cmp(&b.pos))
+            })
     }
 
     /// Lookup longest matching multi-word lexicon entry starting at `start_idx` (3- then 2-word).
