@@ -397,7 +397,8 @@ fn try_learn_unknown(
 /// This ensures the base concept DB remains the source of truth for PL/EN translation.
 fn write_ron_proposals_on_fly(word: &str, res: &DeductionResult) {
     // Be very conservative with auto-writes to avoid polluting the DB with garbage.
-    if std::env::var("LEXFLEX_NO_AUTO_WRITE").is_ok() {
+    // Disable writes only if var is set to a truthy value (e.g. "1"); "0" or unset allows writes.
+    if std::env::var("LEXFLEX_NO_AUTO_WRITE").map_or(false, |v| v != "0" && v.to_lowercase() != "false") {
         return;
     }
     if res.confidence < 0.75 {
@@ -411,6 +412,7 @@ fn write_ron_proposals_on_fly(word: &str, res: &DeductionResult) {
     // If LLM gave no is_a evidence, refuse novel concept proposals (only attachments via best)
     if res.semantics.is_a.is_empty() && res.concept_proposal.is_some() {
         // do not write new concept; only primary lexicon if best existed
+        return;
     }
 
     let data_dir = std::env::var("LEXFLEX_DATA_DIR").unwrap_or_else(|_| "data".to_string());

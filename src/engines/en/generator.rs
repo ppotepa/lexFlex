@@ -460,7 +460,7 @@ impl EnglishGenerator {
         // "To jest ..." / identificational copula without location -> "This is <entity>"
         // Algorithmic fix for copula identification sentences (no location case).
         if location.is_none() {
-            let this = if entity.features.number == Some(Number::Plural) { "these" } else { "this" };
+            let this = if entity.features.number == Some(Number::Plural) { "These" } else { "This" };
             let verb = if entity.features.number == Some(Number::Plural) { "are" } else { "is" };
             return Ok(vec![this.to_string(), verb.to_string(), entity_form]);
         }

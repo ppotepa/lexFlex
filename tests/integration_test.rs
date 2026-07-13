@@ -69,7 +69,7 @@ fn test_weak_corpus_en_to_pl_accompaniment() {
     let api = build_api();
     assert_eq!(
         api.translate("I live with a wife and a daughter.", "en", "pl").unwrap(),
-        "mieszkam z żoną i córką."
+        "Mieszkam z żoną i córką."
     );
 }
 

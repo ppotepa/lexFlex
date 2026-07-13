@@ -825,4 +825,7 @@
     ("innym", (lemma: "inny", pos: "Adjective", concept: "OTHER", frame_type: None, roles: [], paradigm: Some("adjective"), features: (case: Some(Dative)))),
     ("swój", (lemma: "swój", pos: "Adjective", concept: "OWN", frame_type: None, roles: [], paradigm: Some("adjective"), features: ())),
     ("swoich", (lemma: "swój", pos: "Adjective", concept: "OWN", frame_type: None, roles: [], paradigm: Some("adjective"), features: (case: Some(Genitive), number: Some(Plural)))),
+    ("mój", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular), person: Some(First)))),
+    ("moja", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular), person: Some(First)))),
+    ("moje", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular), person: Some(First)))),
 ]

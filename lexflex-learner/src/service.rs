@@ -538,7 +538,9 @@ impl LexicalDeductionService {
             semantics.related.join(" ")
         ).to_lowercase();
         let proposed_id = self.derive_concept_id(word, &semantics.is_a);
-        let use_derived = matched_existing.is_none() && (best.is_none() || best.as_ref().map(|b| b.concept_id == "PERSON").unwrap_or(false));
+        // Only create novel if we have some evidence (is_a or best) AND no match; empty is_a -> no novel generic
+        let has_evidence = !is_a_lower.is_empty() || best.is_some();
+        let use_derived = has_evidence && matched_existing.is_none() && (best.is_none() || best.as_ref().map(|b| b.concept_id == "PERSON").unwrap_or(false));
 
         let primary_concept_id: String;
         let encountered_ron: String;
@@ -573,12 +575,19 @@ impl LexicalDeductionService {
                 word, lemma, pos, primary_concept_id, features
             );
             primary_ron = Some(encountered_ron.clone());
-        } else {
-            let b = best.as_ref().unwrap();
+        } else if let Some(b) = best.as_ref() {
             primary_concept_id = b.concept_id.clone();
             encountered_ron = format!(
                 r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, primary_concept_id, features
+            );
+            primary_ron = Some(encountered_ron.clone());
+        } else {
+            // no evidence, no best -> fallback, no proposal
+            primary_concept_id = "UNKNOWN".to_string();
+            encountered_ron = format!(
+                r#"("{}" , (lemma: "{}", pos: "{}", concept: "UNKNOWN", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
+                word, lemma, pos, features
             );
             primary_ron = Some(encountered_ron.clone());
         }

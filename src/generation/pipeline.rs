@@ -175,15 +175,18 @@ pub fn generate_sentence(
 
     let mut result = words.join(" ");
 
+    // Capitalize first letter for all declarative/question/exclamation sentences (UTF8 safe for first char).
+    if let Some(first) = result.get_mut(0..1) {
+        let upper = first.to_uppercase();
+        result.replace_range(0..1, &upper);
+    }
+
     let age_idiom = sentence
         .graph
         .as_ref()
         .map_or(false, |g| g.has_construction("AgeIdiom"));
     if age_idiom && desc.language == "pl" {
-        if let Some(first) = result.get_mut(0..1) {
-            let upper = first.to_uppercase();
-            result.replace_range(0..1, &upper);
-        }
+        // additional for Polish age? but general cap above covers
     }
 
     match sentence.illocution {
