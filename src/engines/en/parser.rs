@@ -235,13 +235,10 @@ impl EnglishParser {
             let entry = self.lexicon.lookup_by_form(&lookup)
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
-            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
+            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("en"));
 
-            let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-                surface.clone()
-            } else {
-                lemma.to_string()
-            };
+            // Preserve original surface form as .name for all entity candidates (strengthen AC1)
+            let name = surface.clone();
 
             let mut entity = Entity::new(concept)
                 .with_name(&name);
@@ -439,13 +436,20 @@ impl EnglishParser {
         sentence.frames.push(frame.clone());
 
         let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
-        // Fully populate evokes for words from lexicon (symmetric to PL)
+        // Fully populate evokes for words from lexicon or resolver (symmetric to PL, including unknowns)
         for (i, &wid) in word_ids.iter().enumerate() {
             if let Some(tok) = tokens.get(i) {
                 let lookup = tok.form.to_lowercase();
-                if let Some(entry) = self.lexicon.lookup_by_form(&lookup).or_else(|| self.lexicon.lookup_by_lemma(tok.lemma.as_deref().unwrap_or(&lookup))) {
+                let lemma = tok.lemma.as_deref().unwrap_or(&lookup);
+                if let Some(entry) = self.lexicon.lookup_by_form(&lookup).or_else(|| self.lexicon.lookup_by_lemma(lemma)) {
                     if let Some(GraphNode::Word(w)) = graph.nodes.get_mut(wid.0 as usize) {
                         w.evokes = Some(ConceptId::new(&entry.concept));
+                    }
+                    graph.add_edge(wid, wid, EdgeKind::EvokesConcept);
+                } else {
+                    let concept = resolve_concept_for_unknown(&self.lexicon, &tok.form, lemma, None, &self.concept_ids, Some("en"));
+                    if let Some(GraphNode::Word(w)) = graph.nodes.get_mut(wid.0 as usize) {
+                        w.evokes = Some(concept);
                     }
                     graph.add_edge(wid, wid, EdgeKind::EvokesConcept);
                 }
@@ -540,12 +544,9 @@ impl EnglishParser {
             .lexicon
             .lookup_by_form(&lookup)
             .or_else(|| self.lexicon.lookup_by_lemma(lemma));
-        let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
-        let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-            surface.clone()
-        } else {
-            lemma.to_string()
-        };
+        let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("en"));
+        // Preserve surface (AC1)
+        let name = surface.clone();
         let mut entity = Entity::new(concept).with_name(&name);
         entity.features = token.features.clone();
         if let Some(e) = entry {

@@ -385,6 +385,7 @@
     // ADJECTIVES — lemmas with paradigm class
     // ═══════════════════════════════════════════
     ("duży", (lemma: "duży", pos: "Adjective", concept: "BIG", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (suppletive_comparative: Some("większ"), suppletive_superlative: Some("największ")))),
+    ("wielki", (lemma: "wielki", pos: "Adjective", concept: "BIG", frame_type: None, roles: [], paradigm: Some("adj_y"), features: ())),
     ("mały", (lemma: "mały", pos: "Adjective", concept: "SMALL", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (suppletive_comparative: Some("mniejsz"), suppletive_superlative: Some("najmniejsz")))),
     ("dobry", (lemma: "dobry", pos: "Adjective", concept: "GOOD", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (suppletive_comparative: Some("lepsz"), suppletive_superlative: Some("najlepsz")))),
     ("zły", (lemma: "zły", pos: "Adjective", concept: "BAD", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (suppletive_comparative: Some("gorsz"), suppletive_superlative: Some("najgorsz")))),

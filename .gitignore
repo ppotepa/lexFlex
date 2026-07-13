@@ -1,5 +1,7 @@
 # Build artifacts
 /target
+**/target/
+lexflex-learner/target/
 
 # Temporary and scratch files
 /scratch/

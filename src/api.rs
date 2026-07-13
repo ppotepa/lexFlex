@@ -134,6 +134,7 @@ impl LexFlexBuilder {
             Vec::new()
         };
         let ontology = loader::build_ontology_from_concepts(&concepts);
+        let concept_ids: Vec<String> = concepts.iter().map(|c| c.id.clone()).collect();
 
         if self.enable_pl {
             let pl_lexicon = self.load_lexicon(data_path, "pl")?;
@@ -153,6 +154,7 @@ impl LexFlexBuilder {
                 pl_morphology,
                 pl_descriptor,
                 ontology.clone(),
+                concept_ids.clone(),
             );
 
             translator.register_engine("pl", Box::new(pl_engine));
@@ -174,6 +176,7 @@ impl LexFlexBuilder {
                 en_morphology,
                 en_descriptor,
                 ontology.clone(),
+                concept_ids.clone(),
             );
 
             translator.register_engine("en", Box::new(en_engine));

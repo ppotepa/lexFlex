@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "Universal meaning representation framework using Interlingua"
 
+[workspace]
+members = [".", "lexflex-learner"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
@@ -19,8 +22,9 @@ serde_json = "1.0"
 # ad-hoc word hacks.
 lexflex-learner = { path = "lexflex-learner" }
 
-# Pin to keep builds working across the two crates
+# Pin to keep builds working across the two crates (rustc 1.85 compat)
 idna = "=0.5.0"
+idna_adapter = "=1.0.0"
 tokio = { version = "1.39", features = ["rt-multi-thread"] }
 
 [dev-dependencies]

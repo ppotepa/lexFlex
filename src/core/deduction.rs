@@ -45,7 +45,7 @@ pub fn apply_graph_inference(
         for entity in frame.entities_mut() {
             let c = &entity.concept.0;
             if c == "unknown" || c.is_empty() || c == "UNKNOWN" {
-                let resolved = resolve_concept_for_unknown(_lexicon, entity.name.as_deref().unwrap_or(c), c, None, &[]);
+                let resolved = resolve_concept_for_unknown(_lexicon, entity.name.as_deref().unwrap_or(c), c, None, &[], None);
                 entity.concept = resolved;
             }
         }

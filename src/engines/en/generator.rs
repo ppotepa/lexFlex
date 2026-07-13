@@ -752,6 +752,7 @@ impl LanguageRealizer for EnglishGenerator {
                 let mut item_reals: Vec<Vec<String>> = vec![];
                 for item in &items {
                     let mut f = item.features.clone();
+                    f.number = Some(Number::Singular); // list items singular
                     if let Some(c) = features.case.or(tmp.features.case) {
                         f.case = Some(c);
                     }
@@ -769,6 +770,7 @@ impl LanguageRealizer for EnglishGenerator {
             let mut item_reals: Vec<Vec<String>> = vec![];
             for item in &coord.items {
                 let mut f = item.features.clone();
+                f.number = Some(Number::Singular); // list items are singular (e.g. "a wife, a daughter")
                 if let Some(c) = features.case.or(tmp.features.case) {
                     f.case = Some(c);
                 }

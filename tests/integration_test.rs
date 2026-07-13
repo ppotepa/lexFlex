@@ -864,6 +864,7 @@ fn test_agreement_engine_coord() {
 fn test_unknown_concept_fallback_for_unknown_word_in_parse() {
     use lexflex::api::LexFlexAPI;
     use lexflex::data::loader;
+    use lexflex::core::graph::GraphNode;
     use std::path::Path;
     let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
     // "xyzqwe" is unknown in lexicon -> parser uses resolve_concept_for_unknown (unknown concept resolver) which buckets to real ConceptId from concepts.ron
@@ -889,6 +890,46 @@ fn test_unknown_concept_fallback_for_unknown_word_in_parse() {
         }))
     });
     assert!(has_preserved_name, "unknown word surface 'xyzqwe' must be preserved in entity.name while getting real base concept");
+
+    // Drive full graph populate AC: unknown word's WordNode must have evokes set (not None) to real concept id.
+    let has_evokes_for_unknown = natural.sentences.iter().any(|s| {
+        if let Some(g) = &s.graph {
+            g.nodes.iter().any(|n| {
+                if let GraphNode::Word(w) = n {
+                    w.form == "xyzqwe" && w.evokes.is_some() && real_concept_ids.contains(&w.evokes.as_ref().unwrap().0)
+                } else { false }
+            })
+        } else { false }
+    });
+    assert!(has_evokes_for_unknown, "WordNode for unknown 'xyzqwe' must have .evokes = Some(real ConceptId) -- full LinguisticGraph population including EvokesConcept for unknowns");
+}
+
+// Dedicated test for blargxyz as required by verif plan step 3
+#[test]
+fn test_unknown_concept_blargxyz() {
+    use lexflex::api::LexFlexAPI;
+    use lexflex::data::loader;
+    use lexflex::core::graph::GraphNode;
+    use std::path::Path;
+    let api = LexFlexAPI::builder().data_dir("data").build().expect("api");
+    let utt = api.parse("Mieszkam z blargxyz.", "pl").expect("parse blargxyz");
+    let natural = utt.as_natural().expect("natural");
+    let concepts = loader::load_concepts(&Path::new("data").join("concepts/concepts.ron")).expect("load concepts");
+    let real_concept_ids: std::collections::HashSet<String> = concepts.into_iter().map(|c| c.id).collect();
+    let has_real = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| real_concept_ids.contains(&e.concept.0) && e.concept.0 != "blargxyz"))
+    });
+    assert!(has_real, "real concept from resolver for blargxyz");
+    let has_name = natural.sentences.iter().any(|s| {
+        s.frames.iter().any(|f| f.entities().iter().any(|e| e.name.as_deref() == Some("blargxyz") && real_concept_ids.contains(&e.concept.0)))
+    });
+    assert!(has_name, "name preserved as surface 'blargxyz'");
+    let has_evokes = natural.sentences.iter().any(|s| {
+        if let Some(g) = &s.graph {
+            g.nodes.iter().any(|n| if let GraphNode::Word(w) = n { w.form == "blargxyz" && w.evokes.is_some() && real_concept_ids.contains(&w.evokes.as_ref().unwrap().0) } else { false })
+        } else { false }
+    });
+    assert!(has_evokes, "evokes set for blargxyz WordNode to real ConceptId");
 }
 
 // EN NP direct object unknown

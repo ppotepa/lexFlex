@@ -13,6 +13,8 @@ lexFlex stores linguistic knowledge in RON (Rusty Object Notation) files:
 
 **Key principle:** Data files are the **source of truth** for linguistic knowledge. Code should be minimal and generic; data should be rich and specific.
 
+**New (on-the-fly):** The integrated `lexflex-learner` (with optional local LLM first) automatically appends proposals for unknown words directly to `data/concepts/concepts.ron` (generic Interlingua) and `data/lexicons/{pl,en}/lexicon.ron` during normal parsing/translation (via `resolve_concept_for_unknown` in the pipeline). This builds the DB recursively for base lemmas too. Review generated entries before committing; use `LEXFLEX_LEARN_PROPOSALS_DIR` or the benchmark script for curated bulk runs.
+
 ## Recommended Order of Data Creation
 
 ### Phase 1: Core Concepts (Week 1-2)

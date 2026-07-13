@@ -26,8 +26,9 @@ impl EnglishEngine {
         morphology: EnglishMorphology,
         descriptor: LanguageDescriptor,
         ontology: Ontology,
+        concept_ids: Vec<String>,
     ) -> Self {
-        let parser = EnglishParser::new(lexicon.clone(), EnglishMorphology::new(Vec::new(), Vec::new()), ontology, descriptor.clone());
+        let parser = EnglishParser::new(lexicon.clone(), EnglishMorphology::new(Vec::new(), Vec::new()), ontology, descriptor.clone(), concept_ids);
         let generator = EnglishGenerator::new(lexicon, morphology, descriptor.clone());
 
         Self {

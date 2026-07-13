@@ -21,6 +21,12 @@
 //!      while .concept holds the real base ConceptId chosen in B.
 //!    - Downstream code (e.g. normalize_entity) must not overwrite .name when only a by-concept match occurred.
 //!
+//! D. On-the-fly extension of the RON DB (new):
+//!    - When learner (LLM first) proposes new data for an unknown, it appends directly
+//!      to data/concepts/concepts.ron (generic Interlingua base) and the language lexicons.
+//!    - This keeps the generic concept DB as the single source of truth for PL/EN translation.
+//!    - Proposals fully match existing tuple/ron structure (no separate proposal files needed for runtime).
+//!
 //! Pure logic where possible; uses passed Lexicon for lookup.
 //! Used by parsers for NP/PP token filtering and entity creation.
 
@@ -28,6 +34,8 @@ use std::path::PathBuf;
 
 use crate::core::interlingua::{ConceptDefinition, ConceptId, PartOfSpeech, Token};
 use crate::data::lexicon::Lexicon;
+
+use lexflex_learner::{DeductionResult, Language as LearnerLang, LexicalDeductionService};
 
 #[derive(Debug, Default, Clone)]
 pub struct UnknownConceptResolver;
@@ -61,15 +69,24 @@ impl UnknownConceptResolver {
 
 /// Resolve a real ConceptId for a word that is not present in the lexicon.
 ///
-/// This implements the A + B responsibilities:
-/// - A: called for words that were routed as entity candidates
-/// - B: falls back to algorithmic selection of a base concept from real data
+/// Enhanced with learner (LLM first if configured via LEXFLEX_LLM_* or LEXFLEX_LEARN_ON_FLY):
+/// - Uses full LexicalDeductionService for better lemma recovery + is_a.
+/// - On-the-fly appends directly to the live data/ files:
+///   - data/concepts/concepts.ron (generic Interlingua concept DB)
+///   - data/lexicons/pl/lexicon.ron and en/lexicon.ron (language-specific lexicons that map to the generic DB)
+///   This fully matches the existing structure so translations PL<->EN via the base Interlingua work.
+/// - Recursive: also learns base lemma if different (supports tree building for related unknowns).
+///
+/// This integrates into main pipeline (parsers + deduction) so new words automatically extend the RON DB.
+///
+/// Original fallback preserved if no learner/LLM.
 pub fn resolve_concept_for_unknown(
     lexicon: &Lexicon,
     surface: &str,
     lemma: &str,
     context_hint: Option<&str>,
     known_concepts: &[String],
+    lang_hint: Option<&str>, // "pl" or "en" to guide learner
 ) -> ConceptId {
     if let Some(entry) = lexicon
         .lookup_by_form(surface)
@@ -79,6 +96,22 @@ pub fn resolve_concept_for_unknown(
     } else if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
         ConceptId::new("PERSON")
     } else {
+        // Try learner (LLM first) for better lemma/is_a + on-the-fly RON proposals
+        if let Some(res) = try_learn_unknown(surface, lemma, context_hint, lang_hint) {
+            if let Some(best) = &res.best_concept {
+                write_ron_proposals_on_fly(surface, &res);
+                // recursive for base lemma if different and potentially unknown
+                if let Some(lem) = &res.surface.lemma {
+                    if lem != lemma && lem != surface {
+                        if let Some(lem_res) = try_learn_unknown(lem, lem, context_hint, lang_hint) {
+                            write_ron_proposals_on_fly(lem, &lem_res);
+                        }
+                    }
+                }
+                return ConceptId::new(&best.concept_id);
+            }
+        }
+
         let list = if known_concepts.is_empty() {
             load_concept_ids()
         } else {
@@ -300,7 +333,7 @@ mod tests {
         };
         lex.add_entry("foo".to_string(), entry);
         let known: Vec<String> = vec!["THING".into(), "PERSON".into()];
-        let cid = resolve_concept_for_unknown(&lex, "foo", "foo", None, &known);
+        let cid = resolve_concept_for_unknown(&lex, "foo", "foo", None, &known, None);
         assert_eq!(cid.0, "THING");
     }
 
@@ -308,7 +341,7 @@ mod tests {
     fn test_unknown_concept_resolver_person_cap() {
         let lex = Lexicon::new();
         let known: Vec<String> = vec!["PERSON".into(), "FRIEND".into()];
-        let cid = resolve_concept_for_unknown(&lex, "Xyz", "xyz", None, &known);
+        let cid = resolve_concept_for_unknown(&lex, "Xyz", "xyz", None, &known, None);
         assert_eq!(cid.0, "PERSON");
     }
 
@@ -316,7 +349,7 @@ mod tests {
     fn test_unknown_concept_fallback() {
         let lex = Lexicon::new();
         // pass empty -> will load internally using robust finder + ron
-        let cid = resolve_concept_for_unknown(&lex, "xyzqwe", "xyzqwe", None, &[]);
+        let cid = resolve_concept_for_unknown(&lex, "xyzqwe", "xyzqwe", None, &[], None);
         // now maps to real concept from data via load, not surface "xyzqwe" or toy placeholder
         assert!(cid.0 != "xyzqwe");
         assert!(!cid.0.is_empty());
@@ -324,4 +357,80 @@ mod tests {
     }
 
     // is_entity_candidate_token is exercised in parser integration tests with real Tokens (Unknown etc).
+}
+
+/// Try learner (LLM first if configured) for unknown word to get better data + trigger on-the-fly RON proposals.
+/// Proposals are appended directly to the live data/concepts/concepts.ron (generic Interlingua)
+/// and data/lexicons/{pl,en}/lexicon.ron so they fit the existing base DB + language lexicons structure.
+fn try_learn_unknown(
+    surface: &str,
+    lemma: &str,
+    context_hint: Option<&str>,
+    lang_hint: Option<&str>,
+) -> Option<DeductionResult> {
+    if std::env::var("LEXFLEX_LLM_BASE_URL").is_err()
+        && std::env::var("LEXFLEX_LEARN_ON_FLY").is_err()
+    {
+        return None;
+    }
+    let rt = tokio::runtime::Runtime::new().ok()?;
+    rt.block_on(async {
+        let service = LexicalDeductionService::new(); // picks LLM if env set
+        let lang = match lang_hint {
+            Some("en") | Some("english") => LearnerLang::En,
+            _ => LearnerLang::Pl,
+        };
+        service.deduce(surface, lang, context_hint).await.ok()
+    })
+}
+
+/// Append proposal directly to the live lexicon / concepts files so they fit the existing structure.
+/// - New concept definitions appended to data/concepts/concepts.ron (the generic Interlingua DB)
+/// - Surface forms appended to data/lexicons/{pl,en}/lexicon.ron (language lexicons that map to generic concepts)
+/// This ensures the base concept DB remains the source of truth for PL/EN translation.
+fn write_ron_proposals_on_fly(word: &str, res: &DeductionResult) {
+    let data_dir = std::env::var("LEXFLEX_DATA_DIR").unwrap_or_else(|_| "data".to_string());
+
+    // --- New concept to generic DB (append matching exact existing structure) ---
+    if let Some(p) = &res.concept_proposal {
+        let concepts_path = format!("{}/concepts/concepts.ron", data_dir);
+        if let Ok(mut content) = std::fs::read_to_string(&concepts_path) {
+            let cid = &p.concept_id;
+            if !content.contains(&format!("id: \"{}\"", cid)) {
+                let ft = p.definition.frame_type.as_deref()
+                    .map(|s| format!("Some(\"{}\")", s))
+                    .unwrap_or_else(|| "None".to_string());
+                // Match style in concepts.ron: 4-space indent + comma
+                let entry = format!(
+                    "    (id: \"{}\", frame_type: {}, roles: {:?}, inherent_features: ({})),\n",
+                    cid, ft, p.definition.roles, p.definition.inherent_features_ron
+                );
+                if let Some(pos) = content.rfind(']') {
+                    // Insert before ], add comma if needed on previous line (RON tolerates trailing)
+                    content.insert_str(pos, &entry);
+                    let _ = std::fs::write(&concepts_path, content);
+                }
+            }
+        }
+    }
+
+    // --- Lexicon entries to language-specific lexicons (exact match to existing tuples) ---
+    for lp in &res.lexicon_proposals {
+        let ltag = match lp.lang {
+            LearnerLang::Pl => "pl",
+            _ => "en",
+        };
+        let lex_path = format!("{}/lexicons/{}/lexicon.ron", data_dir, ltag);
+        if let Ok(mut content) = std::fs::read_to_string(&lex_path) {
+            let key = &lp.key;
+            if !content.contains(&format!("(\"{}\",", key)) {
+                // lp.ron_line is pre-formatted exactly like existing: ("wielki", (lemma: "wielki", pos: ..., concept: "BIG", ...))
+                let entry = format!("    {},\n", lp.ron_line.trim());
+                if let Some(pos) = content.rfind(']') {
+                    content.insert_str(pos, &entry);
+                    let _ = std::fs::write(&lex_path, content);
+                }
+            }
+        }
+    }
 }

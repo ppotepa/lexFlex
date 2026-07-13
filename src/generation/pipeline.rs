@@ -356,7 +356,7 @@ fn generate_frame(
             words.push(v);
             words.extend(theme_form);
             let rec_c = recipient.concept.0.to_lowercase();
-            let is_dummy = rec_c == "unknown" || recipient.name.as_deref().map_or(false, |n| n.eq_ignore_ascii_case("unknown"));
+            let is_dummy = rec_c == "unknown" || recipient.name.as_deref().map_or(false, |n| n.eq_ignore_ascii_case("unknown")) || recipient.name.is_none();
             if !is_dummy {
                 if desc.language == "en" {
                     words.push("to".to_string());

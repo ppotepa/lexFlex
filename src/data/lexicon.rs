@@ -146,7 +146,7 @@ impl Lexicon {
             // Keep unattested proper names (Tom, Anna); inflected surfaces (Warszawie) still map via form entry.
             return;
         }
-        if let Some(e) = by_form.or(by_lemma).or(by_concept) {
+        if let Some(e) = by_form.or(by_lemma) {
             entity.concept = ConceptId::new(&e.concept);
             entity.name = Some(e.lemma.clone());
             let f = &mut entity.features;
@@ -158,6 +158,24 @@ impl Lexicon {
                     f.number = bf.features.number;
                 }
             }
+            if e.features.gender.is_some() && f.gender.is_none() {
+                f.gender = e.features.gender;
+            }
+            if e.features.number.is_some() && f.number.is_none() {
+                f.number = e.features.number;
+            }
+            if e.features.animacy.is_some() && f.animacy.is_none() {
+                f.animacy = e.features.animacy;
+            }
+            if f.countability.is_none() { f.countability = e.features.countability; }
+            if f.initial_sound.is_none() { f.initial_sound = e.features.initial_sound.clone(); }
+            if f.definiteness.is_none() { f.definiteness = e.features.definiteness; }
+            if f.degree.is_none() { f.degree = e.features.degree; }
+            if f.suppletive_comparative.is_none() { f.suppletive_comparative = e.features.suppletive_comparative.clone(); }
+            if f.suppletive_superlative.is_none() { f.suppletive_superlative = e.features.suppletive_superlative.clone(); }
+        } else if let Some(e) = by_concept {
+            entity.concept = ConceptId::new(&e.concept);
+            let f = &mut entity.features;
             if e.features.gender.is_some() && f.gender.is_none() {
                 f.gender = e.features.gender;
             }

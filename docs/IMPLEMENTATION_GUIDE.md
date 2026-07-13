@@ -27,8 +27,8 @@ This document consolidates and significantly expands all previous specifications
 5. **Iterative development**  
    First make a working pipeline on simple sentences. Then expand coverage.
 
-6. **Minimal LLM usage**  
-   LLM should only be used optionally as a post-processor to improve the naturalness of already generated text. It should **never** be used for understanding or semantic decisions.
+6. **LLM usage (via lexflex-learner)**  
+   Local LLM (e.g. via LM Studio/Ollama) is used **first** in the learner for semantic decisions on unknowns (lemma recovery, is_a hierarchies, parent suggestions for concept trees). It is integrated into the main pipeline (unknown_concept resolution) and appends proposals on-the-fly to the live RON DB. Set `LEXFLEX_LLM_BASE_URL` + `MODEL`. Use for building/extending the generic concept DB + lang lexicons. Post-processing for fluency is secondary.
 
 ### 1.2 Final v0.1 Scope
 

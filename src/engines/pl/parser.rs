@@ -479,13 +479,10 @@ impl PolishParser {
                 .or_else(|| self.lexicon.lookup_by_form(surface))
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
-            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids);
+            let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("pl"));
 
-            let name = if surface.chars().next().map_or(false, |c| c.is_uppercase()) {
-                surface.clone()
-            } else {
-                lemma.to_string()
-            };
+            // Preserve original surface form as .name (AC1 requirement for unknowns); use surface not lemma
+            let name = surface.clone();
 
             let mut entity = Entity::new(concept)
                 .with_name(&name);
@@ -777,15 +774,16 @@ impl PolishParser {
                         k += 1; continue; // skip the prep token itself if reached
                     }
                     if is_entity_candidate_token(t) {
-                        let lemma = t.lemma.as_deref().unwrap_or(&t.form);
-                        let entry = self.lexicon.lookup_by_form(&t.form).or_else(|| self.lexicon.lookup_by_lemma(lemma));
-                        let concept = resolve_concept_for_unknown(&self.lexicon, &t.form, lemma, None, &self.concept_ids);
-                        let mut ent = Entity::new(concept).with_name(lemma);
+                        let surface = &t.form;
+                        let lemma = t.lemma.as_deref().unwrap_or(surface);
+                        let entry = self.lexicon.lookup_by_form(surface).or_else(|| self.lexicon.lookup_by_lemma(lemma));
+                        let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("pl"));
+                        let mut ent = Entity::new(concept).with_name(surface);
                         ent.features = t.features.clone();
                         // Structural role/case for PP: for "z"/"razem z" (accomp) use animacy/context to decide
                         // Location (for "with wife") vs Source (for "from house") — data-driven, no sentence force.
                         let is_person_context = ent.features.animacy == Some(Animacy::Animate)
-                            || matches!(ent.concept.0.as_str(), "PERSON" | "WIFE" | "DAUGHTER" | "SON" | "MOTHER" | "FATHER" | "DOG" | "CAT" | "COLLEAGUE");
+                            || self.ontology.is_animate_entity(&ent);
                         if is_accomp {
                             if is_person_context {
                                 ent.features.semantic_role = Some(SemanticRole::Location);
@@ -851,14 +849,22 @@ impl PolishParser {
         sentence.frames.push(frame.clone());
 
         let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
-        // Fully populate evokes for words from lexicon (data-driven concept attachment)
+        // Fully populate evokes for words from lexicon or resolver (data-driven, including unknowns)
         for (i, &wid) in word_ids.iter().enumerate() {
             if let Some(tok) = tokens.get(i) {
-                if let Some(entry) = self.lexicon.lookup_by_form(&tok.form).or_else(|| self.lexicon.lookup_by_lemma(tok.lemma.as_deref().unwrap_or(&tok.form))) {
+                let lemma = tok.lemma.as_deref().unwrap_or(&tok.form);
+                if let Some(entry) = self.lexicon.lookup_by_form(&tok.form).or_else(|| self.lexicon.lookup_by_lemma(lemma)) {
                     if let Some(GraphNode::Word(w)) = graph.nodes.get_mut(wid.0 as usize) {
                         w.evokes = Some(ConceptId::new(&entry.concept));
                     }
-                    graph.add_edge(wid, wid, EdgeKind::EvokesConcept); // self-ref as marker, or better link later
+                    graph.add_edge(wid, wid, EdgeKind::EvokesConcept);
+                } else {
+                    // unknown token: assign via resolver
+                    let concept = resolve_concept_for_unknown(&self.lexicon, &tok.form, lemma, None, &self.concept_ids, Some("pl"));
+                    if let Some(GraphNode::Word(w)) = graph.nodes.get_mut(wid.0 as usize) {
+                        w.evokes = Some(concept);
+                    }
+                    graph.add_edge(wid, wid, EdgeKind::EvokesConcept);
                 }
             }
         }

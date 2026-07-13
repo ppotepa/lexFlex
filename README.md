@@ -10,11 +10,17 @@ Source Language → [Parser] → Interlingua → [Generator] → Target Language
 
 **Interlingua** is the universal protocol — a semantic representation richer than any single language. Language engines parse into and generate from this intermediary, enabling any-to-any translation without direct language pairs.
 
+The system has a **generic Interlingua concept DB** (`data/concepts/concepts.ron` + `ontology/`) that language-specific lexicons map to. This allows clean PL ↔ EN translation via the shared base.
+
+**Automatic learning / RON DB extension (new):** Unknown words encountered during parsing are handled by the integrated `lexflex-learner` (with optional local LLM first). It proposes new concepts and lexicon entries, which are appended on-the-fly directly to the live `data/concepts/` and `data/lexicons/{pl,en}/` RON files. This builds/extends the database automatically while preserving the generic base + matching lexicons structure.
+
 **Example:**
 
 ```bash
-cargo run -- translate "Kot śpi na kanapie" --from pl --to en
-# → "The cat sleeps on the couch"
+export LEXFLEX_LLM_BASE_URL=http://localhost:1234/v1
+export LEXFLEX_LLM_MODEL=google/gemma-4-e2b
+cargo run -- parse "Mieszkam z wielkimi domem." --lang pl
+# Unknowns trigger learner → proposals appended to RON DB on the fly
 ```
 
 ## Design Principles
@@ -37,7 +43,7 @@ cargo run -- translate "Kot śpi na kanapie" --from pl --to en
 ## Quick Start
 
 ```bash
-# Build
+# Build (includes learner)
 cargo build
 
 # Run tests
@@ -46,15 +52,17 @@ cargo test
 # Translate Polish → English
 cargo run -- translate "Kot śpi na kanapie" --from pl --to en
 
-# Translate English → Polish
-cargo run -- translate "The cat sleeps on the couch" --from en --to pl
+# With automatic learning (LLM + on-the-fly RON proposals)
+export LEXFLEX_LLM_BASE_URL=http://localhost:1234/v1
+export LEXFLEX_LLM_MODEL=google/gemma-4-e2b
+cargo run -- parse "Mieszkam z wielkimi domem." --lang pl
+# → proposals appended to data/concepts/ and data/lexicons/pl/
 
-# Parse to Interlingua
-cargo run -- parse "Kot śpi" --lang pl
-
-# Generate from Interlingua
-cargo run -- generate --from interlingua --to en
+# Bulk learning to build RON DB (max data + recursive lemma handling)
+./scripts/llm_full_benchmark.sh
 ```
+
+See `scripts/llm_full_benchmark.sh` for full LLM-powered benchmark that generates proposals for the concept/lexicon DB (handles recursion for base forms of inflected unknowns).
 
 ## MVP Scope (v0.1)
 
@@ -76,26 +84,25 @@ cargo run -- generate --from interlingua --to en
 
 ```
 lexFlex/
-├── src/
-│   ├── core/           # Interlingua types, ontology, deduction, traits
-│   ├── engines/
-│   │   ├── pl/         # Polish parser, generator, morphology
-│   │   └── en/         # English parser, generator, morphology
-│   ├── generation/     # Unified translation pipeline
-│   ├── data/           # RON data loaders
-│   ├── main.rs         # CLI entry point
-│   ├── lib.rs          # Library root
-│   └── api.rs          # Public API
+├── src/                    # Main lexflex app (parse, translate, generate)
+│   ├── core/               # Interlingua, ontology, deduction, unknown resolution + learner integration (on-the-fly RON)
+│   ├── engines/{pl,en}/    # Parsers, generators, morphology (data-driven via RON)
+│   ├── generation/         # Unified pipeline
+│   ├── data/               # Loaders
+│   ├── api.rs main.rs      # Public API + CLI
+├── lexflex-learner/        # Learner crate (LLM + LocalKnowledge deduction)
+│   ├── src/                # service (LLM priority), bulk (RON DB builder), sources/
+│   └── (run via `lexlearn` binary or lib)
 ├── data/
-│   ├── concepts/       # Master Interlingua concepts (~50)
-│   ├── lexicons/       # Per-language lexicon entries (PL: ~623, EN: ~160)
-│   ├── morphology/     # Paradigm rules (nouns, verbs, adjectives)
-│   ├── descriptors/    # Language descriptors (PL + EN)
-│   └── ontology/       # Concept hierarchy (IS_A relations)
-├── docs/               # Architecture and design documentation
-├── tests/              # Integration tests
-├── scripts/            # Benchmarking and bulk testing
-└── Cargo.toml
+│   ├── concepts/concepts.ron   # Generic Interlingua concept DB (source of truth)
+│   ├── ontology/ontology.ron   # Hierarchy (SIZE > BIG, etc.)
+│   ├── lexicons/{pl,en}/       # Language lexicons mapping to generic concepts
+│   ├── morphology/             # Paradigms
+│   └── descriptors/
+├── docs/
+├── scripts/                    # llm_full_benchmark.sh (max data + recursive proposals)
+├── results/learned/            # Generated proposals (ignored in git)
+└── Cargo.toml (workspace with lexflex-learner)
 ```
 
 ## Documentation
