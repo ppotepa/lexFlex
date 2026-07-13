@@ -263,5 +263,6 @@
     // ═══ ADDITIONAL PROPERTIES ═══
     (id: "OUR", frame_type: None, roles: [], inherent_features: ()),
     (id: "NICE", frame_type: None, roles: [], inherent_features: ()),
+    (id: "THIS", frame_type: None, roles: [], inherent_features: ()),
     (id: "MY", frame_type: None, roles: [], inherent_features: ()),
 ]

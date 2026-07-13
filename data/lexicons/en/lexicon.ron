@@ -424,4 +424,6 @@
     ("thirty", (lemma: "thirty", pos: "Particle", concept: "THIRTY", frame_type: None, roles: [], paradigm: None, features: ())),
     ("hundred", (lemma: "hundred", pos: "Particle", concept: "HUNDRED", frame_type: None, roles: [], paradigm: None, features: ())),
     ("thousand", (lemma: "thousand", pos: "Particle", concept: "THOUSAND", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("this", (lemma: "this", pos: "Adjective", concept: "THIS", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular)))),
+    ("these", (lemma: "this", pos: "Adjective", concept: "THIS", frame_type: None, roles: [], paradigm: None, features: (number: Some(Plural)))),
 ]

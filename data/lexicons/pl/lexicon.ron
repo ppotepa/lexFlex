@@ -828,4 +828,7 @@
     ("mój", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular), person: Some(First)))),
     ("moja", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular), person: Some(First)))),
     ("moje", (lemma: "mój", pos: "Adjective", concept: "MY", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular), person: Some(First)))),
+    ("ten", (lemma: "ten", pos: "Adjective", concept: "THIS", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Masculine), number: Some(Singular)))),
+    ("ta", (lemma: "ten", pos: "Adjective", concept: "THIS", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Feminine), number: Some(Singular)))),
+    ("to", (lemma: "ten", pos: "Adjective", concept: "THIS", frame_type: None, roles: [], paradigm: Some("adj_y"), features: (gender: Some(Neuter), number: Some(Singular)))),
 ]
