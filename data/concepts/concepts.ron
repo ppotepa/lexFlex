@@ -268,4 +268,9 @@
     // Closed-class / grammatical concepts added per enrichment plan for precision (determiners, copula distinctions).
     (id: "DETERMINER", frame_type: None, roles: [], inherent_features: ()),
     (id: "IDENTITY", frame_type: Some("Existence"), roles: ["Theme"], inherent_features: ()),
+
+    // ═══ DISCOURSE CONSTRUCTIONS ═══
+    (id: "TOPIC_CONTINUATION", frame_type: None, roles: ["Agent", "Topic"], inherent_features: ()),
+    (id: "ZERO_ANAPHORA", frame_type: None, roles: ["Agent"], inherent_features: ()),
+    (id: "CONTINUING_AGENT", frame_type: None, roles: ["Agent"], inherent_features: ()),
 ]

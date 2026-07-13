@@ -483,6 +483,88 @@ impl Frame {
         }
     }
 
+    /// Primary agent/subject role for discourse topic tracking and zero-anaphora resolution.
+    pub fn agent_entity(&self) -> Option<&Entity> {
+        match self {
+            Frame::Transfer { agent, .. } => Some(agent),
+            Frame::Motion { mover, .. } => Some(mover),
+            Frame::Creation { creator, .. } => Some(creator),
+            Frame::Destruction { agent, .. } => Some(agent),
+            Frame::Perception { experiencer, .. } => Some(experiencer),
+            Frame::Cognition { cognizer, .. } => Some(cognizer),
+            Frame::Emotion { experiencer, .. } => Some(experiencer),
+            Frame::Communication { speaker, .. } => Some(speaker),
+            Frame::Statement { subject, .. } => Some(subject),
+            Frame::Possession { possessor, .. } => Some(possessor),
+            Frame::Consumption { agent, .. } => Some(agent),
+            Frame::Existence { .. } => None,
+            Frame::Custom { roles, .. } => roles
+                .iter()
+                .find(|(r, _)| {
+                    matches!(
+                        r,
+                        SemanticRole::Agent
+                            | SemanticRole::Experiencer
+                            | SemanticRole::Speaker
+                    )
+                })
+                .map(|(_, e)| e),
+        }
+    }
+
+    pub fn agent_entity_mut(&mut self) -> Option<&mut Entity> {
+        match self {
+            Frame::Transfer { agent, .. } => Some(agent),
+            Frame::Motion { mover, .. } => Some(mover),
+            Frame::Creation { creator, .. } => Some(creator),
+            Frame::Destruction { agent, .. } => Some(agent),
+            Frame::Perception { experiencer, .. } => Some(experiencer),
+            Frame::Cognition { cognizer, .. } => Some(cognizer),
+            Frame::Emotion { experiencer, .. } => Some(experiencer),
+            Frame::Communication { speaker, .. } => Some(speaker),
+            Frame::Statement { subject, .. } => Some(subject),
+            Frame::Possession { possessor, .. } => Some(possessor),
+            Frame::Consumption { agent, .. } => Some(agent),
+            Frame::Existence { .. } => None,
+            Frame::Custom { roles, .. } => roles
+                .iter_mut()
+                .find(|(r, _)| {
+                    matches!(
+                        r,
+                        SemanticRole::Agent
+                            | SemanticRole::Experiencer
+                            | SemanticRole::Speaker
+                    )
+                })
+                .map(|(_, e)| e),
+        }
+    }
+
+    pub fn set_agent_entity(&mut self, entity: Entity) {
+        match self {
+            Frame::Transfer { agent, .. } => *agent = entity,
+            Frame::Motion { mover, .. } => *mover = entity,
+            Frame::Creation { creator, .. } => *creator = entity,
+            Frame::Destruction { agent, .. } => *agent = entity,
+            Frame::Perception { experiencer, .. } => *experiencer = entity,
+            Frame::Cognition { cognizer, .. } => *cognizer = entity,
+            Frame::Emotion { experiencer, .. } => *experiencer = entity,
+            Frame::Communication { speaker, .. } => *speaker = entity,
+            Frame::Statement { subject, .. } => *subject = entity,
+            Frame::Possession { possessor, .. } => *possessor = entity,
+            Frame::Consumption { agent, .. } => *agent = entity,
+            Frame::Existence { .. } => {}
+            Frame::Custom { roles, .. } => {
+                if let Some((_, e)) = roles
+                    .iter_mut()
+                    .find(|(r, _)| matches!(r, SemanticRole::Agent | SemanticRole::Experiencer))
+                {
+                    *e = entity;
+                }
+            }
+        }
+    }
+
     pub fn entities_mut(&mut self) -> Vec<&mut Entity> {
         match self {
             Frame::Transfer { agent, recipient, theme, .. } => {
@@ -598,6 +680,9 @@ pub struct Sentence {
     pub graph: Option<crate::core::graph::LinguisticGraph>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sentence_node_id: Option<NodeId>,
+    /// Discourse construction concepts attached during cross-sentence resolution.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub construction_concepts: Vec<ConceptId>,
 }
 
 impl Sentence {
@@ -616,6 +701,7 @@ impl Sentence {
             resolved_refs: Vec::new(),
             graph: None,
             sentence_node_id: None,
+            construction_concepts: Vec::new(),
         }
     }
 }
@@ -642,6 +728,9 @@ pub struct Discourse {
     pub coref_edges: Vec<EdgeId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub utterance_node_id: Option<NodeId>,
+    /// Most recent salient subject/topic entity node for continuing discourse.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_topic: Option<NodeId>,
 }
 
 impl Default for Discourse {
@@ -655,6 +744,7 @@ impl Default for Discourse {
             recent_mentions: Vec::new(),
             coref_edges: Vec::new(),
             utterance_node_id: None,
+            current_topic: None,
         }
     }
 }

@@ -1,5 +1,10 @@
-use crate::core::graph::{DialogueGraph, EdgeKind, GraphNode};
+use crate::core::graph::{self, DialogueGraph, EdgeKind, GraphNode};
 use crate::core::interlingua::*;
+
+/// Discourse construction concept IDs (defined in data/concepts/concepts.ron).
+pub const TOPIC_CONTINUATION: &str = "TOPIC_CONTINUATION";
+pub const ZERO_ANAPHORA: &str = "ZERO_ANAPHORA";
+pub const CONTINUING_AGENT: &str = "CONTINUING_AGENT";
 
 /// Split text on sentence boundaries (. ? !).
 pub fn split_sentence_boundaries(text: &str) -> Vec<String> {
@@ -122,6 +127,191 @@ pub fn track_discourse(utterance: &mut Utterance) {
     discourse.recent_mentions = recent;
     discourse.coref_edges = coref_edges;
     utterance.discourse = Some(discourse);
+
+    resolve_discourse_context(utterance);
+}
+
+/// Resolve implicit/zero subjects from continuing discourse topic and attach construction concepts.
+pub fn resolve_discourse_context(utterance: &mut Utterance) {
+    let mut continuing_topic: Option<Entity> = None;
+    let mut continuing_topic_node: Option<NodeId> = None;
+
+    let n = utterance.sentences.len();
+    for si in 0..n {
+        if si > 0 {
+            if let Some(ref topic) = continuing_topic {
+                let topic_node = continuing_topic_node;
+                let sentence = &mut utterance.sentences[si];
+                let mut resolved_any = false;
+                for frame in &mut sentence.frames {
+                    let needs_resolution = frame
+                        .agent_entity()
+                        .map(is_placeholder_agent)
+                        .unwrap_or(false);
+                    if needs_resolution {
+                        let resolved = make_continued_entity(topic);
+                        frame.set_agent_entity(resolved);
+                        resolved_any = true;
+                    }
+                }
+                if resolved_any {
+                    attach_discourse_constructions(sentence, topic_node);
+                }
+            }
+        }
+
+        for frame in &utterance.sentences[si].frames {
+            if let Some(subject) = frame.agent_entity() {
+                if is_salient_subject(subject) {
+                    continuing_topic = Some(subject.clone());
+                    if let Some(ref g) = utterance.sentences[si].graph {
+                        if let Some(nid) = find_topic_node(g, subject) {
+                            continuing_topic_node = Some(nid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(ref mut discourse) = utterance.discourse {
+        discourse.current_topic = continuing_topic_node;
+    }
+}
+
+fn is_closed_class_pronoun(name: &str) -> bool {
+    matches!(
+        name.to_lowercase().as_str(),
+        "i" | "you" | "he" | "she" | "it" | "we" | "they"
+            | "ja" | "ty" | "on" | "ona" | "ono" | "my" | "wy" | "oni" | "one"
+    )
+}
+
+fn is_placeholder_agent(entity: &Entity) -> bool {
+    entity.concept.0 == "unknown"
+        || entity.concept.0 == "DUMMY_SUBJECT"
+        || matches!(entity.reference, Reference::Generic | Reference::Unresolved)
+        || (entity.concept.0 == "PERSON"
+            && entity
+                .name
+                .as_ref()
+                .map(|n| is_closed_class_pronoun(n))
+                .unwrap_or(true))
+}
+
+fn is_salient_subject(entity: &Entity) -> bool {
+    !is_placeholder_agent(entity)
+        && (entity.name.is_some() || entity.features.animacy == Some(Animacy::Animate))
+}
+
+fn make_continued_entity(topic: &Entity) -> Entity {
+    let antecedent = topic
+        .name
+        .clone()
+        .unwrap_or_else(|| topic.concept.0.clone());
+    let mut entity = topic.clone();
+    entity.reference = Reference::Anaphoric(antecedent);
+    entity.features.case = Some(Case::Nominative);
+    if entity.features.person.is_none() {
+        entity.features.person = Some(Person::Third);
+    }
+    entity
+}
+
+fn find_placeholder_agent_node(graph: &crate::core::graph::LinguisticGraph) -> Option<NodeId> {
+    graph.nodes.iter().find_map(|n| match n {
+        GraphNode::Entity(e) if e.concept.0 == "unknown" => Some(e.id),
+        GraphNode::Entity(e)
+            if e.concept.0 == "PERSON"
+                && e.name
+                    .as_ref()
+                    .map(|n| is_closed_class_pronoun(n))
+                    .unwrap_or(true) =>
+        {
+            Some(e.id)
+        }
+        _ => None,
+    })
+}
+
+fn find_topic_node(graph: &crate::core::graph::LinguisticGraph, entity: &Entity) -> Option<NodeId> {
+    graph::find_entity_node_id(graph, entity).or_else(|| {
+        entity.name.as_ref().and_then(|name| {
+            graph.nodes.iter().find_map(|n| match n {
+                GraphNode::Entity(e)
+                    if e.name
+                        .as_ref()
+                        .map(|n| n.eq_ignore_ascii_case(name))
+                        .unwrap_or(false) =>
+                {
+                    Some(e.id)
+                }
+                _ => None,
+            })
+        })
+    })
+}
+
+fn attach_discourse_constructions(sentence: &mut Sentence, topic_node: Option<NodeId>) {
+    for concept in [ZERO_ANAPHORA, TOPIC_CONTINUATION, CONTINUING_AGENT] {
+        sentence
+            .construction_concepts
+            .push(ConceptId::new(concept));
+    }
+
+    let Some(ref mut g) = sentence.graph else {
+        return;
+    };
+
+    let agent = sentence
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .cloned();
+    let Some(agent) = agent else {
+        return;
+    };
+
+    let agent_nid = find_topic_node(g, &agent)
+        .or_else(|| find_placeholder_agent_node(g))
+        .or_else(|| {
+            g.nodes.iter().find_map(|n| match n {
+                GraphNode::Entity(e) if is_placeholder_agent(&Entity {
+                    concept: e.concept.clone(),
+                    name: e.name.clone(),
+                    features: e.features.clone(),
+                    reference: Reference::Direct,
+                    id: None,
+                    coordination: None,
+                    adjectives: vec![],
+                }) => Some(e.id),
+                _ => None,
+            })
+        });
+
+    let Some(agent_nid) = agent_nid else {
+        return;
+    };
+
+    if let Some(GraphNode::Entity(e)) = g.nodes.get_mut(agent_nid.0 as usize) {
+        e.concept = agent.concept.clone();
+        e.name = agent.name.clone();
+        e.features = agent.features.clone();
+    }
+
+    for concept in [ZERO_ANAPHORA, TOPIC_CONTINUATION, CONTINUING_AGENT] {
+        g.add_edge(
+            agent_nid,
+            agent_nid,
+            EdgeKind::PartOfConstruction(concept.into()),
+        );
+    }
+
+    if let Some(topic_nid) = topic_node {
+        g.add_edge(topic_nid, agent_nid, EdgeKind::ContinuesTopic);
+        g.add_edge(topic_nid, agent_nid, EdgeKind::Corefers);
+        g.add_edge(agent_nid, topic_nid, EdgeKind::Corefers);
+    }
 }
 
 /// Link entity references across utterances in a dialogue.
@@ -208,5 +398,18 @@ mod tests {
     fn split_boundaries_basic() {
         let parts = split_sentence_boundaries("Tomek ma kota. On go kocha.");
         assert_eq!(parts.len(), 2);
+    }
+
+    #[test]
+    fn placeholder_agent_detects_unknown() {
+        let e = Entity::new(ConceptId::new("unknown"));
+        assert!(is_placeholder_agent(&e));
+    }
+
+    #[test]
+    fn salient_subject_requires_name_or_animate() {
+        let e = Entity::new(ConceptId::new("PERSON"))
+            .with_name("Tomek");
+        assert!(is_salient_subject(&e));
     }
 }

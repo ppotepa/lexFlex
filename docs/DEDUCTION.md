@@ -36,11 +36,14 @@ Deduction is **always** executed during `to_interlingua()` for natural languages
 | Aspect / tense normalization      | Full                           | Perfective + Past → completed event |
 | Polarity & modality propagation   | Full                           | Negation scope |
 
-**Out of scope in v0.1:**
-- Multi-sentence coreference
-- Discourse salience / topic tracking
+**Discourse resolution (multi-sentence, implemented):**
+
+After per-sentence deduction and graph inference, `track_discourse()` + `resolve_discourse_context()` (`src/core/context.rs`) propagate continuing subjects across sentences in a single `Utterance`. Placeholder agents are linked to the prior salient topic; construction concepts (`ZERO_ANAPHORA`, `TOPIC_CONTINUATION`, `CONTINUING_AGENT`) attach via IL and graph edges.
+
+**Still out of scope:**
 - Full quantifier scope resolution across clauses
-- Ellipsis resolution across sentences
+- Topic-shift detection (`TOPIC_SHIFT`)
+- Implicit role resolution for all grammatical roles (objects, locations)
 
 ## Parser vs Deduction: Clear Boundaries
 

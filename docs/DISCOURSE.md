@@ -35,6 +35,17 @@ let chain = g.coreference_chain(entity_id);
 
 Multi-sentence PL input `"Tomek ma kota. Tomek ma psa."` produces `Corefers` + `NextSentence` edges testable via `tests/graph_tests.rs`.
 
+### Zero anaphora / continuing subject (implemented)
+
+Polish pro-drop for 3rd-person singular (`"Kupił mleko."` after `"Tomek poszedł."`) is resolved in `resolve_discourse_context()` (`src/core/context.rs`), called at the end of `track_discourse()`:
+
+- Salient subject from sentence *N* becomes `Discourse.current_topic`.
+- Sentence *N+1* frames with placeholder agents (`unknown`, unnamed `PERSON`) inherit the topic entity with `Reference::Anaphoric`.
+- Construction concepts `ZERO_ANAPHORA`, `TOPIC_CONTINUATION`, `CONTINUING_AGENT` attach to IL (`Sentence.construction_concepts`) and graph (`PartOfConstruction` edges).
+- English generation realizes anaphoric subjects as pronouns (`he`/`she`/`they`).
+
+Example: `"Tomek poszedł. Kupił mleko."` → IL sentence-2 agent = Tomek (anaphoric) → EN `"Tomek went. He bought a milk."`
+
 ## Discourse Model
 
 ```rust

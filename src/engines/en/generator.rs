@@ -542,6 +542,13 @@ impl EnglishGenerator {
             && entity.concept.0 != "DUMMY_SUBJECT"
             && entity.concept.0 != "PRONOUN";
 
+        // Continued discourse subjects: realize anaphoric reference as target pronoun.
+        if matches!(entity.reference, Reference::Anaphoric(_)) {
+            if let Some(pronoun) = Self::realize_anaphoric_pronoun(entity) {
+                return Ok(pronoun);
+            }
+        }
+
         // Graph-first coordination (CoordinatesWith topology)
         if let Some(g) = graph {
             if let Some((conj, items)) = graph::coordination_from_graph(g, entity) {
@@ -680,6 +687,23 @@ impl EnglishGenerator {
         }
 
         Ok(noun_form)
+    }
+
+    /// Realize a continued discourse subject as a third-person pronoun in English.
+    fn realize_anaphoric_pronoun(entity: &Entity) -> Option<String> {
+        let person = entity.features.person.unwrap_or(Person::Third);
+        if person != Person::Third {
+            return None;
+        }
+        let number = entity.features.number.unwrap_or(Number::Singular);
+        match (entity.features.gender, number) {
+            (Some(Gender::Masculine), Number::Singular) => Some("he".to_string()),
+            (Some(Gender::Feminine), Number::Singular) => Some("she".to_string()),
+            (Some(Gender::Neuter), Number::Singular) => Some("it".to_string()),
+            (_, Number::Plural) => Some("they".to_string()),
+            _ if entity.features.animacy == Some(Animacy::Animate) => Some("he".to_string()),
+            _ => Some("it".to_string()),
+        }
     }
 
     /// Generate adjective surface form from entity with degree/concept features.
@@ -886,8 +910,16 @@ impl LanguageRealizer for EnglishGenerator {
         } else {
             false
         };
+        let is_anaphoric = matches!(tmp.reference, Reference::Anaphoric(_));
+        let is_pronoun_surface = result.first().map_or(false, |w| {
+            matches!(
+                w.as_str(),
+                "he" | "she" | "it" | "they" | "i" | "you" | "we" | "me" | "him" | "her" | "us" | "them"
+            )
+        });
         let do_art = policy.should_add_article(&tmp, true) && !is_proper && !has_possessive && !is_bare_adj
             && tmp.concept.0 != "DUMMY_SUBJECT" && tmp.concept.0 != "PRONOUN"
+            && !is_anaphoric && !is_pronoun_surface
             && !result.first().map_or(false, |w| matches!(w.as_str(), "this" | "these" | "that" | "those"));
         if do_art && num == Number::Singular {
             let is_def = tmp.features.definiteness == Some(Definiteness::Definite) || features.definiteness == Some(Definiteness::Definite);

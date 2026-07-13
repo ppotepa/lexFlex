@@ -282,6 +282,99 @@ fn test_recent_entities_query() {
     assert!(!recent.is_empty());
 }
 
+#[test]
+fn test_persistent_subject_zero_anaphora_il() {
+    let api = build_api();
+    let il = api
+        .parse("Tomek poszedł. Kupił mleko.", "pl")
+        .expect("multi-sentence parse");
+    let utt = il.as_natural().expect("natural");
+    assert_eq!(utt.sentences.len(), 2);
+
+    let s1_agent = utt.sentences[0]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("sentence 1 agent");
+    assert_eq!(s1_agent.name.as_deref(), Some("Tomek"));
+    assert_eq!(s1_agent.concept.0, "PERSON");
+
+    let s2_agent = utt.sentences[1]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("sentence 2 agent");
+    assert_eq!(s2_agent.concept.0, "PERSON");
+    assert_eq!(s2_agent.name.as_deref(), Some("Tomek"));
+    assert!(
+        matches!(s2_agent.reference, Reference::Anaphoric(_)),
+        "continued subject must carry anaphoric reference, got {:?}",
+        s2_agent.reference
+    );
+    assert_ne!(s2_agent.concept.0, "unknown");
+
+    let d = utt.discourse.as_ref().expect("discourse");
+    assert!(d.current_topic.is_some(), "continuing topic should be tracked");
+
+    let s2 = &utt.sentences[1];
+    assert!(
+        s2.construction_concepts
+            .iter()
+            .any(|c| c.0 == "ZERO_ANAPHORA"),
+        "ZERO_ANAPHORA construction concept expected on sentence 2"
+    );
+    if let Some(g) = s2.graph.as_ref() {
+        assert!(g.has_construction("ZERO_ANAPHORA"));
+        assert!(g.has_construction("TOPIC_CONTINUATION"));
+    }
+}
+
+#[test]
+fn test_persistent_subject_zero_anaphora_translate() {
+    let api = build_api();
+    let out = api
+        .translate("Tomek poszedł. Kupił mleko.", "pl", "en")
+        .expect("translate");
+    assert!(
+        !out.contains("A person bought"),
+        "must not use generic PERSON fallback: {out}"
+    );
+    assert!(
+        out.contains("he") || out.contains("He") || out.contains("Tomek"),
+        "buying clause must keep Tomek as actor: {out}"
+    );
+}
+
+#[test]
+fn test_rich_discourse_three_clause_zero_anaphora() {
+    let api = build_api();
+    let input = "Tomek poszedł do sklepu. Kupił mleko i wyszedł.";
+    let il = api.parse(input, "pl").expect("parse");
+    let utt = il.as_natural().expect("natural");
+    assert!(utt.sentences.len() >= 2);
+
+    let s1_name = utt.sentences[0]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .and_then(|e| e.name.clone())
+        .expect("s1 subject name");
+
+    for sentence in utt.sentences.iter().skip(1) {
+        if let Some(agent) = sentence.frames.first().and_then(|f| f.agent_entity()) {
+            assert_eq!(agent.name.as_deref(), Some(s1_name.as_str()));
+            assert!(
+                matches!(agent.reference, Reference::Anaphoric(_)),
+                "clause {:?} should continue topic",
+                agent.reference
+            );
+        }
+    }
+
+    let out = api.translate(input, "pl", "en").expect("translate");
+    assert!(!out.contains("A person"));
+}
+
 // ─── Dialogue graph (Phase 7) ──────────────────────────────────────────────────
 
 #[test]
