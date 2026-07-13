@@ -398,18 +398,45 @@ fn test_demonstrative_construction_concept() {
 }
 
 #[test]
-fn test_lookup_concept_deterministic_for_store() {
+fn test_poszedl_motion_frame_has_goal() {
     let api = build_api();
-    let out1 = api
-        .translate("Tomek poszedł do sklepu. Kupił mleko i wyszedł.", "pl", "en")
-        .expect("run1");
-    let out2 = api
-        .translate("Tomek poszedł do sklepu. Kupił mleko i wyszedł.", "pl", "en")
-        .expect("run2");
+    let il = api.parse("Tomek poszedł do sklepu.", "pl").expect("parse");
+    let frame = &il.as_natural().expect("natural").sentences[0].frames[0];
+    match frame {
+        Frame::Motion {
+            verb_concept,
+            goal,
+            mover,
+            ..
+        } => {
+            assert_eq!(verb_concept, "GO");
+            assert_eq!(mover.name.as_deref(), Some("Tomek"));
+            let goal = goal.as_ref().expect("goal must be present for 'do sklepu'");
+            assert_eq!(goal.concept.0, "STORE");
+        }
+        other => panic!("expected Motion frame, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_rich_discourse_translate_includes_store_not_walked() {
+    let api = build_api();
+    let input = "Tomek poszedł do sklepu. Kupił mleko i wyszedł.";
+    let out1 = api.translate(input, "pl", "en").expect("run1");
+    let out2 = api.translate(input, "pl", "en").expect("run2");
     assert_eq!(out1, out2, "identical pl→en output required across runs");
-    assert!(!out1.contains("supermarket") || !out1.contains("store") || out1.contains("store"));
+    let lower = out1.to_lowercase();
+    assert!(
+        lower.contains("store") || lower.contains("shop"),
+        "goal must be realized in English, got: {out1}"
+    );
+    assert!(
+        !lower.contains("walked"),
+        "must not use WALK concept for poszedł, got: {out1}"
+    );
     assert!(!out1.contains("sklepu"));
     assert!(!out1.contains("wyszedł"));
+    assert!(out1.contains("left") || out1.contains("Left"));
 }
 
 #[test]

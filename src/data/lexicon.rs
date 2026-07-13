@@ -44,23 +44,30 @@ impl Lexicon {
     }
 
     pub fn lookup_by_lemma(&self, lemma: &str) -> Option<&LexEntry> {
-        self.entries
-            .values()
-            .filter(|e| e.lemma == lemma)
-            .min_by_key(|e| e.lemma.clone())
+        Self::select_best_entry(self.entries.values().filter(|e| e.lemma == lemma))
     }
 
-    /// Deterministic concept lookup: when multiple entries share a concept, pick lexicographically smallest lemma.
+    /// Deterministic concept lookup when multiple entries share a concept.
     pub fn lookup_concept(&self, concept: &str) -> Option<&LexEntry> {
         let c = concept.to_uppercase();
-        self.entries
-            .values()
-            .filter(|e| e.concept.to_uppercase() == c)
-            .min_by(|a, b| {
-                a.lemma
-                    .cmp(&b.lemma)
-                    .then_with(|| a.pos.cmp(&b.pos))
-            })
+        Self::select_best_entry(
+            self.entries
+                .values()
+                .filter(|e| e.concept.to_uppercase() == c),
+        )
+    }
+
+    /// Stable winner among lexicon candidates: concept, pos, more roles, then lemma.
+    fn select_best_entry<'a>(
+        candidates: impl Iterator<Item = &'a LexEntry>,
+    ) -> Option<&'a LexEntry> {
+        candidates.min_by(|a, b| {
+            a.concept
+                .cmp(&b.concept)
+                .then_with(|| a.pos.cmp(&b.pos))
+                .then_with(|| b.roles.len().cmp(&a.roles.len()))
+                .then_with(|| a.lemma.cmp(&b.lemma))
+        })
     }
 
     /// Lookup longest matching multi-word lexicon entry starting at `start_idx` (3- then 2-word).
@@ -238,5 +245,41 @@ impl Lexicon {
 impl Default for Lexicon {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_best_entry_prefers_more_roles_at_same_concept() {
+        let mut lex = Lexicon::new();
+        lex.add_entry(
+            "a".into(),
+            LexEntry {
+                lemma: "go".into(),
+                pos: "Verb".into(),
+                concept: "GO".into(),
+                frame_type: Some("Motion".into()),
+                roles: vec!["Agent".into()],
+                paradigm: None,
+                features: FeatureBundle::default(),
+            },
+        );
+        lex.add_entry(
+            "b".into(),
+            LexEntry {
+                lemma: "go".into(),
+                pos: "Verb".into(),
+                concept: "GO".into(),
+                frame_type: Some("Motion".into()),
+                roles: vec!["Agent".into(), "Goal".into(), "Source".into()],
+                paradigm: None,
+                features: FeatureBundle::default(),
+            },
+        );
+        let entry = lex.lookup_by_lemma("go").expect("entry");
+        assert_eq!(entry.roles.len(), 3);
     }
 }

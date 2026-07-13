@@ -349,8 +349,11 @@ impl PolishParser {
         // DEBUG removed per plan (no leaks)
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
 
-        let verb_entry = self.lexicon.lookup_by_lemma(verb_lemma)
-            .or_else(|| self.lexicon.lookup_by_form(verb_lemma));
+        let verb_entry = self
+            .lexicon
+            .lookup_by_form(&verb_token.form)
+            .or_else(|| self.lexicon.lookup_by_form(verb_lemma))
+            .or_else(|| self.lexicon.lookup_by_lemma(verb_lemma));
 
         let (mut frame_type, mut roles, mut verb_concept) = if let Some(entry) = verb_entry {
             if let Some(ref ft) = entry.frame_type {
@@ -1444,6 +1447,38 @@ mod tests {
     use super::*;
     use crate::data::loader;
     use std::path::Path;
+
+    #[test]
+    fn test_poszedl_resolves_go_motion_with_goal() {
+        let data_path = Path::new("data");
+        let lexicon = loader::load_lexicon(&data_path.join("lexicons/pl/lexicon.ron")).expect("lexicon");
+        let noun_p = loader::load_paradigms(&data_path.join("morphology/pl/noun_paradigms.ron")).expect("noun");
+        let verb_p = loader::load_paradigms(&data_path.join("morphology/pl/verb_paradigms.ron")).expect("verb");
+        let adj_p = loader::load_paradigms(&data_path.join("morphology/pl/adj_paradigms.ron")).expect("adj");
+        let morph = crate::engines::pl::morphology::PolishMorphology::new(noun_p, verb_p, adj_p);
+        let concepts = loader::load_concepts(&data_path.join("concepts/concepts.ron")).unwrap_or_default();
+        let ontology = loader::build_ontology_from_concepts(&concepts);
+        let concept_ids: Vec<String> = concepts.iter().map(|c| c.id.clone()).collect();
+        let desc = loader::load_descriptor(&data_path.join("descriptors/pl.ron")).expect("desc");
+        let parser = PolishParser::new(lexicon, morph, ontology, desc, concept_ids);
+
+        let ut = parser.parse("Tomek poszedł do sklepu.").expect("parse");
+        let frame = &ut.sentences[0].frames[0];
+        match frame {
+            Frame::Motion {
+                verb_concept,
+                goal,
+                ..
+            } => {
+                assert_eq!(verb_concept, "GO");
+                assert!(
+                    goal.is_some(),
+                    "poszedł must attach Goal role from GO entry, not WALK"
+                );
+            }
+            other => panic!("expected Motion frame, got {:?}", other),
+        }
+    }
 
     #[test]
     fn test_parse_accompaniment_list() {

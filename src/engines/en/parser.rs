@@ -168,8 +168,11 @@ impl EnglishParser {
         let verb_token = &tokens[verb_idx];
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
 
-        let verb_entry = self.lexicon.lookup_by_lemma(verb_lemma)
-            .or_else(|| self.lexicon.lookup_by_form(verb_lemma));
+        let verb_entry = self
+            .lexicon
+            .lookup_by_form(&verb_token.form)
+            .or_else(|| self.lexicon.lookup_by_form(verb_lemma))
+            .or_else(|| self.lexicon.lookup_by_lemma(verb_lemma));
 
         let (frame_type, roles, verb_concept) = if let Some(entry) = verb_entry {
             if let Some(ref ft) = entry.frame_type {
