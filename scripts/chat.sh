@@ -179,11 +179,17 @@ else
   fi
   echo
 
-  # Proactive warmup skipped for fast verif input test (re-enabled in normal).
-  # echo "🔥 Starting LLM warmup in background..."
-  # ( ... ) &
-  # disown ...
-  # sleep 0.15
+  # Proactive warmup so first real sentence is fast.
+  echo "🔥 Starting LLM warmup in background..."
+  (
+    LEXFLEX_DATA_DIR=/tmp/lexflex-warmup.$$ \
+    LEXFLEX_LLM_NOTHINK=1 \
+    LEXFLEX_NO_AUTO_WRITE=1 \
+    RUST_LOG=error \
+      ./target/debug/lexflex translate "xqzzyyy-warmup" --from "$SRC" --to "$TGT" >/dev/null 2>&1 || true
+  ) &
+  disown 2>/dev/null || true
+  sleep 0.15
 fi
 
 echo "Type sentences. Special commands:"

@@ -601,6 +601,19 @@ impl EnglishGenerator {
             }
         }
 
+        // Fix for novel words that fell back to PERSON (or similar generic): preserve the provided .name
+        // (e.g. the novel word itself) instead of lookup_concept("PERSON") picking random pronoun like "we"
+        // due to non-deterministic HashMap iteration order.
+        if entity.concept.0.to_uppercase() == "PERSON" {
+            if let Some(ref orig_name) = entity.name {
+                let lname = orig_name.to_lowercase();
+                let std_prons = ["i","you","he","she","it","we","they","me","him","her","us","them"];
+                if !std_prons.contains(&lname.as_str()) {
+                    return Ok(orig_name.clone());
+                }
+            }
+        }
+
         let c = entity.concept.0.clone();
         let entry = self.lexicon.lookup_concept(&c).or_else(|| self.lexicon.lookup_by_lemma(&c.to_lowercase()));
         let lemma = entry.map(|e| e.lemma.clone()).unwrap_or_else(|| c.to_lowercase());
