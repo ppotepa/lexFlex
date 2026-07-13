@@ -64,6 +64,7 @@ impl EnglishMorphology {
             ("read", Tense::Past, _, _) => Some("read"),
             ("write", Tense::Past, _, _) => Some("wrote"),
             ("buy", Tense::Past, _, _) => Some("bought"),
+            ("leave", Tense::Past, _, _) => Some("left"),
             ("hear", Tense::Past, _, _) => Some("heard"),
             ("break", Tense::Past, _, _) => Some("broke"),
             _ => None,

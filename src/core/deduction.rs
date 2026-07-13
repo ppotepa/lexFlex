@@ -1,3 +1,6 @@
+use crate::core::constructions::{
+    self, ACCOMPANIMENT, AGE_IDIOM, DEMONSTRATIVE_REFERENCE, IDENTIFICATION,
+};
 use crate::core::graph::{self, EdgeKind};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
@@ -99,21 +102,42 @@ pub fn apply_graph_inference(
                         }
                     }
                     if let Some(eid) = graph::find_entity_node_id(graph, possessed) {
-                        graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("AgeIdiom".into()));
+                        constructions::attach_construction(
+                            &mut sentence.construction_concepts,
+                            graph,
+                            eid,
+                            AGE_IDIOM,
+                        );
                     }
                 }
             }
         }
     }
 
-    // Phase 4: attach lightweight constructions for copula and demonstrative (data driven via frames/entities)
+    let demonstrative_copula = graph
+        .word_nodes()
+        .any(|w| w.form.eq_ignore_ascii_case("to"));
+
+    // Phase 4: attach concept-backed constructions for copula and demonstrative
     for frame in &mut sentence.frames {
         if let Frame::Existence { location, .. } = frame {
             if location.is_none() {
-                // IdentificationalCopula - attach to the entity if we can identify one
                 for e in frame.entities_mut() {
                     if let Some(eid) = graph::find_entity_node_id(graph, e) {
-                        graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("IdentificationalCopula".into()));
+                        constructions::attach_construction(
+                            &mut sentence.construction_concepts,
+                            graph,
+                            eid,
+                            IDENTIFICATION,
+                        );
+                        if demonstrative_copula {
+                            constructions::attach_construction(
+                                &mut sentence.construction_concepts,
+                                graph,
+                                eid,
+                                DEMONSTRATIVE_REFERENCE,
+                            );
+                        }
                         break;
                     }
                 }
@@ -125,7 +149,12 @@ pub fn apply_graph_inference(
                 // attach to the main descriptive entity (the property or the noun one)
                 let target = if property.adjectives.len() > 0 || property.concept.0 != "unknown" { property } else { subject };
                 if let Some(eid) = graph::find_entity_node_id(graph, target) {
-                    graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("IdentificationalCopula".into()));
+                    constructions::attach_construction(
+                        &mut sentence.construction_concepts,
+                        graph,
+                        eid,
+                        IDENTIFICATION,
+                    );
                 }
             }
         }
@@ -135,7 +164,30 @@ pub fn apply_graph_inference(
         for entity in frame.entities_mut() {
             if entity.adjectives.iter().any(|a| a.concept.0 == "THIS") {
                 if let Some(eid) = graph::find_entity_node_id(graph, entity) {
-                    graph.add_edge(eid, eid, EdgeKind::PartOfConstruction("DemonstrativeNP".into()));
+                    constructions::attach_construction(
+                        &mut sentence.construction_concepts,
+                        graph,
+                        eid,
+                        DEMONSTRATIVE_REFERENCE,
+                    );
+                }
+            }
+        }
+    }
+
+    // Accompaniment construction on graph paths
+    if !accomp_paths.is_empty() {
+        for path in &accomp_paths {
+            if let Some(&eid) = path.last() {
+                if graph.nodes.get(eid.0 as usize).map_or(false, |n| {
+                    matches!(n, crate::core::graph::GraphNode::Entity(_))
+                }) {
+                    constructions::attach_construction(
+                        &mut sentence.construction_concepts,
+                        graph,
+                        eid,
+                        ACCOMPANIMENT,
+                    );
                 }
             }
         }
@@ -147,6 +199,8 @@ pub fn apply_graph_inference(
             ontology.inherit_features(entity);
         }
     }
+
+    constructions::build_construction_tree(sentence);
 
     Ok(())
 }

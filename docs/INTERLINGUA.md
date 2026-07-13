@@ -904,7 +904,7 @@ struct Utterance {
 
 ## Discourse
 
-**Partial implementation:** `Utterance.discourse` tracks `entities_in_focus`, `recent_mentions`, `coref_edges`, and `current_topic` (continuing salient subject). `Sentence.construction_concepts` holds discourse construction concept IDs (`ZERO_ANAPHORA`, `TOPIC_CONTINUATION`, `CONTINUING_AGENT`). See [DISCOURSE.md](./DISCOURSE.md) for zero-anaphora resolution.
+**Partial implementation:** `Utterance.discourse` tracks `entities_in_focus`, `recent_mentions`, `coref_edges`, and `current_topic` (continuing salient subject). `Sentence.constructions` is the IL construction tree (`ConstructionInstance { construction_concept, inner: Frame }`). `Sentence.construction_concepts` mirrors attached concept IDs for queries. See [DISCOURSE.md](./DISCOURSE.md).
 
 Context that spans the entire utterance (and potentially multiple utterances in conversation).
 

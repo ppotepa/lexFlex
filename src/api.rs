@@ -25,6 +25,16 @@ impl LexFlexAPI {
         from: &str,
         to: &str,
     ) -> Result<String, LexFlexError> {
+        self.compile(input, from, to)
+    }
+
+    /// Full parse → discourse resolution → target compilation pipeline.
+    pub fn compile(
+        &self,
+        input: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<String, LexFlexError> {
         let from_id = LanguageId::new(from);
         let to_id = LanguageId::new(to);
         Ok(self.translator.translate(input, &from_id, &to_id)?)

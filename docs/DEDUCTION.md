@@ -40,6 +40,10 @@ Deduction is **always** executed during `to_interlingua()` for natural languages
 
 After per-sentence deduction and graph inference, `track_discourse()` + `resolve_discourse_context()` (`src/core/context.rs`) propagate continuing subjects across sentences in a single `Utterance`. Placeholder agents are linked to the prior salient topic; construction concepts (`ZERO_ANAPHORA`, `TOPIC_CONTINUATION`, `CONTINUING_AGENT`) attach via IL and graph edges.
 
+**Construction selection (implemented):**
+
+`apply_graph_inference()` attaches concept-backed constructions (`IDENTIFICATION`, `DEMONSTRATIVE_REFERENCE`, `AGE_IDIOM`, `ACCOMPANIMENT`) via `src/core/constructions.rs`. `build_construction_tree()` materializes `Sentence.constructions` (IL AST nodes wrapping frames). Legacy string names (`IdentificationalCopula`, etc.) resolve through `legacy_to_concept()`.
+
 **Still out of scope:**
 - Full quantifier scope resolution across clauses
 - Topic-shift detection (`TOPIC_SHIFT`)

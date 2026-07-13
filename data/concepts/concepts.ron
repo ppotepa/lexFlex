@@ -273,4 +273,11 @@
     (id: "TOPIC_CONTINUATION", frame_type: None, roles: ["Agent", "Topic"], inherent_features: ()),
     (id: "ZERO_ANAPHORA", frame_type: None, roles: ["Agent"], inherent_features: ()),
     (id: "CONTINUING_AGENT", frame_type: None, roles: ["Agent"], inherent_features: ()),
+
+    // ═══ GRAMMATICAL CONSTRUCTIONS (concept-backed) ═══
+    (id: "IDENTIFICATION", frame_type: Some("Existence"), roles: ["Theme"], inherent_features: ()),
+    (id: "DEMONSTRATIVE_REFERENCE", frame_type: None, roles: ["Theme"], inherent_features: ()),
+    (id: "AGE_IDIOM", frame_type: None, roles: ["Theme"], inherent_features: ()),
+    (id: "ACCOMPANIMENT", frame_type: None, roles: ["Location", "Accompaniment"], inherent_features: ()),
+    (id: "CLAUSE", frame_type: None, roles: ["Agent"], inherent_features: ()),
 ]

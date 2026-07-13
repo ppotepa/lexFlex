@@ -46,6 +46,16 @@ Polish pro-drop for 3rd-person singular (`"Kupił mleko."` after `"Tomek poszed�
 
 Example: `"Tomek poszedł. Kupił mleko."` → IL sentence-2 agent = Tomek (anaphoric) → EN `"Tomek went. He bought a milk."`
 
+### IL construction tree + compile pipeline
+
+Each `Sentence` carries `constructions: Vec<ConstructionInstance>` — first-class tree nodes wrapping inner `Frame`s with `construction_concept` (`IDENTIFICATION`, `DEMONSTRATIVE_REFERENCE`, `ZERO_ANAPHORA`, etc.). Graph `PartOfConstruction` edges use the same concept IDs from `data/concepts/concepts.ron`.
+
+Public API: `LexFlexAPI::compile(input, from, to)` runs parse → discourse resolution → target generation (alias of `translate`).
+
+### Cross-utterance dialogue
+
+`resolve_dialogue_context()` runs after `link_cross_utterance_context()` so implicit subjects propagate across `DialogueGraph` utterances (e.g. `["Tomek poszedł.", "Kupił mleko."]`).
+
 ## Discourse Model
 
 ```rust

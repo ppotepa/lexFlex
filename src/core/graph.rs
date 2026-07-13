@@ -653,12 +653,17 @@ impl LinguisticGraph {
         visited == expected_count
     }
 
-    /// True when any edge marks participation in a named construction (e.g. AgeIdiom, Accompaniment).
+    /// True when any edge marks participation in a construction (legacy name or concept ID).
     pub fn has_construction(&self, name: &str) -> bool {
+        crate::core::constructions::graph_has_construction(self, name)
+    }
+
+    /// True when any edge marks participation in a construction concept ID.
+    pub fn has_construction_concept(&self, concept: &str) -> bool {
         self.edges.iter().any(|e| {
             matches!(
                 &e.kind,
-                EdgeKind::PartOfConstruction(c) if c == name
+                EdgeKind::PartOfConstruction(c) if c == concept
             )
         })
     }

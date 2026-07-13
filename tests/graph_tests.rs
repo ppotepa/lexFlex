@@ -346,6 +346,91 @@ fn test_persistent_subject_zero_anaphora_translate() {
 }
 
 #[test]
+fn test_il_construction_tree_nodes() {
+    let api = build_api();
+    let il = api.parse("To są niebieskie koty.", "pl").expect("parse");
+    let sentence = &il.as_natural().expect("natural").sentences[0];
+    assert!(
+        !sentence.constructions.is_empty(),
+        "construction tree must wrap frames"
+    );
+    assert_eq!(sentence.constructions.len(), sentence.frames.len());
+    assert!(
+        sentence.constructions.iter().any(|c| {
+            c.construction_concept.0 == "IDENTIFICATION"
+                || c.construction_concept.0 == "CLAUSE"
+        })
+    );
+}
+
+#[test]
+fn test_construction_concepts_backed_by_ron() {
+    let api = build_api();
+    let il = api.parse("To są czerwone domy.", "pl").expect("parse");
+    let sentence = &il.as_natural().expect("natural").sentences[0];
+    if let Some(g) = sentence.graph.as_ref() {
+        assert!(
+            g.has_construction("IDENTIFICATION") || g.has_construction("IdentificationalCopula")
+        );
+    }
+    assert!(
+        sentence.construction_concepts.iter().any(|c| c.0 == "IDENTIFICATION")
+            || sentence
+                .constructions
+                .iter()
+                .any(|c| c.construction_concept.0 == "IDENTIFICATION")
+    );
+}
+
+#[test]
+fn test_demonstrative_construction_concept() {
+    let api = build_api();
+    let il = api.parse("To są niebieskie koty.", "pl").expect("parse");
+    let sentence = &il.as_natural().expect("natural").sentences[0];
+    let has_demo = sentence.constructions.iter().any(|c| {
+        c.construction_concept.0 == "DEMONSTRATIVE_REFERENCE"
+    }) || sentence
+        .graph
+        .as_ref()
+        .map(|g| g.has_construction("DEMONSTRATIVE_REFERENCE"))
+        .unwrap_or(false);
+    assert!(has_demo, "demonstrative construction expected");
+}
+
+#[test]
+fn test_compile_entry_produces_output() {
+    let api = build_api();
+    let out = api
+        .compile("Tomek poszedł. Kupił mleko.", "pl", "en")
+        .expect("compile");
+    assert!(!out.is_empty());
+    assert!(out.contains("Tomek") || out.contains("He") || out.contains("he"));
+}
+
+#[test]
+fn test_dialogue_implicit_subject_cross_utterance() {
+    let api = build_api();
+    let dialogue = api
+        .parse_dialogue(&["Tomek poszedł.", "Kupił mleko."], "pl")
+        .expect("dialogue parse");
+    let agent = dialogue.utterances[1]
+        .sentences
+        .first()
+        .and_then(|s| s.frames.first())
+        .and_then(|f| f.agent_entity())
+        .expect("utterance 2 agent");
+    assert_eq!(agent.name.as_deref(), Some("Tomek"));
+    assert!(matches!(agent.reference, Reference::Anaphoric(_)));
+
+    let out = api
+        .translate_dialogue(&["Tomek poszedł.", "Kupił mleko."], "pl", "en")
+        .expect("dialogue translate");
+    let joined = out.join(" ");
+    assert!(!joined.contains("A person"));
+    assert!(joined.contains("he") || joined.contains("He") || joined.contains("Tomek"));
+}
+
+#[test]
 fn test_rich_discourse_three_clause_zero_anaphora() {
     let api = build_api();
     let input = "Tomek poszedł do sklepu. Kupił mleko i wyszedł.";
@@ -373,6 +458,19 @@ fn test_rich_discourse_three_clause_zero_anaphora() {
 
     let out = api.translate(input, "pl", "en").expect("translate");
     assert!(!out.contains("A person"));
+    assert!(!out.contains("sklepu"));
+    assert!(!out.contains("wyszedł"));
+    let out_lower = out.to_lowercase();
+    assert!(
+        out_lower.contains("store")
+            || out_lower.contains("shop")
+            || out_lower.contains("supermarket"),
+        "goal should be English store: {out}"
+    );
+    assert!(
+        out.contains("left") || out.contains("Left"),
+        "leave verb expected: {out}"
+    );
 }
 
 // ─── Dialogue graph (Phase 7) ──────────────────────────────────────────────────

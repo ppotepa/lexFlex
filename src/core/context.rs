@@ -1,10 +1,12 @@
+use crate::core::constructions::{self, CONTINUING_AGENT, TOPIC_CONTINUATION, ZERO_ANAPHORA};
 use crate::core::graph::{self, DialogueGraph, EdgeKind, GraphNode};
 use crate::core::interlingua::*;
 
-/// Discourse construction concept IDs (defined in data/concepts/concepts.ron).
-pub const TOPIC_CONTINUATION: &str = "TOPIC_CONTINUATION";
-pub const ZERO_ANAPHORA: &str = "ZERO_ANAPHORA";
-pub const CONTINUING_AGENT: &str = "CONTINUING_AGENT";
+pub use crate::core::constructions::{
+    CONTINUING_AGENT as CONSTRUCTION_CONTINUING_AGENT,
+    TOPIC_CONTINUATION as CONSTRUCTION_TOPIC_CONTINUATION,
+    ZERO_ANAPHORA as CONSTRUCTION_ZERO_ANAPHORA,
+};
 
 /// Split text on sentence boundaries (. ? !).
 pub fn split_sentence_boundaries(text: &str) -> Vec<String> {
@@ -157,6 +159,7 @@ pub fn resolve_discourse_context(utterance: &mut Utterance) {
                 if resolved_any {
                     attach_discourse_constructions(sentence, topic_node);
                 }
+                resolve_implicit_roles(sentence);
             }
         }
 
@@ -176,6 +179,66 @@ pub fn resolve_discourse_context(utterance: &mut Utterance) {
 
     if let Some(ref mut discourse) = utterance.discourse {
         discourse.current_topic = continuing_topic_node;
+    }
+
+    for sentence in &mut utterance.sentences {
+        dedupe_motion_endpoints(sentence);
+        constructions::build_construction_tree(sentence);
+    }
+}
+
+/// Resolve placeholder goal/theme entities via surface-form hints (lexicon-independent name carry).
+fn resolve_implicit_roles(sentence: &mut Sentence) {
+    for frame in &mut sentence.frames {
+        if let Frame::Motion { goal, source, .. } = frame {
+            if let (Some(g), Some(s)) = (goal.as_ref(), source.as_ref()) {
+                if g.name == s.name && g.concept == s.concept {
+                    *source = None;
+                }
+            }
+            if let Some(g) = goal {
+                if is_placeholder_role(g) {
+                    if let Some(resolved) = resolve_entity_from_surface(g) {
+                        *goal = Some(resolved);
+                    }
+                }
+            }
+        }
+        if let Some(theme) = frame.theme_entity_mut() {
+            if is_placeholder_role(theme) {
+                if let Some(resolved) = resolve_entity_from_surface(theme) {
+                    *theme = resolved;
+                }
+            }
+        }
+    }
+}
+
+fn is_placeholder_role(entity: &Entity) -> bool {
+    entity.concept.0 == "unknown"
+        || matches!(entity.reference, Reference::Generic | Reference::Unresolved)
+}
+
+fn resolve_entity_from_surface(entity: &Entity) -> Option<Entity> {
+    let name = entity.name.as_ref()?;
+    let mut resolved = entity.clone();
+    resolved.reference = Reference::Direct;
+    if resolved.concept.0 == "unknown" {
+        // Keep surface name; concept may be filled by unknown resolver upstream.
+        resolved.name = Some(name.clone());
+    }
+    Some(resolved)
+}
+
+fn dedupe_motion_endpoints(sentence: &mut Sentence) {
+    for frame in &mut sentence.frames {
+        if let Frame::Motion { goal, source, .. } = frame {
+            if let (Some(g), Some(s)) = (goal.as_ref(), source.as_ref()) {
+                if g.concept == s.concept {
+                    *source = None;
+                }
+            }
+        }
     }
 }
 
@@ -253,13 +316,10 @@ fn find_topic_node(graph: &crate::core::graph::LinguisticGraph, entity: &Entity)
 }
 
 fn attach_discourse_constructions(sentence: &mut Sentence, topic_node: Option<NodeId>) {
-    for concept in [ZERO_ANAPHORA, TOPIC_CONTINUATION, CONTINUING_AGENT] {
-        sentence
-            .construction_concepts
-            .push(ConceptId::new(concept));
-    }
-
     let Some(ref mut g) = sentence.graph else {
+        for concept in [ZERO_ANAPHORA, TOPIC_CONTINUATION, CONTINUING_AGENT] {
+            sentence.construction_concepts.push(ConceptId::new(concept));
+        }
         return;
     };
 
@@ -300,10 +360,11 @@ fn attach_discourse_constructions(sentence: &mut Sentence, topic_node: Option<No
     }
 
     for concept in [ZERO_ANAPHORA, TOPIC_CONTINUATION, CONTINUING_AGENT] {
-        g.add_edge(
+        constructions::attach_construction(
+            &mut sentence.construction_concepts,
+            g,
             agent_nid,
-            agent_nid,
-            EdgeKind::PartOfConstruction(concept.into()),
+            concept,
         );
     }
 
@@ -311,6 +372,36 @@ fn attach_discourse_constructions(sentence: &mut Sentence, topic_node: Option<No
         g.add_edge(topic_nid, agent_nid, EdgeKind::ContinuesTopic);
         g.add_edge(topic_nid, agent_nid, EdgeKind::Corefers);
         g.add_edge(agent_nid, topic_nid, EdgeKind::Corefers);
+    }
+}
+
+/// Resolve implicit subjects and discourse across dialogue utterances.
+pub fn resolve_dialogue_context(dialogue: &mut DialogueGraph) {
+    let mut continuing_topic: Option<Entity> = None;
+    for utterance in &mut dialogue.utterances {
+        if let Some(ref topic) = continuing_topic {
+            for sentence in &mut utterance.sentences {
+                for frame in &mut sentence.frames {
+                    if frame
+                        .agent_entity()
+                        .map(is_placeholder_agent)
+                        .unwrap_or(false)
+                    {
+                        frame.set_agent_entity(make_continued_entity(topic));
+                    }
+                }
+            }
+        }
+        track_discourse(utterance);
+        for sentence in &utterance.sentences {
+            for frame in &sentence.frames {
+                if let Some(subject) = frame.agent_entity() {
+                    if is_salient_subject(subject) {
+                        continuing_topic = Some(subject.clone());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -358,6 +449,7 @@ pub fn link_cross_utterance_context(dialogue: &mut DialogueGraph) {
             }
         }
     }
+    resolve_dialogue_context(dialogue);
 }
 
 /// Query recent entity mentions within an utterance graph layer.

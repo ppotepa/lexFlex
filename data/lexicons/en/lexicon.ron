@@ -185,6 +185,7 @@
     ("wash oneself", (lemma: "wash", pos: "Verb", concept: "WASH_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: None, features: ())),
     ("comb oneself", (lemma: "comb", pos: "Verb", concept: "COMB_ONESELF", frame_type: Some("Custom"), roles: ["Agent"], paradigm: None, features: ())),
     ("leave", (lemma: "leave", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: None, features: ())),
+    ("left", (lemma: "leave", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: None, features: (tense: Some(Past)))),
     ("ride", (lemma: "ride", pos: "Verb", concept: "RIDE", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Instrument"], paradigm: None, features: ())),
     ("drive", (lemma: "drive", pos: "Verb", concept: "RIDE", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Instrument"], paradigm: None, features: ())),
     ("help", (lemma: "help", pos: "Verb", concept: "HELP", frame_type: Some("Transfer"), roles: ["Agent", "Recipient"], paradigm: None, features: ())),

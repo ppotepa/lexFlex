@@ -540,6 +540,23 @@ impl Frame {
         }
     }
 
+    pub fn goal_entity_mut(&mut self) -> Option<&mut Entity> {
+        match self {
+            Frame::Motion { goal, .. } => goal.as_mut(),
+            Frame::Transfer { recipient, .. } => Some(recipient),
+            _ => None,
+        }
+    }
+
+    pub fn theme_entity_mut(&mut self) -> Option<&mut Entity> {
+        match self {
+            Frame::Transfer { theme, .. } => Some(theme),
+            Frame::Motion { .. } => None,
+            Frame::Consumption { patient, .. } => Some(patient),
+            _ => None,
+        }
+    }
+
     pub fn set_agent_entity(&mut self, entity: Entity) {
         match self {
             Frame::Transfer { agent, .. } => *agent = entity,
@@ -661,10 +678,31 @@ pub enum Quantifier {
     Proportional(String),
 }
 
+// ─── Construction tree (IL composable AST) ───────────────────────────────────
+
+/// A linguistic construction wrapping an inner predication frame.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConstructionInstance {
+    pub construction_concept: ConceptId,
+    pub inner: Frame,
+}
+
+impl ConstructionInstance {
+    pub fn new(concept: ConceptId, inner: Frame) -> Self {
+        Self {
+            construction_concept: concept,
+            inner,
+        }
+    }
+}
+
 // ─── Sentence ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Sentence {
+    /// Construction tree nodes (primary IL structure for compilation).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub constructions: Vec<ConstructionInstance>,
     pub frames: Vec<Frame>,
     pub tense: Option<Tense>,
     pub aspect: Option<Aspect>,
@@ -688,6 +726,7 @@ pub struct Sentence {
 impl Sentence {
     pub fn new() -> Self {
         Self {
+            constructions: Vec::new(),
             frames: Vec::new(),
             tense: None,
             aspect: None,

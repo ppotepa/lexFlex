@@ -64,9 +64,24 @@ pub fn generate_sentence(
     let is_neg = sentence.polarity == Polarity::Negative;
     let is_q = sentence.illocution == Illocution::Question;
 
-    for frame in &sentence.frames {
-        let frame_words = generate_frame(frame, sentence, realizer, desc, lexicon)?;
-        words.extend(frame_words);
+    let use_constructions = !sentence.constructions.is_empty();
+    if use_constructions {
+        for inst in &sentence.constructions {
+            let frame_words = generate_frame_with_construction(
+                &inst.inner,
+                Some(&inst.construction_concept),
+                sentence,
+                realizer,
+                desc,
+                lexicon,
+            )?;
+            words.extend(frame_words);
+        }
+    } else {
+        for frame in &sentence.frames {
+            let frame_words = generate_frame(frame, sentence, realizer, desc, lexicon)?;
+            words.extend(frame_words);
+        }
     }
 
     // Sentence-level quantifiers (universal, proportional, etc.) prepended.
@@ -202,6 +217,17 @@ pub fn generate_sentence(
 /// Uses resolve_surface_verb (lexicon-driven from verb_concept) so "HAVE" -> "ma"/"have".
 /// Applies quant adjust + cardinality prefix for Numerical on object-like roles.
 /// Small lang-specific for "to" in EN transfer.
+fn generate_frame_with_construction(
+    frame: &Frame,
+    _construction: Option<&ConceptId>,
+    sentence: &Sentence,
+    realizer: &dyn LanguageRealizer,
+    desc: &LanguageDescriptor,
+    lexicon: &Lexicon,
+) -> Result<Vec<String>, GenerateError> {
+    generate_frame(frame, sentence, realizer, desc, lexicon)
+}
+
 fn generate_frame(
     frame: &Frame,
     sentence: &Sentence,
@@ -611,22 +637,33 @@ fn generate_frame(
             }
 
             if let Some(s) = source {
-                let mut fs = s.features.clone();
-                if desc.language == "en" {
-                    // EN uses preposition "from" for source
-                } else {
-                    fs.case = Some(Case::Genitive);
+                let duplicate_goal = goal
+                    .as_ref()
+                    .map_or(false, |g| g.concept == s.concept);
+                if !duplicate_goal {
+                    let mut fs = s.features.clone();
+                    if desc.language == "en" {
+                        // EN uses preposition "from" for source
+                    } else {
+                        fs.case = Some(Case::Genitive);
+                    }
+                    if let Some(ref q) = sentence.quantification {
+                        realizer.adjust_for_quantifier(&mut fs, q, desc);
+                    }
+                    let mut source_for_real = s.clone();
+                    lexicon.normalize_entity(&mut source_for_real);
+                    let s_np = realizer.realize_noun_phrase(
+                        &source_for_real,
+                        &mut fs,
+                        desc,
+                        lexicon,
+                        sentence.graph.as_ref(),
+                    )?;
+                    if desc.language == "en" {
+                        words.push("from".to_string());
+                    }
+                    words.extend(s_np);
                 }
-                if let Some(ref q) = sentence.quantification {
-                    realizer.adjust_for_quantifier(&mut fs, q, desc);
-                }
-                let mut source_for_real = s.clone();
-                lexicon.normalize_entity(&mut source_for_real);
-                let s_np = realizer.realize_noun_phrase(&source_for_real, &mut fs, desc, lexicon, sentence.graph.as_ref())?;
-                if desc.language == "en" {
-                    words.push("from".to_string());
-                }
-                words.extend(s_np);
             }
 
             Ok(words)
