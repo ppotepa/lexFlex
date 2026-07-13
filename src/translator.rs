@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::core::context;
 use crate::core::graph::DialogueGraph;
 use crate::core::interlingua::{Interlingua, LanguageId};
+use crate::core::summary::trace_digest;
 use crate::core::traits::IMeaningRepresentation;
 use crate::error::TranslateError;
 
@@ -51,6 +52,10 @@ impl UniversalTranslator {
             }
         })?;
 
+        if let Interlingua::Natural(ref utt) = il {
+            trace_digest("parse_complete", utt);
+        }
+
         let inexpressible = target.can_express(&il);
         if !inexpressible.is_empty() {
             return Err(TranslateError::InexpressibleInTarget {
@@ -60,6 +65,10 @@ impl UniversalTranslator {
                     .map(|f| format!("{:?}", f.capability))
                     .collect(),
             });
+        }
+
+        if let Interlingua::Natural(ref utt) = il {
+            trace_digest("pre_generation", utt);
         }
 
         let output = target.from_interlingua(&il).map_err(|e| {

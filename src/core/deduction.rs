@@ -1,6 +1,7 @@
 use crate::core::constructions::{
     self, ACCOMPANIMENT, AGE_IDIOM, DEMONSTRATIVE_REFERENCE, IDENTIFICATION,
 };
+use crate::core::summary::trace_digest;
 use crate::core::graph::{self, EdgeKind};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
@@ -33,6 +34,7 @@ pub fn deduce(
         validate_and_inherit_from_ontology(sentence, context.ontology)?;
         normalize_features(sentence)?;
     }
+    trace_digest("deduction", &utterance);
     Ok(utterance)
 }
 

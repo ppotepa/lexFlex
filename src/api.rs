@@ -2,6 +2,9 @@ use std::path::Path;
 
 use crate::core::graph::DialogueGraph;
 use crate::core::interlingua::{Interlingua, LanguageId, Utterance};
+use crate::core::summary::{
+    format_digest_human, format_digest_json, summarize_utterance, SemanticDigest,
+};
 use crate::data::loader;
 use crate::engines::en::EnglishEngine;
 use crate::engines::en::morphology::EnglishMorphology;
@@ -86,6 +89,22 @@ impl LexFlexAPI {
                     features: vec!["Expected natural language utterance".to_string()],
                 })
             })
+    }
+
+    /// IL-derived semantic digest after full parse → deduction → discourse resolution.
+    pub fn explain(&self, input: &str, lang: &str) -> Result<SemanticDigest, LexFlexError> {
+        let utt = self.parse_multi_sentence(input, lang)?;
+        Ok(summarize_utterance(&utt))
+    }
+
+    /// Human-readable semantic digest (chat/CLI default).
+    pub fn explain_human(&self, input: &str, lang: &str) -> Result<String, LexFlexError> {
+        Ok(format_digest_human(&self.explain(input, lang)?))
+    }
+
+    /// JSON semantic digest.
+    pub fn explain_json(&self, input: &str, lang: &str) -> Result<String, LexFlexError> {
+        Ok(format_digest_json(&self.explain(input, lang)?))
     }
 
     /// Translate a sequence of utterances, carrying dialogue context.

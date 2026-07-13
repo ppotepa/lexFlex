@@ -44,15 +44,26 @@ enum Commands {
         #[arg(short, long, default_value = "data")]
         data: String,
     },
+    /// Semantic digest: actors, actions, roles, discourse (IL-derived)
+    Explain {
+        /// Input text
+        text: OsString,
+        /// Source language (pl, en)
+        #[arg(short, long, default_value = "pl")]
+        lang: String,
+        /// Output format: human or json
+        #[arg(short, long, default_value = "human")]
+        format: String,
+        /// Data directory
+        #[arg(short, long, default_value = "data")]
+        data: String,
+    },
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("lexflex=info".parse().unwrap()),
-        )
-        .init();
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("lexflex=info"));
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
     let cli = Cli::parse();
 
@@ -97,6 +108,30 @@ fn main() {
             println!("Supported languages:");
             for lang in langs {
                 println!("  - {}", lang);
+            }
+        }
+        Commands::Explain {
+            text,
+            lang,
+            format,
+            data,
+        } => {
+            let text = text.to_string_lossy().to_string();
+            let api = LexFlexAPI::builder()
+                .data_dir(&data)
+                .build()
+                .expect("Failed to initialize lexFlex");
+
+            let result = match format.as_str() {
+                "json" => api.explain_json(&text, &lang),
+                "human" | _ => api.explain_human(&text, &lang),
+            };
+            match result {
+                Ok(out) => println!("{}", out),
+                Err(e) => {
+                    eprintln!("Explain error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     }

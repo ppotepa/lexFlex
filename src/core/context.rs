@@ -1,6 +1,7 @@
 use crate::core::constructions::{self, CONTINUING_AGENT, TOPIC_CONTINUATION, ZERO_ANAPHORA};
 use crate::core::graph::{self, DialogueGraph, EdgeKind, GraphNode};
 use crate::core::interlingua::*;
+use crate::core::summary::trace_digest;
 
 pub use crate::core::constructions::{
     CONTINUING_AGENT as CONSTRUCTION_CONTINUING_AGENT,
@@ -131,6 +132,7 @@ pub fn track_discourse(utterance: &mut Utterance) {
     utterance.discourse = Some(discourse);
 
     resolve_discourse_context(utterance);
+    trace_digest("discourse", utterance);
 }
 
 /// Resolve implicit/zero subjects from continuing discourse topic and attach construction concepts.

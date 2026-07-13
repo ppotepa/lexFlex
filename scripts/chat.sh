@@ -195,6 +195,7 @@ fi
 echo "Type sentences. Special commands:"
 echo "  quit / exit          — leave"
 echo "  full                 — raw huge debug dump for next sentence"
+echo "  json                 — machine-readable semantic digest for next sentence"
 echo "  help                 — this text again"
 echo
 echo "Everything you see below is real: parsers, deduction, LLM calls, graph, on-the-fly RON writes..."
@@ -232,8 +233,15 @@ while true; do
       ./target/debug/lexflex parse "$FULL_INPUT" --lang "$SRC" 2>&1 | cat
       continue
       ;;
+    json)
+      echo "Enter sentence for JSON semantic digest:"
+      read -r JSON_INPUT || continue
+      phase "JSON SEMANTIC DIGEST"
+      ./target/debug/lexflex explain "$JSON_INPUT" --lang "$SRC" --format json 2>/dev/null
+      continue
+      ;;
     help|h)
-      echo "Commands: quit, full, help"
+      echo "Commands: quit, full, json, help"
       continue
       ;;
   esac
@@ -245,27 +253,19 @@ while true; do
     printf "\n[you] %s\n" "$INPUT"
   fi
 
-  # --- 2. Parse phase (compact, NO huge 200KB graph dump by default)
-  phase "1. Parsing + concept resolution (compact view)"
-  thinking "Running parser + unknown-concept resolver (deduction + learner if configured)..."
+  # --- 2. Semantic digest (IL-derived actors, actions, roles, discourse)
+  phase "1. Parsing + concept resolution (semantic digest)"
+  thinking "Running parser + deduction + discourse → IL-derived digest..."
 
-  # We deliberately avoid dumping the full {:#?} LinguisticGraph here.
-  # 'full' command is available when you really want the monster debug.
-  PARSE_TMP=$(mktemp)
-  ./target/debug/lexflex parse "$INPUT" --lang "$SRC" >"$PARSE_TMP" 2>&1 || true
-
-  # Extract tiny useful bits without printing kilobytes
-  echo "   Quick view (first meaningful lines):"
-  # Show a very small prefix (first frame-ish info) instead of the whole tree
-  head -c 420 "$PARSE_TMP" | tr '\n' ' ' | fold -s -w 78 | sed 's/^/     /'
-  echo
-  echo "   (Full graph hidden — use the 'full' command if you want the 100-200KB raw dump.)"
-
-  # Also try to surface a couple of signals for verbosity
-  echo "   Signals:"
-  # Extract useful bits without hardcoding old concepts
-  grep -oE '(Existence|Action|Possession|CAT|BLACK|KOT|CZARNY|BE|frame:|lemma: [^,)]+|concept: [^,)]+)' "$PARSE_TMP" 2>/dev/null | sort | uniq | head -8 | sed 's/^/     • /' || echo "     • (no quick signals)"
-  rm -f "$PARSE_TMP"
+  DIGEST_OUT=$(mktemp)
+  if ./target/debug/lexflex explain "$INPUT" --lang "$SRC" --format human 2>/dev/null >"$DIGEST_OUT"; then
+    echo "   Semantic digest:"
+    sed 's/^/     /' "$DIGEST_OUT"
+    echo "   (Raw Interlingua/graph: use 'full'. JSON digest: use 'json'.)"
+  else
+    echo "   (Digest unavailable — see translation trace below.)"
+  fi
+  rm -f "$DIGEST_OUT"
 
   # --- 3. The main event: TRANSLATE with full streaming trace
   phase "2. Translation pipeline (full RUST_LOG trace — live)"
