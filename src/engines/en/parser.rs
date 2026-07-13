@@ -292,7 +292,7 @@ impl EnglishParser {
                     let nm = entities[k].name.as_deref().unwrap_or("");
                     let is_adj = if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
                         e.pos == "Adjective"
-                    } else { nm.len() > 2 && (nm.as_bytes()[nm.len()-2] == b'e' || nm.as_bytes()[nm.len()-1] == b'y') };
+                    } else { nm.len() > 2 && (nm.as_bytes()[nm.len()-2] == b'e' || nm.as_bytes()[nm.len()-1] == b'y' || nm.ends_with("ous") || nm.ends_with("ful") || nm.ends_with("al")) };
                     if !is_adj { break; }
                     k += 1;
                 }

@@ -563,7 +563,7 @@ impl PolishParser {
                     let nm = entities[k].name.as_deref().unwrap_or("");
                     let is_adj = if let Some(e) = self.lexicon.lookup_by_form(&nm.to_lowercase()).or_else(|| self.lexicon.lookup_by_lemma(nm)) {
                         e.pos == "Adjective"
-                    } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") };
+                    } else { nm.ends_with('y') || nm.ends_with("szy") || nm.ends_with("ższy") || nm.ends_with('j') || nm.ends_with("ój") || nm.ends_with("ny") || nm.ends_with("ki") };
                     if !is_adj { break; }
                     k += 1;
                 }

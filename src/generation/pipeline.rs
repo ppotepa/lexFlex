@@ -491,10 +491,17 @@ fn generate_frame(
 
             let policy = GenerationPolicy::new(desc);
             let mut words = vec![];
-            if !e.is_empty() && policy.should_emit_subject(&entity) {
+            if location.is_none() {
+                // Fix for "To jest ..." identificational: produce "this is <entity>" not "<entity> is"
+                let this = if entity.features.number == Some(Number::Plural) { "these are" } else { "this is" };
+                words.push(this.to_string());
                 words.extend(e);
+            } else if !e.is_empty() && policy.should_emit_subject(&entity) {
+                words.extend(e);
+                words.push(exist_verb);
+            } else {
+                words.push(exist_verb);
             }
-            words.push(exist_verb);
 
             if let Some(loc) = location {
                 let mut fl = loc.features.clone();

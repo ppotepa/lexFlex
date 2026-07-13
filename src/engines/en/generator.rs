@@ -457,6 +457,14 @@ impl EnglishGenerator {
     ) -> Result<Vec<String>, GenerateError> {
         let entity_form = self.generate_entity_form_legacy(entity, true)?;
 
+        // "To jest ..." / identificational copula without location -> "This is <entity>"
+        // Algorithmic fix for copula identification sentences (no location case).
+        if location.is_none() {
+            let this = if entity.features.number == Some(Number::Plural) { "these" } else { "this" };
+            let verb = if entity.features.number == Some(Number::Plural) { "are" } else { "is" };
+            return Ok(vec![this.to_string(), verb.to_string(), entity_form]);
+        }
+
         // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
         let verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
             match sentence.tense {
@@ -645,11 +653,17 @@ impl EnglishGenerator {
         let concept = &adj.concept.0;
         let degree = adj.features.degree;
 
-        // First try to lookup by name (form) to get correct possessive (my/our/your/etc.)
-        if let Some(name) = &adj.name {
-            if let Some(entry) = self.lexicon.lookup_by_form(&name.to_lowercase()) {
-                if entry.pos == "Adjective" {
-                    return Ok(entry.lemma.clone());
+        // Only use name-based lookup for possessives / closed-class adjs (my, your, etc.).
+        // This prevents polluted PL surface forms (e.g. "czerwony" entry for RED) from leaking
+        // into English output. Regular adjectives (color, size) must go through concept lookup
+        // so we get the proper target-language lemma ("red" not "czerwony").
+        let is_possessive_concept = matches!(concept.to_uppercase().as_str(), "MY" | "YOUR" | "OUR" | "HIS" | "HER" | "ITS" | "THEIR");
+        if is_possessive_concept {
+            if let Some(name) = &adj.name {
+                if let Some(entry) = self.lexicon.lookup_by_form(&name.to_lowercase()) {
+                    if entry.pos == "Adjective" {
+                        return Ok(entry.lemma.clone());
+                    }
                 }
             }
         }

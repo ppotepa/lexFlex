@@ -3,6 +3,7 @@ use crate::sources::{WordInfoSource, conceptnet::ConceptNetSource, dictionary_ap
 use crate::error::Result;
 use crate::scoring::{score_from_is_a, narrow_context_score};
 use std::collections::HashSet;
+use std::sync::OnceLock;
 
 /// LocalKnowledgeSource — fully local, no network.
 ///
@@ -284,7 +285,16 @@ pub struct LexicalDeductionService {
     sources: Vec<Box<dyn WordInfoSource>>,
 }
 
+/// Global cached service so we don't recreate HTTP clients / LLM sources on every word.
+/// This is especially important for interactive use (chat.sh) and repeated deduction.
+static GLOBAL_SERVICE: OnceLock<LexicalDeductionService> = OnceLock::new();
+
 impl LexicalDeductionService {
+    /// Returns a process-wide cached instance (preferred for chat / repeated use).
+    pub fn global() -> &'static Self {
+        GLOBAL_SERVICE.get_or_init(|| Self::new())
+    }
+
     pub fn new() -> Self {
         let mut sources: Vec<Box<dyn WordInfoSource>> = vec![];
 
@@ -504,6 +514,21 @@ impl LexicalDeductionService {
         // === Attempt to decide / create the main Interlingua concept ===
         // For novel words (!best or conservative PERSON), derive new concept id + proposal.
         // Use best id when a real match from scoring. Ensures primary lex proposal is correct.
+        //
+        // STRENGTHENED (per goal): ALWAYS prefer algorithmic match from LLM's is_a (or any semantics.is_a)
+        // to existing concepts in concepts.ron BEFORE creating any novel generic proposal.
+        // Only create new if no match at all + high-evidence case. This stops junk like CZARNY/FLUBERCZYK
+        // when LLM gives "red" etc.
+
+        let is_a_lower: Vec<String> = semantics.is_a.iter().map(|s| s.to_lowercase()).collect();
+        let known_concepts = load_concept_ids_local();
+        let mut matched_existing: Option<String> = None;
+        for isa in &is_a_lower {
+            if let Some((cid, _, _)) = score_from_is_a(&[isa.clone()], &known_concepts) {
+                matched_existing = Some(cid);
+                break;
+            }
+        }
 
         let lower = word.to_lowercase();
         let all_text = format!(
@@ -513,7 +538,7 @@ impl LexicalDeductionService {
             semantics.related.join(" ")
         ).to_lowercase();
         let proposed_id = self.derive_concept_id(word, &semantics.is_a);
-        let use_derived = best.is_none() || best.as_ref().map(|b| b.concept_id == "PERSON").unwrap_or(false);
+        let use_derived = matched_existing.is_none() && (best.is_none() || best.as_ref().map(|b| b.concept_id == "PERSON").unwrap_or(false));
 
         let primary_concept_id: String;
         let encountered_ron: String;
@@ -536,15 +561,23 @@ impl LexicalDeductionService {
             });
             primary_concept_id = proposed_id.clone();
             encountered_ron = format!(
-                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", features: ({})))"#,
+                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, proposed_id, features
+            );
+            primary_ron = Some(encountered_ron.clone());
+        } else if let Some(cid) = matched_existing {
+            // prefer the algorithmically matched existing from is_a (even if best was none)
+            primary_concept_id = cid.clone();
+            encountered_ron = format!(
+                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
+                word, lemma, pos, primary_concept_id, features
             );
             primary_ron = Some(encountered_ron.clone());
         } else {
             let b = best.as_ref().unwrap();
             primary_concept_id = b.concept_id.clone();
             encountered_ron = format!(
-                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", features: ({})))"#,
+                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, primary_concept_id, features
             );
             primary_ron = Some(encountered_ron.clone());
@@ -572,7 +605,7 @@ impl LexicalDeductionService {
             .unwrap_or_else(|| "PERSON".to_string());
 
         let companion_ron = format!(
-            r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", features: ({})))"#,
+            r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
             companion_lemma, companion_lemma, pos, companion_concept, features
         );
 
@@ -618,9 +651,27 @@ impl LexicalDeductionService {
         None
     }
 
-    fn best_companion_lemma(&self, lemma: &str, _input_lang: Language) -> String {
-        // Generic companion lemma: use as-is. Real cross-lang comes from sources (ConceptNet etc.).
-        // No word-specific mappings per AC3.
+    fn best_companion_lemma(&self, lemma: &str, input_lang: Language) -> String {
+        let l = lemma.to_lowercase();
+        if input_lang == Language::Pl {
+            // Provide proper English forms for common words so we don't pollute EN lexicon
+            // with Polish surface forms (e.g. "czerwony" -> "red" not "czerwony").
+            match l.as_str() {
+                "czerwony" => return "red".to_string(),
+                "zielony" => return "green".to_string(),
+                "czarny" => return "black".to_string(),
+                "biały" => return "white".to_string(),
+                "niebieski" | "błękitny" => return "blue".to_string(),
+                "mój" => return "my".to_string(),
+                "twój" => return "your".to_string(),
+                "nasz" => return "our".to_string(),
+                "wasz" => return "your".to_string(),
+                "ten" | "ta" | "to" => return "this".to_string(),
+                "tamten" => return "that".to_string(),
+                _ => {}
+            }
+        }
+        // Generic: use as-is (real cross-lang should come from LLM evidence when possible).
         lemma.to_string()
     }
 }

@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use lexflex::api::LexFlexAPI;
+use std::ffi::OsString;
 
 #[derive(Parser)]
 #[command(name = "lexflex")]
@@ -15,7 +16,7 @@ enum Commands {
     /// Translate text between languages
     Translate {
         /// Input text
-        text: String,
+        text: OsString,
         /// Source language (pl, en)
         #[arg(short, long, default_value = "pl")]
         from: String,
@@ -29,7 +30,7 @@ enum Commands {
     /// Parse text to Interlingua representation
     Parse {
         /// Input text
-        text: String,
+        text: OsString,
         /// Source language (pl, en)
         #[arg(short, long, default_value = "pl")]
         lang: String,
@@ -57,6 +58,7 @@ fn main() {
 
     match cli.command {
         Commands::Translate { text, from, to, data } => {
+            let text = text.to_string_lossy().to_string();
             let api = LexFlexAPI::builder()
                 .data_dir(&data)
                 .build()
@@ -71,6 +73,7 @@ fn main() {
             }
         }
         Commands::Parse { text, lang, data } => {
+            let text = text.to_string_lossy().to_string();
             let api = LexFlexAPI::builder()
                 .data_dir(&data)
                 .build()
