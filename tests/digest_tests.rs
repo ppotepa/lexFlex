@@ -1,7 +1,7 @@
 //! Semantic digest — IL-derived actor/action/role/topic summary.
 
 use lexflex::api::LexFlexAPI;
-use lexflex::core::summary::{format_digest_human, summarize_utterance, SemanticDigest};
+use lexflex::core::summary::{summarize_utterance, SemanticDigest};
 
 fn build_api() -> LexFlexAPI {
     LexFlexAPI::builder()
@@ -71,8 +71,8 @@ fn test_digest_multi_clause_coordination_distinct_actors() {
         digest.clauses[1]
             .roles
             .iter()
-            .any(|r| r.concept == "TOMATO" && r.name.as_deref() == Some("pomidory")),
-        "clause 2 should expose TOMATO/pomidory role binding, got {:?}",
+            .any(|r| r.concept == "TOMATO" && r.name.as_deref() == Some("pomidor")),
+        "clause 2 should expose TOMATO/pomidor (lemma) role binding, got {:?}",
         digest.clauses[1].roles
     );
     assert!(
@@ -108,18 +108,23 @@ fn test_digest_json_roundtrip() {
 #[test]
 fn test_explain_api_human_output_has_role_lines() {
     let api = build_api();
-    let text = api
-        .explain_human("Tomek poszedł do sklepu. Kupił mleko i wyszedł.", "pl")
-        .expect("explain");
+    let input = "Tomek poszedł do sklepu. Kupił mleko i wyszedł.";
+    let text = api.explain_human(input, "pl").expect("explain");
     assert!(text.contains("Actor:") || text.contains("Aktor:"));
     assert!(text.contains("GO") || text.contains("Motion"));
     assert!(!text.contains("ConstructionInstance"));
+    assert_no_polish_surface_leaks(&text);
 }
 
 #[test]
 fn test_explain_cli_deterministic_rich_discourse() {
     let api = build_api();
     let input = "Tomek poszedł do sklepu. Kupił mleko i wyszedł.";
+    let h1 = api.explain_human(input, "pl").expect("human1");
+    let h2 = api.explain_human(input, "pl").expect("human2");
+    assert_eq!(h1, h2, "human explain must be deterministic");
+    assert_no_polish_surface_leaks(&h1);
+
     let d1 = api.explain_json(input, "pl").expect("run1");
     let d2 = api.explain_json(input, "pl").expect("run2");
     assert_eq!(d1, d2);
@@ -132,6 +137,7 @@ fn test_explain_cli_deterministic_rich_discourse() {
         .find(|r| r.role == "Goal")
         .expect("goal in clause 1");
     assert_eq!(goal.concept, "STORE");
+    assert_eq!(goal.name.as_deref(), Some("sklep"), "goal must use lemma not inflected sklepu");
 
     let leave = digest
         .clauses
@@ -139,4 +145,24 @@ fn test_explain_cli_deterministic_rich_discourse() {
         .find(|c| c.verb_concept == "LEAVE")
         .expect("leave verb clause");
     assert_eq!(leave.frame_type, "Motion");
+
+    assert!(
+        !d1.contains("sklepu") && !d1.contains("wyszedł"),
+        "JSON digest must not leak Polish inflected surfaces"
+    );
+}
+
+fn assert_no_polish_surface_leaks(text: &str) {
+    assert!(
+        !text.contains("sklepu"),
+        "digest must not contain inflected sklepu, got: {text}"
+    );
+    assert!(
+        !text.contains("wyszedł"),
+        "digest must not contain inflected wyszedł, got: {text}"
+    );
+    assert!(
+        text.contains("sklep") || text.contains("STORE"),
+        "goal/store semantics must be visible: {text}"
+    );
 }

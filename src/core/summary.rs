@@ -1,6 +1,6 @@
 //! IL-derived semantic digest for chat, CLI, and tracing.
 
-use crate::core::graph::{GraphNode, LinguisticGraph};
+use crate::core::graph::{self, GraphNode, LinguisticGraph};
 use crate::core::interlingua::*;
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +53,7 @@ pub fn summarize_utterance(utterance: &Utterance) -> SemanticDigest {
 }
 
 fn summarize_sentence(index: usize, sentence: &Sentence) -> ClauseDigest {
+    let graph = sentence.graph.as_ref();
     let frame = sentence.frames.first().cloned().unwrap_or(Frame::Statement {
         subject: Entity::new(ConceptId::new("unknown")),
         property: Entity::new(ConceptId::new("unknown")),
@@ -78,7 +79,7 @@ fn summarize_sentence(index: usize, sentence: &Sentence) -> ClauseDigest {
         index,
         frame_type: frame.frame_type_name().to_string(),
         verb_concept: verb_concept_of(&frame),
-        roles: role_bindings_from_frame(&frame),
+        roles: role_bindings_from_frame(&frame, graph),
         constructions,
         tense: sentence.tense.map(|t| format!("{:?}", t)),
     }
@@ -102,7 +103,32 @@ fn verb_concept_of(frame: &Frame) -> String {
     }
 }
 
-fn role_bindings_from_frame(frame: &Frame) -> Vec<RoleBinding> {
+fn display_entity_name(entity: &Entity, graph: Option<&LinguisticGraph>) -> Option<String> {
+    if entity.concept.0 == "DUMMY_SUBJECT" {
+        return None;
+    }
+    if entity.concept.0 == "PERSON" {
+        return entity.name.clone();
+    }
+    if entity
+        .name
+        .as_ref()
+        .map_or(false, |n| n.chars().next().map_or(false, |c| c.is_uppercase()))
+    {
+        return entity.name.clone();
+    }
+    if let Some(g) = graph {
+        if let Some(eid) = graph::find_entity_node_id(g, entity) {
+            let words = g.realizing_words_for_entity(eid);
+            if let Some(w) = words.first() {
+                return Some(w.lemma.clone());
+            }
+        }
+    }
+    entity.name.clone()
+}
+
+fn role_bindings_from_frame(frame: &Frame, graph: Option<&LinguisticGraph>) -> Vec<RoleBinding> {
     let pairs: Vec<(SemanticRole, &Entity)> = match frame {
         Frame::Transfer {
             agent,
@@ -238,7 +264,7 @@ fn role_bindings_from_frame(frame: &Frame) -> Vec<RoleBinding> {
         .map(|(role, entity)| RoleBinding {
             role: format!("{:?}", role),
             concept: entity.concept.0.clone(),
-            name: entity.name.clone(),
+            name: display_entity_name(entity, graph),
             reference: reference_label(&entity.reference),
         })
         .collect()
@@ -316,10 +342,21 @@ fn push_unique_entity_ref(list: &mut Vec<EntityRef>, er: EntityRef) {
 
 fn entity_ref_from_node(graph: &LinguisticGraph, nid: NodeId) -> Option<EntityRef> {
     graph.nodes.get(nid.0 as usize).and_then(|n| match n {
-        GraphNode::Entity(e) => Some(EntityRef {
-            concept: e.concept.0.clone(),
-            name: e.name.clone(),
-        }),
+        GraphNode::Entity(e) => {
+            let entity = Entity {
+                concept: e.concept.clone(),
+                name: e.name.clone(),
+                features: e.features.clone(),
+                reference: Reference::Direct,
+                id: None,
+                coordination: None,
+                adjectives: vec![],
+            };
+            Some(EntityRef {
+                concept: e.concept.0.clone(),
+                name: display_entity_name(&entity, Some(graph)),
+            })
+        }
         _ => None,
     })
 }
