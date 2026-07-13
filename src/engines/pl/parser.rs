@@ -934,7 +934,13 @@ impl PolishParser {
         let frame = if let Some(age) = self.try_age_idiom_frame(tokens, &entities, &sentence) {
             age
         } else {
-            self.build_frame(&eff_frame_type, &eff_roles, &entities, &verb_concept)?
+            self.build_frame(
+                &eff_frame_type,
+                &eff_roles,
+                &entities,
+                &verb_concept,
+                Some(&entity_pre_verb),
+            )?
         };
 
         sentence.frames.push(frame.clone());
@@ -1064,19 +1070,86 @@ impl PolishParser {
         })
     }
 
+    fn try_assign_role(
+        assigned: &mut [Option<Entity>],
+        roles: &[SemanticRole],
+        role: SemanticRole,
+        entity: &Entity,
+    ) -> bool {
+        if let Some(idx) = roles.iter().position(|r| *r == role) {
+            if assigned[idx].is_none() {
+                assigned[idx] = Some(entity.clone());
+                return true;
+            }
+        }
+        false
+    }
+
+    fn entity_already_assigned(assigned: &[Option<Entity>], entity: &Entity) -> bool {
+        assigned.iter().any(|slot| {
+            slot.as_ref().map_or(false, |e| {
+                e.concept == entity.concept && e.name == entity.name
+            })
+        })
+    }
+
+    /// Polish SVO: pre-verb NPs are subjects (Agent), post-verb NPs are objects (Theme/Goal/Patient).
+    /// Disambiguates nominative=accusative forms (e.g. pomidory) that case-only pass would mis-assign.
+    fn assign_svo_roles(
+        frame_type: &str,
+        roles: &[SemanticRole],
+        entities: &[Entity],
+        entity_pre_verb: &[bool],
+        assigned: &mut [Option<Entity>],
+    ) {
+        if entities.len() != entity_pre_verb.len() {
+            return;
+        }
+        if !matches!(frame_type, "Transfer" | "Consumption" | "Motion") {
+            return;
+        }
+        for (entity, &pre) in entities.iter().zip(entity_pre_verb.iter()) {
+            if Self::entity_already_assigned(assigned, entity) {
+                continue;
+            }
+            if pre {
+                if Self::try_assign_role(assigned, roles, SemanticRole::Agent, entity) {
+                    continue;
+                }
+                let _ = Self::try_assign_role(assigned, roles, SemanticRole::Experiencer, entity);
+            } else {
+                if Self::try_assign_role(assigned, roles, SemanticRole::Theme, entity) {
+                    continue;
+                }
+                if Self::try_assign_role(assigned, roles, SemanticRole::Patient, entity) {
+                    continue;
+                }
+                let _ = Self::try_assign_role(assigned, roles, SemanticRole::Goal, entity);
+            }
+        }
+    }
+
     fn build_frame(
         &self,
         frame_type: &str,
         roles: &[SemanticRole],
         entities: &[Entity],
         verb_concept: &str,
+        entity_pre_verb: Option<&[bool]>,
     ) -> Result<Frame, ParseError> {
         let mut assigned: Vec<Option<Entity>> = vec![None; roles.len()];
+
+        if let Some(flags) = entity_pre_verb {
+            Self::assign_svo_roles(frame_type, roles, entities, flags, &mut assigned);
+        }
 
         // Pass 0: assign entities with explicit person (pro-drop subjects)
         // Person 1st/2nd → Agent/Experiencer (subject of the verb)
         let mut unassigned: Vec<Entity> = Vec::new();
         for entity in entities {
+            if Self::entity_already_assigned(&assigned, entity) {
+                continue;
+            }
             if let Some(person) = entity.features.person {
                 if person == Person::First || person == Person::Second {
                     // Try to assign to Agent or Experiencer
@@ -1105,6 +1178,9 @@ impl PolishParser {
         // Map semantic role or case to available role in the frame
         let mut still_unassigned: Vec<Entity> = Vec::new();
         for entity in unassigned {
+            if Self::entity_already_assigned(&assigned, &entity) {
+                continue;
+            }
             // First, check if entity has an explicit semantic role from preposition
             if let Some(role) = entity.features.semantic_role {
                 if roles.contains(&role) {
@@ -1193,6 +1269,9 @@ impl PolishParser {
         // Pass 2: assign remaining entities using animacy heuristics
         // Animate entities prefer Agent/Experiencer, inanimate prefer Theme/Patient
         for entity in &still_unassigned {
+            if Self::entity_already_assigned(&assigned, entity) {
+                continue;
+            }
             let is_animate = entity.features.animacy == Some(Animacy::Animate);
             
             if is_animate {
@@ -1447,6 +1526,39 @@ mod tests {
     use super::*;
     use crate::data::loader;
     use std::path::Path;
+
+    #[test]
+    fn test_mama_kupila_pomidory_agent_theme_roles() {
+        let data_path = Path::new("data");
+        let lexicon = loader::load_lexicon(&data_path.join("lexicons/pl/lexicon.ron")).expect("lexicon");
+        let noun_p = loader::load_paradigms(&data_path.join("morphology/pl/noun_paradigms.ron")).expect("noun");
+        let verb_p = loader::load_paradigms(&data_path.join("morphology/pl/verb_paradigms.ron")).expect("verb");
+        let adj_p = loader::load_paradigms(&data_path.join("morphology/pl/adj_paradigms.ron")).expect("adj");
+        let morph = crate::engines::pl::morphology::PolishMorphology::new(noun_p, verb_p, adj_p);
+        let concepts = loader::load_concepts(&data_path.join("concepts/concepts.ron")).unwrap_or_default();
+        let ontology = loader::build_ontology_from_concepts(&concepts);
+        let concept_ids: Vec<String> = concepts.iter().map(|c| c.id.clone()).collect();
+        let desc = loader::load_descriptor(&data_path.join("descriptors/pl.ron")).expect("desc");
+        let parser = PolishParser::new(lexicon, morph, ontology, desc, concept_ids);
+
+        let ut = parser.parse("moja mama kupiła pomidory.").expect("parse");
+        let frame = &ut.sentences[0].frames[0];
+        match frame {
+            Frame::Transfer {
+                agent,
+                theme,
+                verb_concept,
+                ..
+            } => {
+                assert_eq!(verb_concept, "BUY");
+                assert_eq!(agent.name.as_deref(), Some("mama"));
+                assert_eq!(agent.concept.0, "MOTHER");
+                assert_eq!(theme.concept.0, "TOMATO");
+                assert_eq!(theme.name.as_deref(), Some("pomidory"));
+            }
+            other => panic!("expected Transfer frame, got {:?}", other),
+        }
+    }
 
     #[test]
     fn test_poszedl_resolves_go_motion_with_goal() {

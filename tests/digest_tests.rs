@@ -67,22 +67,19 @@ fn test_digest_multi_clause_coordination_distinct_actors() {
 
     assert_eq!(digest.clauses[1].verb_concept, "BUY");
     assert_eq!(digest.clauses[1].frame_type, "Transfer");
-    assert!(
-        digest.clauses[1]
-            .roles
-            .iter()
-            .any(|r| r.concept == "TOMATO" && r.name.as_deref() == Some("pomidor")),
-        "clause 2 should expose TOMATO/pomidor (lemma) role binding, got {:?}",
-        digest.clauses[1].roles
-    );
-    assert!(
-        digest.clauses[1]
-            .roles
-            .iter()
-            .any(|r| r.name.as_deref() == Some("mama")),
-        "clause 2 should expose mama entity, got {:?}",
-        digest.clauses[1].roles
-    );
+
+    let c1_agent = clause_agent(&digest, 1);
+    assert_eq!(c1_agent.name.as_deref(), Some("mama"));
+    assert_eq!(c1_agent.concept, "MOTHER");
+
+    let theme = digest.clauses[1]
+        .roles
+        .iter()
+        .find(|r| r.role == "Theme")
+        .expect("clause 2 must have Theme role");
+    assert_eq!(theme.concept, "TOMATO");
+    assert_eq!(theme.name.as_deref(), Some("pomidor"));
+
     assert_ne!(c0_agent.name.as_deref(), Some("mama"));
 }
 
