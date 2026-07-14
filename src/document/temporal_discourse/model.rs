@@ -13,10 +13,24 @@ use super::options::DocumentTemporalDiscourseOptions;
 use super::schema::DocumentTemporalDiscourseSchema;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClockTime {
+    pub hour: u8,
+    pub minute: u8,
+    pub second: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimezoneOffset {
+    pub minutes_east_utc: i16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentReferenceTime {
     pub id: DocumentReferenceTimeId,
     pub label: String,
-    pub iso_timestamp: Option<String>,
+    pub civil_date: Option<crate::document::knowledge::CivilDate>,
+    pub clock_time: Option<ClockTime>,
+    pub timezone_offset: Option<TimezoneOffset>,
     pub explicit: bool,
 }
 
@@ -32,7 +46,12 @@ pub enum TemporalExpressionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TemporalNormalizedValue {
-    Absolute { iso_timestamp: Option<String> },
+    Absolute {
+        civil_date: Option<crate::document::knowledge::CivilDate>,
+        clock_time: Option<ClockTime>,
+        timezone_offset: Option<TimezoneOffset>,
+        iso_timestamp: Option<String>,
+    },
     Relative { offset_days: i64, anchor: String },
     Duration { days: i64 },
     Frequency { times: i32, period: String },
@@ -49,6 +68,13 @@ pub struct TemporalExpression {
     pub normalized: TemporalNormalizedValue,
     pub explicit_reference_time: Option<DocumentReferenceTimeId>,
     pub evidence: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EventTemporalRef {
+    Event(GraphNodeId),
+    EventCluster(EventCoreferenceClusterId),
+    DocumentReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -226,6 +252,7 @@ pub struct DocumentTemporalDiscourse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventTemporalAssignment {
     pub id: EventTemporalAssignmentId,
+    pub event_ref: EventTemporalRef,
     pub event_profile_id: GraphNodeId,
     pub temporal_expression_id: Option<TemporalExpressionId>,
     pub relation: TemporalRelationKind,

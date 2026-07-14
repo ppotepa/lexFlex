@@ -1,8 +1,8 @@
 use crate::document::compilation::DocumentCompilation;
-use crate::document::graph::DocumentGraph;
+use crate::document::graph::{DocumentGraph, DocumentGraphNode};
 use crate::document::resolution::DocumentEntityResolution;
 use crate::document::temporal_discourse::DocumentTemporalDiscourse;
-use crate::core::interlingua::{Entity, Frame, SemanticRole};
+use crate::core::interlingua::{Entity, Frame, Polarity, Quantifier, SemanticRole};
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -68,8 +68,8 @@ impl DocumentKnowledgeService {
 
         let mut proposition_occurrences = BTreeMap::new();
         let mut proposition_order = Vec::new();
-        let values = BTreeMap::new();
-        let value_order = Vec::new();
+        let mut values = BTreeMap::new();
+        let mut value_order = Vec::new();
         let mut claims: BTreeMap<ClaimId, DocumentClaim> = BTreeMap::new();
         let mut claim_order = Vec::new();
         let mut contradiction_sets = BTreeMap::new();
@@ -79,19 +79,44 @@ impl DocumentKnowledgeService {
         for sentence in compilation.ordered_results() {
             let Some(utterance) = sentence.semantics.as_ref() else { continue };
             for semantic_sentence in &utterance.sentences {
-                for frame in &semantic_sentence.frames {
-                    let Some((subject, predicate, object)) = frame_fact(frame, resolution) else {
+                for (frame_ordinal, frame) in semantic_sentence.frames.iter().enumerate() {
+                    let Some((subject, predicate, mut object)) = frame_fact(frame, resolution) else {
                         continue;
+                    };
+                    if let Some(number) = semantic_sentence.quantification.as_ref().and_then(|value| match value {
+                        Quantifier::Numerical(number) => Some(*number),
+                        _ => None,
+                    }) {
+                        if matches!(frame, Frame::Statement { .. }) {
+                            let value_id = KnowledgeExtractionIdFactory::value(&artifact_id, value_order.len());
+                            values.insert(value_id.clone(), super::model::KnowledgeValue::Integer(i128::from(number)));
+                            value_order.push(value_id.clone());
+                            object = KnowledgeObjectRef::Value(value_id);
+                        }
+                    }
+                    let factuality = if semantic_sentence.question.is_some() {
+                        ClaimFactuality::Questioned
+                    } else if matches!(semantic_sentence.polarity, Polarity::Negative) {
+                        ClaimFactuality::Negated
+                    } else {
+                        ClaimFactuality::Asserted
+                    };
+                    let world = if semantic_sentence.question.is_some() {
+                        ClaimWorldRef::Question
+                    } else {
+                        ClaimWorldRef::Actual
                     };
                     let occurrence_id = KnowledgeExtractionIdFactory::proposition(
                         &artifact_id,
                         proposition_order.len(),
                     );
+                    let evidence = frame_evidence(graph, &sentence.sentence_id, frame);
+                    let source_spans = frame_source_spans(graph, &sentence.sentence_id, frame);
                     let occurrence = PropositionOccurrence {
                         id: occurrence_id.clone(),
                         source_sentence_id: sentence.sentence_id.clone(),
-                        semantic_sentence_id: None,
-                        frame_occurrence_id: None,
+                        semantic_sentence_id: graph.semantic_sentences_for_source(&sentence.sentence_id).first().map(|node| node.id.clone()),
+                        frame_occurrence_id: graph.frames_for_source(&sentence.sentence_id).get(frame_ordinal).map(|node| node.id.clone()),
                         event_id: None,
                         event_cluster_id: None,
                         subject,
@@ -100,8 +125,8 @@ impl DocumentKnowledgeService {
                         qualifiers: vec![KnowledgeQualifier::SourceSentence(
                             sentence.sentence_id.clone(),
                         )],
-                        factuality: ClaimFactuality::Asserted,
-                        world: ClaimWorldRef::Actual,
+                        factuality,
+                        world,
                         attribution: Some(ClaimAttribution {
                             source_sentence_id: Some(sentence.sentence_id.clone()),
                             source_document_id: compilation.document.id.clone(),
@@ -110,11 +135,8 @@ impl DocumentKnowledgeService {
                         }),
                         temporal_scope: None,
                         confidence_milli: 700,
-                        evidence: vec![format!(
-                            "source_sentence:{} frame:{}",
-                            sentence.sentence_id,
-                            frame.frame_type_name()
-                        )],
+                        evidence,
+                        source_spans,
                     };
                     proposition_order.push(occurrence_id.clone());
                     proposition_occurrences.insert(occurrence_id, occurrence);
@@ -136,11 +158,17 @@ impl DocumentKnowledgeService {
             let claim_id = KnowledgeExtractionIdFactory::claim(&artifact_id, claim_order.len());
             claims_by_signature.insert(signature.clone(), claim_id.clone());
             claim_order.push(claim_id.clone());
+            let status = match occurrence.factuality {
+                ClaimFactuality::Asserted => ClaimStatus::Supported,
+                ClaimFactuality::Negated => ClaimStatus::Contradicted,
+                ClaimFactuality::Questioned | ClaimFactuality::Conditional | ClaimFactuality::Hypothetical => ClaimStatus::NonFactual,
+                _ => ClaimStatus::Unresolved,
+            };
             claims.insert(claim_id.clone(), DocumentClaim {
                 id: claim_id,
                 signature_sha256: signature,
                 occurrence_ids: vec![occurrence_id.clone()],
-                status: ClaimStatus::Supported,
+                status,
                 canonical_subject: occurrence.subject.clone(),
                 canonical_predicate: occurrence.predicate.clone(),
                 canonical_object: occurrence.object.clone(),
@@ -155,12 +183,23 @@ impl DocumentKnowledgeService {
             let mut seen = BTreeMap::<String, Vec<ClaimId>>::new();
             for claim_id in &claim_order {
                 if let Some(claim) = claims.get(claim_id) {
-                    let key = format!("{:?}|{:?}", claim.canonical_subject, claim.canonical_predicate);
+                    let key = format!("{:?}|{:?}|{:?}", claim.canonical_subject, claim.canonical_predicate, claim.world);
                     seen.entry(key).or_default().push(claim_id.clone());
                 }
             }
             for (_, claim_ids) in seen {
-                if claim_ids.len() > 1 {
+                let has_negation = claim_ids.iter().any(|id| claims.get(id).is_some_and(|claim| matches!(claim.status, ClaimStatus::Contradicted)));
+                let different_values = claim_ids.iter().filter_map(|id| claims.get(id).map(|claim| format!("{:?}", claim.canonical_object))).collect::<std::collections::BTreeSet<_>>().len() > 1;
+                let functional = claim_ids.first().and_then(|id| claims.get(id)).is_some_and(|claim| functional_predicate(&claim.canonical_predicate));
+                let conflicting = claim_ids.len() > 1 && (has_negation || (functional && different_values));
+                if conflicting {
+                    for claim_id in &claim_ids {
+                        if let Some(claim) = claims.get_mut(claim_id) {
+                            if matches!(claim.status, ClaimStatus::Supported | ClaimStatus::Contradicted) {
+                                claim.status = ClaimStatus::Contested;
+                            }
+                        }
+                    }
                     let contradiction_id = KnowledgeExtractionIdFactory::contradiction_set(
                         &artifact_id,
                         contradiction_order.len(),
@@ -171,7 +210,7 @@ impl DocumentKnowledgeService {
                         ContradictionSet {
                             id: contradiction_id,
                             claim_ids,
-                            kind: "same-subject-predicate".into(),
+                            kind: "incompatible-scope-values".into(),
                             scope_label: None,
                             status: "Open".into(),
                         },
@@ -315,17 +354,59 @@ fn frame_fact(
             KnowledgeRelationKind::Destroys,
             patient,
         ),
-        Frame::Custom { name, roles } if name == "CAPITAL_OF" => {
-            let subject = roles.iter().find(|(role, _)| *role == SemanticRole::Topic)?.1.clone();
-            let object = roles.iter().find(|(role, _)| *role == SemanticRole::Location)?.1.clone();
+        Frame::Custom { name, roles } if matches!(name.as_str(), "CAPITAL_OF" | "LOCATED_IN" | "CREATED_BY" | "BORN_IN" | "WORKS_FOR") => {
+            let subject = roles.iter().find(|(role, _)| matches!(role, SemanticRole::Topic | SemanticRole::Agent))?.1.clone();
+            let object = roles.iter().find(|(role, _)| matches!(role, SemanticRole::Location | SemanticRole::Beneficiary | SemanticRole::Theme))?.1.clone();
             Some((
                 entity_ref(&subject, resolution)?,
-                KnowledgePredicateRef::Custom("CAPITAL_OF".into()),
+                KnowledgePredicateRef::Custom(name.clone()),
                 entity_object(&object, resolution)?,
             ))
         }
         _ => None,
     }
+}
+
+fn functional_predicate(predicate: &KnowledgePredicateRef) -> bool {
+    matches!(predicate,
+        KnowledgePredicateRef::Custom(name) if matches!(name.as_str(), "CAPITAL_OF" | "POPULATION" | "DATE_OF")
+    ) || matches!(predicate, KnowledgePredicateRef::Property(name) if matches!(name.as_str(), "POPULATION" | "DATE_OF"))
+}
+
+fn frame_evidence(graph: &DocumentGraph, sentence_id: &crate::document::SentenceId, frame: &Frame) -> Vec<String> {
+    let names = frame
+        .entities()
+        .iter()
+        .filter_map(|entity| entity.name.as_deref().map(str::to_lowercase))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut evidence = vec![format!("source_sentence:{sentence_id}"), format!("frame:{}", frame.frame_type_name())];
+    for node_id in &graph.node_order {
+        let Some(DocumentGraphNode::Mention(mention)) = graph.nodes.get(node_id) else { continue };
+        if mention.source_sentence_id != *sentence_id { continue; }
+        if mention.name.as_deref().map(str::to_lowercase).is_some_and(|name| names.contains(&name)) {
+            evidence.push(format!("mention:{}", mention.id));
+            for span in mention.anchor.spans() {
+                evidence.push(format!("source_span:{}:{}", span.start, span.end));
+            }
+        }
+    }
+    evidence.sort();
+    evidence.dedup();
+    evidence
+}
+
+fn frame_source_spans(graph: &DocumentGraph, sentence_id: &crate::document::SentenceId, frame: &Frame) -> Vec<crate::document::span::SourceSpan> {
+    let names = frame.entities().iter().filter_map(|entity| entity.name.as_deref().map(str::to_lowercase)).collect::<std::collections::BTreeSet<_>>();
+    let mut spans = Vec::new();
+    for node_id in &graph.node_order {
+        let Some(DocumentGraphNode::Mention(mention)) = graph.nodes.get(node_id) else { continue };
+        if mention.source_sentence_id == *sentence_id && mention.name.as_deref().map(str::to_lowercase).is_some_and(|name| names.contains(&name)) {
+            spans.extend(mention.anchor.spans());
+        }
+    }
+    spans.sort_by_key(|span| (span.start, span.end));
+    spans.dedup();
+    spans
 }
 
 fn entity_ref(entity: &Entity, resolution: Option<&DocumentEntityResolution>) -> Option<KnowledgeSubjectRef> {
@@ -345,11 +426,20 @@ fn find_cluster(entity: &Entity, resolution: &DocumentEntityResolution) -> Optio
         .mention_profiles
         .iter()
         .find(|(_, profile)| {
-            profile.semantic_entity_id == entity.id
+            // Two absent semantic IDs do not establish identity.  Without
+            // this guard every unresolved entity matched the first profile
+            // because `None == None`.
+            (profile.semantic_entity_id.is_some()
+                && entity.id.is_some()
+                && profile.semantic_entity_id == entity.id)
                 || (profile.concept == entity.concept
                     && profile.normalized_surface.as_deref()
                         == entity.name.as_deref().map(str::to_lowercase).as_deref())
         })
         .and_then(|(mention, _)| resolution.decisions.values().find(|decision| decision.mention == *mention))
-        .and_then(|decision| decision.selected_cluster.clone())
+        // `selected_cluster` is the legacy compatibility projection for an
+        // antecedent selection and is intentionally empty for seeded
+        // mentions.  Knowledge facts need the cluster produced for the
+        // mention itself, which is carried by `result_cluster`.
+        .and_then(|decision| decision.result_cluster.clone())
 }

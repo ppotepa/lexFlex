@@ -13,9 +13,9 @@ pub use id::{
 };
 pub use model::{
     ClaimAttribution, ClaimFactuality, ClaimStatus, ClaimTemporalScope, ClaimWorldRef,
-    DecimalValue, DocumentClaim, DocumentKnowledgeExtraction, KnowledgeDiagnostic,
+    CivilDate, DecimalValue, DocumentClaim, DocumentKnowledgeExtraction, KnowledgeDiagnostic,
     KnowledgeDiagnosticSeverity, KnowledgeObjectRef, KnowledgePredicateRef, KnowledgeQualifier,
-    KnowledgeRelationKind, KnowledgeSubjectRef, KnowledgeValue, PropositionOccurrence,
+    KnowledgeRelationKind, KnowledgeSubjectRef, KnowledgeValue, PropositionOccurrence, QuantityValue,
     ContradictionSet, KnowledgeExtractionSummary,
 };
 pub use options::DocumentKnowledgeExtractionOptions;

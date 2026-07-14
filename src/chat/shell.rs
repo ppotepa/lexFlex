@@ -1,9 +1,6 @@
 use crate::chat::commands::{parse_input, visible_suggestions, InputAction, SlashCommand};
-use crate::chat::conversation_qa::{
-    question_lookup_title, ConversationAnswer, ConversationOutcome,
-};
 use crate::chat::navigation;
-use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatTurn, ChatWorker};
+use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatWorker};
 use crate::chat::session::{ChatMode, ChatSession, FocusTarget, OverlayKind, PendingRequest};
 use crate::chat::tui::input::{
     backspace, delete_forward, insert_char, insert_newline, insert_text, move_down, move_left,
@@ -17,7 +14,6 @@ use ratatui::Terminal;
 use std::error::Error;
 use std::io::Stdout;
 use std::time::{Duration, Instant};
-use crate::query::AnswerStatus;
 
 pub fn run(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
@@ -216,22 +212,17 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
     match parse_input(&input) {
         InputAction::Empty => {}
         InputAction::UserMessage(text) => {
-            let history = conversation_history(session);
             let turn = session.push_user_message(text.clone());
             match session.context.mode {
                 ChatMode::Chat => {
-                    handle_chat_message(session, worker, text, turn, history);
+                    handle_chat_message(session, worker, text, turn);
                 }
                 ChatMode::Translate => {
                     session.pending = Some(PendingRequest {
                         label: "translate".to_string(),
                         started_at: Instant::now(),
                     });
-                    if let Err(err) = worker.submit(ChatJob::Translate {
-                        input: text,
-                        context: session.context.clone(),
-                        settings: session.settings.clone(),
-                    }) {
+                    if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Translate { text, from: crate::core::interlingua::LanguageId::new(&session.context.source_lang), to: crate::core::interlingua::LanguageId::new(&session.context.target_lang) } }) {
                         session.pending = None;
                         session.push_error_message(err.to_string());
                     }
@@ -259,79 +250,33 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
                 let verbosity = session.cycle_verbosity();
                 session.push_system_message(format!("verbosity set to {}.", verbosity.as_str()));
             }
-            SlashCommand::Qa => {
-                session.set_mode(ChatMode::Chat);
-                session.push_system_message("/qa is an alias for /chat; normal conversation mode enabled.");
-            }
-            SlashCommand::Ask(text) => {
+            SlashCommand::Ingest(text) => {
                 session.push_user_message(input.clone());
                 let language = session.chat_language_for(&text);
-                let answer = session.knowledge.answer_question(&text, &language);
-                session.push_response(conversation_answer_to_chat_response(answer), None);
+                let request = crate::engine::SourceRequest::wikipedia_snapshot(text, crate::core::interlingua::LanguageId::new(&language));
+                session.pending = Some(PendingRequest { label: "ingest".into(), started_at: Instant::now() });
+                if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::IngestSource { source: request } }) { session.pending = None; session.push_error_message(err.to_string()); }
             }
-            SlashCommand::Wiki(args) => {
-                let Some((title, text)) = parse_wiki_args(&args) else {
-                    session.push_error_message("use /wiki <title> :: <text> to ingest a Wikipedia snapshot");
-                    return Ok(());
-                };
-                let language = session.chat_language_for(text);
-                let report = session
-                    .knowledge
-                    .ingest_wikipedia_article(title, text, &language);
-                session.push_system_message(format!(
-                    "ingested wikipedia source {} with {} facts.",
-                    title,
-                    report.fact_ids.len()
-                ));
-                if !report.fact_summaries.is_empty() {
-                    session.push_system_message(report.fact_summaries.join(" | "));
+            SlashCommand::Query(text) => {
+                match serde_json::from_str::<crate::query::QueryInterlingua>(&text) {
+                    Ok(query) => {
+                        session.pending = Some(PendingRequest { label: "query".into(), started_at: Instant::now() });
+                        if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Query { query } }) {
+                            session.pending = None;
+                            session.push_error_message(err.to_string());
+                        }
+                    }
+                    Err(err) => session.push_error_message(format!("/query expects QueryInterlingua JSON: {err}")),
                 }
             }
-            SlashCommand::Explain(text) => {
-                session.push_user_message(input.clone());
-                let context = session.context_for_language(session.chat_language_for(&text));
-                session.pending = Some(PendingRequest {
-                    label: "explain".to_string(),
-                    started_at: Instant::now(),
-                });
-                if let Err(err) = worker.submit(ChatJob::Explain {
-                    input: text,
-                    context,
-                }) {
-                    session.pending = None;
-                    session.push_error_message(err.to_string());
-                }
+            SlashCommand::Inspect(target) => {
+                session.pending = Some(PendingRequest { label: "inspect".into(), started_at: Instant::now() });
+                let target = match target.as_str() { "sources" => crate::engine::InspectTarget::Sources, "bundles" => crate::engine::InspectTarget::Bundles, _ => crate::engine::InspectTarget::Session };
+                if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Inspect { target } }) { session.pending = None; session.push_error_message(err.to_string()); }
             }
-            SlashCommand::Parse(text) => {
-                session.push_user_message(input.clone());
-                let context = session.context_for_language(session.chat_language_for(&text));
-                session.pending = Some(PendingRequest {
-                    label: "parse".to_string(),
-                    started_at: Instant::now(),
-                });
-                if let Err(err) = worker.submit(ChatJob::Parse {
-                    input: text,
-                    context,
-                }) {
-                    session.pending = None;
-                    session.push_error_message(err.to_string());
-                }
-            }
-            SlashCommand::Learn(text) => {
-                session.push_user_message(input.clone());
-                let context = session.context_for_language(session.chat_language_for(&text));
-                session.pending = Some(PendingRequest {
-                    label: "learn".to_string(),
-                    started_at: Instant::now(),
-                });
-                if let Err(err) = worker.submit(ChatJob::Learn {
-                    input: text,
-                    context,
-                }) {
-                    session.pending = None;
-                    session.push_error_message(err.to_string());
-                }
-            }
+            SlashCommand::Trace => session.push_system_message("engine trace visibility follows the configured trace mode."),
+            SlashCommand::Clear => { session.clear_session(); session.push_system_message("session cleared."); }
+            SlashCommand::Quit => session.should_quit = true,
         },
         InputAction::IncompleteSlash(draft) => {
             if draft.command == "translate" {
@@ -348,287 +293,47 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
     Ok(())
 }
 
-fn parse_wiki_args(args: &str) -> Option<(&str, &str)> {
-    let (title, text) = args.split_once("::")?;
-    let title = title.trim();
-    let text = text.trim();
-    if title.is_empty() || text.is_empty() {
-        None
-    } else {
-        Some((title, text))
-    }
-}
-
-fn conversation_history(session: &ChatSession) -> Vec<ChatTurn> {
-    session
-        .transcript
-        .messages
-        .iter()
-        .filter_map(|message| {
-            let content = message.blocks.iter().find_map(|block| match block {
-                crate::chat::transcript::MessageBlock::Paragraph(text) => Some(text.clone()),
-                _ => None,
-            })?;
-            let role = match message.role {
-                crate::chat::transcript::MessageRole::User => "user",
-                crate::chat::transcript::MessageRole::Assistant => "assistant",
-                _ => return None,
-            };
-            Some(ChatTurn {
-                role: role.to_string(),
-                content,
-            })
-        })
-        .collect()
-}
-
 fn handle_chat_message(
     session: &mut ChatSession,
     worker: &ChatWorker,
     text: String,
-    turn: usize,
-    history: Vec<ChatTurn>,
+    _turn: usize,
 ) {
-    let language = session.chat_language_for(&text);
-    if let Some(mut trace) = session
-        .semantic
-        .as_ref()
-        .and_then(|semantic| semantic.inspect(&text, &language).ok())
-    {
-        trace.turn = turn;
-        session.record_trace(trace);
-    }
-    if let Some(semantic) = session.semantic.as_mut() {
-        if crate::chat::conversation_qa::looks_like_question(&text, &language) {
-            if let Ok(Some(answer)) = semantic.answer(&text, &language) {
-                session.finish_trace(
-                    turn,
-                    0,
-                    Some("supported".to_string()),
-                    Some(answer.text.clone()),
-                    answer.evidence.clone(),
-                    None,
-                );
-                let mut notes = answer.evidence;
-                if trace_is_visible(session) {
-                    notes.extend(session.trace_notes_for(turn));
-                }
-                session.push_response(crate::chat::service::ChatResponse {
-                    title: "qa".to_string(),
-                    blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(answer.text)],
-                    notes,
-                    latency_ms: 0,
-                }, None);
-                return;
-            }
-        } else if let Ok(added) = semantic.observe(&text, &language) {
-            if added > 0 {
-                session.finish_trace(turn, added, None, None, Vec::new(), None);
-                if trace_is_visible(session) {
-                    session.push_system_message(session.trace_notes_for(turn).join(" | "));
-                }
-                session.push_system_message(format!("stored {added} semantic fact(s)."));
-                return;
-            }
-        }
-    }
-    if crate::chat::conversation_qa::looks_like_question(&text, &language) {
-        let answer = session.knowledge.answer_question(&text, &language);
-        session.finish_trace(
-            turn,
-            0,
-            Some(format!("{:?}", answer.status)),
-            Some(answer.text.clone()),
-            answer
-                .evidence
-                .iter()
-                .map(|item| item.text.clone())
-                .collect(),
-            Some("conversation knowledge fallback".to_string()),
-        );
-        if !matches!(answer.status, AnswerStatus::Unknown | AnswerStatus::Unsupported) {
-            apply_knowledge_outcome(session, ConversationOutcome::Answered(answer));
-            return;
-        }
-        if let Some(title) = question_lookup_title(&text, &language) {
-            session.pending = Some(PendingRequest {
-                label: format!("wikipedia:{title}"),
-                started_at: Instant::now(),
-            });
-            if let Err(err) = worker.submit(ChatJob::WikipediaLookup {
-                question: text,
-                language,
-                title,
-            }) {
-                session.pending = None;
-                session.push_error_message(err.to_string());
-            }
-            return;
-        }
-        if trace_is_visible(session) {
-            session.push_system_message(session.trace_notes_for(turn).join(" | "));
-        }
-        apply_knowledge_outcome(session, ConversationOutcome::Answered(answer));
-        return;
-    }
-
-    let outcome = session.knowledge.observe_text(turn, &text, &language);
-    if let ConversationOutcome::Ingested(report) = &outcome {
-        session.finish_trace(turn, report.fact_ids.len(), None, None, Vec::new(), None);
-        if !report.fact_ids.is_empty() {
-            apply_knowledge_outcome(session, outcome);
-            return;
-        }
-    }
-    session.finish_trace(
-        turn,
-        0,
-        None,
-        None,
-        Vec::new(),
-        Some("LLM conversation fallback".to_string()),
-    );
+    let _language = session.chat_language_for(&text);
     session.pending = Some(PendingRequest {
-        label: "chat".to_string(),
+        label: "engine".to_string(),
         started_at: Instant::now(),
     });
-    if let Err(err) = worker.submit(ChatJob::Chat {
-        input: text,
-        context: session.context_for_language(language),
-        history,
-    }) {
+    let language = session.context.chat_language_override.clone().map(crate::engine::LanguageMode::Explicit).unwrap_or(crate::engine::LanguageMode::Auto);
+    if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::UserTurn { text, language } }) {
         session.pending = None;
         session.push_error_message(err.to_string());
-    }
-}
-
-fn trace_is_visible(session: &ChatSession) -> bool {
-    matches!(session.runtime.trace_mode, crate::chat::TraceMode::Full)
-        || matches!(session.settings.verbosity, crate::chat::Verbosity::Detailed)
-}
-
-fn apply_knowledge_outcome(session: &mut ChatSession, outcome: ConversationOutcome) {
-    match outcome {
-        ConversationOutcome::Answered(answer) => {
-            session.push_response(conversation_answer_to_chat_response(answer), None);
-        }
-        ConversationOutcome::Ingested(report) => {
-            session.push_system_message(format!(
-                "stored {} fact(s) from {}.",
-                report.fact_ids.len(),
-                report.source_label
-            ));
-            if !report.fact_summaries.is_empty() {
-                session.push_system_message(report.fact_summaries.join(" | "));
-            }
-        }
-        ConversationOutcome::Unsupported(note) => {
-            session.push_error_message(note);
-        }
-    }
-}
-
-fn conversation_answer_to_chat_response(answer: ConversationAnswer) -> crate::chat::service::ChatResponse {
-    let mut notes = answer.notes;
-    if notes.is_empty() {
-        notes = answer
-            .evidence
-            .iter()
-            .map(|item| format!(
-                "{} [{}..{}]",
-                item.text,
-                item.span.start,
-                item.span.end
-            ))
-            .collect();
-    }
-    crate::chat::service::ChatResponse {
-        title: "qa".to_string(),
-        blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(answer.text)],
-        notes,
-        latency_ms: 0,
     }
 }
 
 fn apply_job_result(session: &mut ChatSession, result: ChatJobResult) {
     session.pending = None;
     match result.result {
-        Ok(ChatJobOutput::Response(response)) => session.push_response(response, None),
-        Ok(ChatJobOutput::WikipediaArticle {
-            question,
-            language,
-            article,
-        }) => {
-            let pipeline_result = crate::api::LexFlexAPI::builder()
-                .data_dir(&session.runtime.data_dir)
-                .build()
-                .map_err(|error| error.to_string())
-                .and_then(|api| {
-                    crate::runtime::LexFlexDocumentEngine::new(api)
-                        .ingest_document_bundle(&article.text, &language)
-                        .map_err(|error| error.to_string())
-                });
-            let report = session
-                .knowledge
-                .ingest_wikipedia_article_with_url(
-                    &article.title,
-                    &article.text,
-                    &language,
-                    Some(&article.url),
-                );
-            if report.fact_ids.is_empty() {
-                session.push_error_message(format!(
-                    "Wikipedia source '{}' was fetched, but no supported facts were extracted.",
-                    article.title
-                ));
-            } else {
-                let answer = session.knowledge.answer_question(&question, &language);
-                let turn = session
-                    .transcript
-                    .messages
-                    .iter()
-                    .rev()
-                    .find(|message| matches!(message.role, crate::chat::transcript::MessageRole::User))
-                    .map(|message| message.turn);
-                if let Some(turn) = turn {
-                    session.finish_trace(
-                        turn,
-                        0,
-                        Some(format!("{:?}", answer.status)),
-                        Some(answer.text.clone()),
-                        answer
-                            .evidence
-                            .iter()
-                            .map(|item| item.text.clone())
-                            .collect(),
-                        Some("Wikipedia source fallback".to_string()),
-                    );
-                }
-                let mut response = conversation_answer_to_chat_response(answer);
-                response.notes.push(format!("source: {}", article.url));
-                match pipeline_result {
-                    Ok(bundle) => {
-                        response.notes.push(format!(
-                            "document pipeline: sentences={} graph_nodes={} claims={} hash={}",
-                            bundle.compilation.summary.total_sentences,
-                            bundle.graph.nodes.len(),
-                            bundle.knowledge.summary.claims_total,
-                            bundle.source_sha256
-                        ));
-                        session.document_bundles.push(bundle);
-                    }
-                    Err(error) => response.notes.push(format!("document pipeline error: {error}")),
-                }
-                if trace_is_visible(session) {
-                    if let Some(turn) = turn {
-                        response.notes.extend(session.trace_notes_for(turn));
-                    }
-                }
-                session.push_response(response, None);
-            }
-        }
+        Ok(ChatJobOutput::Engine(response)) => apply_engine_response(session, response),
         Err(error) => session.push_error_message(error),
     }
+}
+
+fn apply_engine_response(session: &mut ChatSession, response: crate::engine::EngineResponse) {
+    use crate::engine::EngineResponse;
+    let (title, text, notes) = match response {
+        EngineResponse::Conversation(value) => (
+            "conversation",
+            value.text.unwrap_or_else(|| format!("status: {:?}", value.meta.status)),
+            value.answer.map(|answer| answer.evidence).unwrap_or_default(),
+        ),
+        EngineResponse::Translation(value) => ("translation", value.text, vec![format!("{} -> {}", value.meta.session_snapshot_id, value.meta.request_id)]),
+        EngineResponse::Ingest(value) => ("ingest", format!("ingested {}", value.source_id), vec![format!("snapshot: {}", value.meta.session_snapshot_id), format!("bundle: {}", value.bundle_id)]),
+        EngineResponse::Answer { answer, .. } => ("answer", answer.text.unwrap_or_else(|| format!("status: {:?}", answer.status)), answer.evidence),
+        EngineResponse::Inspection(value) => ("inspection", serde_json::to_string_pretty(&value.values).unwrap_or_default(), vec![]),
+        EngineResponse::Error { error, .. } => ("engine error", format!("{error:?}"), vec![]),
+    };
+    session.push_response(crate::chat::session::ChatResponse { title: title.into(), blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(text)], notes, latency_ms: 0 }, None);
 }
 
 fn sync_command_popup(session: &mut ChatSession) {

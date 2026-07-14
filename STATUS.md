@@ -1,12 +1,13 @@
 # Status
 
-- Document MVP V1 contract: COMPLETE
-- Document corpus: COMPLETE
-- Document baseline: COMPLETE
-- Document foundation hardening: COMPLETE
-- Lossless paragraph/block segmentation: COMPLETE
-- Lossless sentence range segmentation: COMPLETE
-- Document corpus sentence coverage: 82/82 across 30 documents
-- Document MVP progress: 29%
+The current repository contains a working offline-first runtime for Polish and English:
 
-Existing simple-sentence status entries are intentionally left unchanged.
+- deterministic `ConversationEngine` request/response boundary;
+- local-first Wikipedia source provider;
+- document compilation, graph, entity resolution and knowledge extraction;
+- evidence-backed natural-language answers;
+- CLI and TUI clients;
+- immutable session snapshots and JSONL traces;
+- workspace checks and test suites passing.
+
+The implementation is an MVP. Extraction quality is corpus-dependent and the supported language/query surface is intentionally narrower than the long-term architecture described in the reference documents.

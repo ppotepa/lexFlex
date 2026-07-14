@@ -398,18 +398,12 @@ fn resolve_pronoun_entity(
         return Ok(());
     }
     
-    // Check if this is a personal pronoun
-    let is_pronoun = is_personal_pronoun(name, concept);
-    if is_pronoun {
-        // Try to find antecedent by matching gender/number
-        if let Some(antecedent) = find_antecedent(entity, all_entities, subject) {
-            entity.concept = antecedent.concept.clone();
-            if let Some(ref name) = antecedent.name {
-                entity.name = Some(name.clone());
-            }
-            entity.reference = Reference::Anaphoric(antecedent.concept.0.clone());
-        }
-    }
+    // Personal-pronoun binding belongs to document resolution. Resolving it
+    // here would allow a same-sentence object (for example `dom`) to replace
+    // an explicit Polish `on` before the document graph has any discourse
+    // context. Keep the surface and grammatical features authoritative; the
+    // document resolver will add the typed antecedent decision later.
+    let _ = (name, concept, all_entities, subject);
     
     Ok(())
 }
@@ -421,73 +415,6 @@ fn is_reflexive_pronoun(name: &str, concept: &str) -> bool {
         "się" | "sobie" | "siebie" | "myself" | "yourself" | "himself" 
         | "herself" | "itself" | "ourselves" | "yourselves" | "themselves"
     ) || concept == "REFLEXIVE"
-}
-
-fn is_personal_pronoun(name: &str, concept: &str) -> bool {
-    let name_lower = name.to_lowercase();
-    // Skip dummy subjects used for existential/copular sentences (e.g., "it is bright")
-    if concept == "DUMMY_SUBJECT" { return false; }
-    matches!(
-        name_lower.as_str(),
-        "on" | "ona" | "ono" | "oni" | "one" | "ja" | "ty" | "my" | "wy"
-        | "i" | "you" | "he" | "she" | "it" | "we" | "they" | "me" | "him" 
-        | "her" | "us" | "them"
-    ) || concept == "PRONOUN"
-}
-
-fn find_antecedent(
-    pronoun: &Entity,
-    all_entities: &[Entity],
-    subject: &Option<Entity>,
-) -> Option<Entity> {
-    // For personal pronouns, prefer subject as antecedent if features match
-    if let Some(ref subj) = subject {
-        if features_match(pronoun, subj) && !is_pronoun_entity(subj) {
-            return Some(subj.clone());
-        }
-    }
-    
-    // Otherwise, find the most recent matching entity
-    for entity in all_entities.iter().rev() {
-        if !is_pronoun_entity(entity) && features_match(pronoun, entity) {
-            return Some(entity.clone());
-        }
-    }
-    
-    None
-}
-
-fn features_match(pronoun: &Entity, candidate: &Entity) -> bool {
-    // Check gender compatibility
-    let gender_match = match (pronoun.features.gender, candidate.features.gender) {
-        (Some(pg), Some(cg)) => pg == cg,
-        (None, _) | (_, None) => true, // If pronoun has no gender specified, any candidate works
-    };
-
-    // Check number compatibility
-    let number_match = match (pronoun.features.number, candidate.features.number) {
-        (Some(pn), Some(cn)) => pn == cn,
-        (None, _) | (_, None) => true,
-    };
-
-    // Check person compatibility (3rd person pronouns refer to 3rd person entities)
-    // 1st/2nd person pronouns should NOT match 3rd person entities
-    let person_match = match (pronoun.features.person, candidate.features.person) {
-        (Some(Person::First), Some(Person::First)) => true,
-        (Some(Person::Second), Some(Person::Second)) => true,
-        (Some(Person::Third), Some(Person::Third)) => true,
-        (Some(Person::First), _) | (Some(Person::Second), _) => false, // 1st/2nd person pronouns don't refer to 3rd person entities
-        (None, _) | (_, None) => true,
-        _ => true,
-    };
-
-    gender_match && number_match && person_match
-}
-
-fn is_pronoun_entity(entity: &Entity) -> bool {
-    let name = entity.name.as_deref().unwrap_or("");
-    let concept = &entity.concept.0;
-    is_personal_pronoun(name, concept) || is_reflexive_pronoun(name, concept)
 }
 
 fn anchor_temporals(sentence: &mut Sentence) -> Result<(), DeductionError> {

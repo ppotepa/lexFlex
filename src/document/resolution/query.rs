@@ -38,7 +38,7 @@ impl<'a> DocumentEntityResolutionQuery<'a> {
     pub fn cluster_for_mention(&self, mention: &ResolutionMentionRef) -> Option<&'a ResolvedEntityCluster> {
         self.resolution
             .decision_for_mention(mention)
-            .and_then(|decision| decision.selected_cluster.as_ref())
+            .and_then(|decision| decision.result_cluster.as_ref())
             .and_then(|cluster_id| self.resolution.clusters.get(cluster_id))
             .or_else(|| {
                 self.resolution.clusters.values().find(|cluster| {

@@ -12,6 +12,8 @@ use crate::document::compilation::DocumentCompilation;
 use crate::document::resolution::{DocumentEntityResolution, DocumentEntityResolutionOptions};
 use crate::query::{DocumentAnswer, QueryInterlingua};
 use crate::knowledge::{KnowledgeWorkspaceService, KnowledgeWorkspaceSnapshot, KnowledgeWorkspaceId};
+use crate::runtime::bundle::SourceMetadata;
+use std::collections::BTreeMap;
 
 pub mod bundle;
 pub use bundle::DocumentArtifactBundle;
@@ -77,6 +79,19 @@ pub enum DocumentBundleError {
 }
 
 impl LexFlexDocumentEngine {
+    pub fn parse(&self, input: &str, language: &str) -> Result<crate::core::interlingua::Interlingua, crate::error::LexFlexError> {
+        self.api.parse(input, language)
+    }
+    pub fn translate(
+        &self,
+        input: &str,
+        source_language: &str,
+        target_language: &str,
+    ) -> Result<String, crate::error::LexFlexError> {
+        self.api.translate(input, source_language, target_language)
+    }
+
+    pub fn data_dir(&self) -> &str { &self.config.data_dir }
     pub fn new(api: LexFlexAPI) -> Self {
         Self::with_config(api, LexFlexRuntimeConfig::default())
     }
@@ -129,19 +144,44 @@ impl LexFlexDocumentEngine {
         if knowledge.summary.claims_total > budget.max_claims {
             return Err(DocumentBundleError::SourceBudgetExceeded);
         }
+        let bundle_summary = format!("sentences={} graph_nodes={} claims={}", compilation.summary.total_sentences, graph.nodes.len(), knowledge.summary.claims_total);
+        let artifact_checksums = BTreeMap::from([
+            ("compilation".into(), compilation.compilation_sha256.clone()),
+            ("graph".into(), graph.graph_sha256.clone()),
+            ("resolution".into(), resolution.resolution_sha256.clone()),
+            ("temporal_discourse".into(), temporal.temporal_discourse_sha256.clone()),
+            ("knowledge".into(), knowledge.knowledge_sha256.clone()),
+        ]);
         let mut bundle = DocumentArtifactBundle {
             source_document_id: compilation.document.id.to_string(),
             source_sha256: compilation.document.source_sha256.clone(),
+            source_metadata: SourceMetadata { title: String::new(), language: source_language.into(), uri: None, revision: None },
             compilation,
             graph,
             entity_resolution: resolution,
             temporal_discourse: temporal,
             knowledge,
+            summary: bundle_summary,
+            artifact_checksums,
+            complete: true,
             bundle_sha256: String::new(),
         };
         bundle.bundle_sha256 = bundle
             .recompute_hash()
             .map_err(|error| DocumentBundleError::Lineage(error.to_string()))?;
+        bundle.validate_lineage().map_err(DocumentBundleError::Lineage)?;
+        Ok(bundle)
+    }
+
+    pub fn ingest_document_bundle_with_metadata(
+        &self,
+        input: &str,
+        source_language: &str,
+        metadata: SourceMetadata,
+    ) -> Result<DocumentArtifactBundle, DocumentBundleError> {
+        let mut bundle = self.ingest_document_bundle(input, source_language)?;
+        bundle.source_metadata = metadata;
+        bundle.bundle_sha256 = bundle.recompute_hash().map_err(|error| DocumentBundleError::Lineage(error.to_string()))?;
         bundle.validate_lineage().map_err(DocumentBundleError::Lineage)?;
         Ok(bundle)
     }

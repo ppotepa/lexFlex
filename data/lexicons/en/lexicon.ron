@@ -2,6 +2,11 @@
 // All entries are LEMMAS. English has minimal inflection (regular -s, -ed, -ing).
 
 [
+    ("population", (lemma: "population", pos: "Noun", concept: "POPULATION", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
+    ("created", (lemma: "create", pos: "Participle", concept: "CREATED_BY", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: None, features: (tense: Some(Past)))),
+    ("born", (lemma: "bear", pos: "Participle", concept: "BORN_IN", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: None, features: (tense: Some(Past)))),
+    ("located", (lemma: "locate", pos: "Verb", concept: "LOCATED_IN", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: None, features: ())),
+    ("works", (lemma: "work", pos: "Verb", concept: "WORKS_FOR", frame_type: Some("Custom"), roles: ["Agent", "Beneficiary"], paradigm: None, features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
     ("what", (lemma: "what", pos: "Pronoun", concept: "WH_THING", frame_type: None, roles: [], paradigm: None, features: ())),
     ("who", (lemma: "who", pos: "Pronoun", concept: "WH_PERSON", frame_type: None, roles: [], paradigm: None, features: ())),
     ("where", (lemma: "where", pos: "Adverb", concept: "WH_LOCATION", frame_type: None, roles: [], paradigm: None, features: ())),

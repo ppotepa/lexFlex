@@ -7,6 +7,8 @@ use crate::document::knowledge::{
     ClaimId, ClaimStatus, KnowledgeObjectRef, KnowledgePredicateRef,
     KnowledgeSubjectRef,
 };
+use crate::core::interlingua::{Entity, QueryTerm, QuestionKind, QuestionSemantics};
+use crate::document::resolution::EntityClusterId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryIdError(pub String);
@@ -145,6 +147,114 @@ pub struct QueryInterlingua {
     pub query_sha256: String,
 }
 
+impl QueryInterlingua {
+    /// Convert language-neutral question semantics into the authoritative
+    /// structured query contract. Surface parsers never need to know how the
+    /// knowledge store indexes entities.
+    pub fn from_question<F>(
+        question: &QuestionSemantics,
+        source_language: impl Into<String>,
+        source_text: Option<String>,
+        resolve_entity: F,
+    ) -> Result<Self, QueryError>
+    where
+        F: Fn(&Entity) -> Option<EntityClusterId>,
+    {
+        let predicate = predicate_from_concept(&question.proposition.predicate.0);
+        let (mut intent, projection, mut constraints) = match (&question.proposition.subject, &question.proposition.object) {
+            (Some(QueryTerm::Entity(entity)), Some(QueryTerm::Variable(_))) => {
+                (if question.kind == QuestionKind::HowMany { QueryIntent::Count } else { QueryIntent::LookupProperty }, QueryProjection::Object, vec![constraint_from(subject_constraints(entity, &resolve_entity))])
+            }
+            (Some(QueryTerm::Variable(_)), Some(QueryTerm::Entity(entity))) => {
+                (if question.kind == QuestionKind::HowMany { QueryIntent::Count } else { QueryIntent::LookupRelation }, QueryProjection::Subject, vec![constraint_from(object_constraints(entity, &resolve_entity))])
+            }
+            (Some(QueryTerm::Entity(subject)), Some(QueryTerm::Entity(object))) => {
+                (QueryIntent::Boolean, QueryProjection::Claim, vec![constraint_from(subject_constraints(subject, &resolve_entity)), constraint_from(object_constraints(object, &resolve_entity))])
+            }
+            _ => return Err(QueryError("question proposition has no supported entity binding".into())),
+        };
+
+        constraints.push(QueryConstraint::Predicate(predicate));
+        if question.kind == QuestionKind::YesNo {
+            intent = QueryIntent::Boolean;
+        }
+        if question.kind == QuestionKind::HowMany {
+            intent = QueryIntent::Count;
+        }
+        let language = source_language.into();
+        let source_text = source_text;
+        let id_seed = serde_json::to_string(&(&language, &source_text, question))
+            .map_err(|error| QueryError(error.to_string()))?;
+        let id = QueryId(format!("query:{}", digest_hex(id_seed.as_bytes())));
+        let mut query = Self {
+            schema: QuerySchema::V1,
+            id,
+            source_language: language,
+            source_text,
+            intent,
+            constraints: QueryConstraint::And(constraints),
+            projection: vec![projection],
+            aggregation: (question.kind == QuestionKind::HowMany).then_some(QueryAggregation::Count),
+            ordering: Vec::new(),
+            limit: Some(20),
+            world_policy: QueryWorldPolicy::OpenWorld,
+            evidence_policy: QueryEvidencePolicy::Required,
+            query_sha256: String::new(),
+        };
+        query.query_sha256 = hash_query(&query)?;
+        Ok(query)
+    }
+}
+
+fn subject_constraints<F>(entity: &Entity, resolve: &F) -> Vec<QueryConstraint>
+where F: Fn(&Entity) -> Option<EntityClusterId> {
+    let mut constraints = vec![QueryConstraint::Subject(KnowledgeSubjectRef::Unresolved)];
+    if let Some(cluster) = resolve(entity) {
+        constraints.push(QueryConstraint::Subject(KnowledgeSubjectRef::EntityCluster(cluster)));
+    }
+    constraints
+}
+
+fn object_constraints<F>(entity: &Entity, resolve: &F) -> Vec<QueryConstraint>
+where F: Fn(&Entity) -> Option<EntityClusterId> {
+    let mut constraints = entity.name.clone().map(|name| vec![QueryConstraint::Object(KnowledgeObjectRef::TextLiteral(name))]).unwrap_or_default();
+    if let Some(cluster) = resolve(entity) {
+        constraints.push(QueryConstraint::Object(KnowledgeObjectRef::EntityCluster(cluster)));
+    }
+    if constraints.is_empty() { constraints.push(QueryConstraint::Object(KnowledgeObjectRef::Unknown)); }
+    constraints
+}
+
+fn constraint_from(mut constraints: Vec<QueryConstraint>) -> QueryConstraint {
+    if constraints.len() == 1 { constraints.remove(0) } else { QueryConstraint::Or(constraints) }
+}
+
+fn predicate_from_concept(concept: &str) -> KnowledgePredicateRef {
+    match concept {
+        "IS_A" => KnowledgePredicateRef::Relation(crate::document::knowledge::KnowledgeRelationKind::IsA),
+        "LOCATED_IN" => KnowledgePredicateRef::Relation(crate::document::knowledge::KnowledgeRelationKind::LocatedAt),
+        value => KnowledgePredicateRef::Custom(value.to_string()),
+    }
+}
+
+fn hash_query(query: &QueryInterlingua) -> Result<String, QueryError> {
+    let mut value = serde_json::to_value(query).map_err(|error| QueryError(error.to_string()))?;
+    if let serde_json::Value::Object(map) = &mut value { map.remove("query_sha256"); }
+    let bytes = serde_json::to_vec(&value).map_err(|error| QueryError(error.to_string()))?;
+    Ok(digest_hex(&bytes))
+}
+
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+    use sha2::Digest;
+    let mut digest = sha2::Sha256::new();
+    digest.update(bytes);
+    digest.finalize().into()
+}
+
+fn digest_hex(bytes: &[u8]) -> String {
+    sha256(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QueryStep {
     Scan,
@@ -155,10 +265,29 @@ pub enum QueryStep {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum QueryOperator {
+    ScanBySubject,
+    ScanByPredicate,
+    ScanByObject,
+    ScanByTime,
+    Filter,
+    Join,
+    Project,
+    Aggregate,
+    Distinct,
+    Sort,
+    Limit,
+    EvidenceAttach,
+    ConflictGroup,
+    UnknownGuard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueryExecutionPlan {
     pub id: QueryPlanId,
     pub query_id: QueryId,
     pub steps: Vec<QueryStep>,
+    pub operators: Vec<QueryOperator>,
     pub plan_sha256: String,
 }
 
@@ -181,6 +310,7 @@ pub struct QueryExecutionResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AnswerStatus {
     Exact,
+    No,
     Supported,
     Partial,
     Ambiguous,

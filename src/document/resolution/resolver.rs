@@ -54,7 +54,7 @@ impl DocumentEntityResolver {
         let mut cluster_by_mention: BTreeMap<ResolutionMentionRef, EntityClusterId> = BTreeMap::new();
         let mut next_cluster_ordinal = 0usize;
         let mut next_decision_ordinal = 0usize;
-        let mut next_synthetic_ordinal = 0usize;
+            let mut next_synthetic_ordinal = 0usize;
         let mut accepted_mentions: Vec<ResolutionMentionRef> = Vec::new();
 
         for node_id in &graph.node_order {
@@ -83,10 +83,12 @@ impl DocumentEntityResolver {
             next_decision_ordinal += 1;
             decision_order.push(decision_id.clone());
             let mut selected_cluster = None;
+            let mut antecedent_cluster = None;
+            let mut result_cluster = None;
             let mut hard_evidence = Vec::new();
             match kind {
                 EntityResolutionDecisionKind::Seeded => {
-                    ensure_cluster(
+                    let cluster_id = ensure_cluster(
                         &resolution_id,
                         &mut next_cluster_ordinal,
                         &mut cluster_order,
@@ -96,11 +98,13 @@ impl DocumentEntityResolver {
                         &profile,
                         &decision_id,
                     );
+                    result_cluster = Some(cluster_id);
                     selected_cluster = None;
                 }
                 EntityResolutionDecisionKind::Accepted | EntityResolutionDecisionKind::HardAccepted => {
                     if let Some(target) = &selected_target {
                         if let Some(cluster_id) = cluster_by_mention.get(target).cloned() {
+                            antecedent_cluster = Some(cluster_id.clone());
                             selected_cluster = Some(cluster_id.clone());
                             if let Some(cluster) = clusters.get_mut(&cluster_id) {
                                 if !cluster.mention_refs.iter().any(|existing| existing == &mention_ref) {
@@ -132,6 +136,7 @@ impl DocumentEntityResolver {
                         );
                         selected_cluster = Some(cluster_id);
                     }
+                    result_cluster = selected_cluster.clone();
                     if matches!(kind, EntityResolutionDecisionKind::HardAccepted) {
                         if let Some(entity_id) = profile.semantic_entity_id {
                             hard_evidence
@@ -148,6 +153,8 @@ impl DocumentEntityResolver {
                     mention: mention_ref.clone(),
                     stage,
                     kind,
+                    antecedent_cluster,
+                    result_cluster,
                     selected_cluster,
                     selected_target: selected_target.clone(),
                     score,

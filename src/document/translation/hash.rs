@@ -12,7 +12,7 @@ pub fn translation_hash(
 ) -> Result<String, serde_json::Error> {
     let mut canonical = translation.clone();
     canonical.translation_sha256.clear();
-    let bytes = serde_json::to_vec(&canonical)?;
+    let bytes = crate::document::hash::canonical_json_bytes(&canonical)?;
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     Ok(format!("{:x}", hasher.finalize()))

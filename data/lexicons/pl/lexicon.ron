@@ -3,6 +3,7 @@
 // Only irregular/closed-class forms that can't be derived from paradigms are listed explicitly.
 
 [
+    ("populacja", (lemma: "populacja", pos: "Noun", concept: "POPULATION", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
     ("co", (lemma: "co", pos: "Pronoun", concept: "WH_THING", frame_type: None, roles: [], paradigm: None, features: ())),
     ("kto", (lemma: "kto", pos: "Pronoun", concept: "WH_PERSON", frame_type: None, roles: [], paradigm: None, features: ())),
     ("gdzie", (lemma: "gdzie", pos: "Adverb", concept: "WH_LOCATION", frame_type: None, roles: [], paradigm: None, features: ())),
@@ -366,6 +367,10 @@
     ("siedzą", (lemma: "siedzieć", pos: "Verb", concept: "SIT", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
     ("stoją", (lemma: "stać", pos: "Verb", concept: "STAND", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
     ("leżą", (lemma: "leżeć", pos: "Verb", concept: "LIE", frame_type: Some("Existence"), roles: ["Agent", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
+    ("leży", (lemma: "leżeć", pos: "Verb", concept: "LOCATED_IN", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: Some("verb_ec"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("urodził", (lemma: "urodzić się", pos: "Verb", concept: "BORN_IN", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(Third), number: Some(Singular), gender: Some(Masculine)))),
+    ("została", (lemma: "zostać", pos: "Verb", concept: "CREATED_BY", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(Third), number: Some(Singular), gender: Some(Feminine)))),
+    ("urodziła", (lemma: "urodzić się", pos: "Verb", concept: "BORN_IN", frame_type: Some("Custom"), roles: ["Topic", "Location"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(Third), number: Some(Singular), gender: Some(Feminine)))),
     ("śpią", (lemma: "spać", pos: "Verb", concept: "SLEEP", frame_type: Some("Existence"), roles: ["Agent"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(Third), number: Some(Plural)))),
 
     // ═══ ADDITIONAL VERBS — from Adam text ═══
@@ -380,7 +385,7 @@
     ("ubieramy", (lemma: "ubierać", pos: "Verb", concept: "DRESS", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ac"), features: (tense: Some(Present), person: Some(First), number: Some(Plural)))),
     ("wychodzimy", (lemma: "wychodzić", pos: "Verb", concept: "LEAVE", frame_type: Some("Motion"), roles: ["Agent", "Source"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(First), number: Some(Plural)))),
     ("idzie", (lemma: "iść", pos: "Verb", concept: "GO", frame_type: Some("Motion"), roles: ["Agent", "Goal", "Source"], paradigm: Some("verb_ic"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
-    ("pracuje", (lemma: "pracować", pos: "Verb", concept: "WORK_VERB", frame_type: Some("Creation"), roles: ["Agent", "Location"], paradigm: Some("verb_ować"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
+    ("pracuje", (lemma: "pracować", pos: "Verb", concept: "WORKS_FOR", frame_type: Some("Custom"), roles: ["Agent", "Beneficiary"], paradigm: Some("verb_ować"), features: (tense: Some(Present), person: Some(Third), number: Some(Singular)))),
     ("odwiedziliśmy", (lemma: "odwiedzać", pos: "Verb", concept: "VISIT", frame_type: Some("Motion"), roles: ["Agent", "Goal"], paradigm: Some("verb_ac"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
     ("zatrzymaliśmy", (lemma: "zatrzymywać", pos: "Verb", concept: "STOP", frame_type: Some("Motion"), roles: ["Agent"], paradigm: Some("verb_wać"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),
     ("zrobiliśmy", (lemma: "zrobić", pos: "Verb", concept: "DO_MAKE", frame_type: Some("Creation"), roles: ["Agent", "Theme"], paradigm: Some("verb_ic"), features: (tense: Some(Past), person: Some(First), number: Some(Plural), aspect: Some(Perfective)))),

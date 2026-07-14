@@ -10,6 +10,10 @@ use crate::engines::en::morphology::EnglishMorphology;
 use crate::error::ParseError;
 use crate::core::unknown_concept::{resolve_concept_for_unknown, is_entity_candidate_token};
 
+mod entities;
+mod questions;
+mod tokens;
+
 pub struct EnglishParser {
     lexicon: Lexicon,
     _morphology: EnglishMorphology,
@@ -71,84 +75,13 @@ impl EnglishParser {
         deduction::deduce(partial, &context).map_err(|_| ParseError::NoVerbFound)
     }
 
-    fn tokenize(&self, input: &str) -> Vec<Token> {
-        let mut tokens = Vec::new();
-        let mut offset = 0;
-
-        for word in input.split_whitespace() {
-            let clean = word.trim_matches(|c: char| c.is_ascii_punctuation());
-            let form_lower = clean.to_lowercase();
-
-            let (pos, features, lemma) = self.analyze_token(&form_lower);
-
-            tokens.push(Token {
-                form: clean.to_string(),
-                lemma: Some(lemma),
-                pos,
-                features,
-                span: (offset, offset + word.len()),
-                word_node_id: None,
-            });
-
-            offset += word.len() + 1;
-        }
-
-        tokens
-    }
-
-    fn analyze_token(&self, form: &str) -> (PartOfSpeech, FeatureBundle, String) {
-        match form {
-            "with" | "in" | "on" | "at" | "from" | "to" => {
-                return (PartOfSpeech::Preposition, FeatureBundle::default(), form.to_string());
-            }
-            "and" => return (PartOfSpeech::Conjunction, FeatureBundle::default(), "and".to_string()),
-            "not" | "n't" => return (PartOfSpeech::Negation, FeatureBundle::default(), "not".to_string()),
-            "a" | "an" | "the" => {
-                let def = if form.eq("the") { Definiteness::Definite } else { Definiteness::Indefinite };
-                return (PartOfSpeech::Determiner, FeatureBundle { definiteness: Some(def), ..Default::default() }, form.to_string());
-            }
-            _ => {}
-        }
-
-        if let Some(entry) = self.lexicon.lookup_by_form(form) {
-            let pos = self.lexicon.parse_pos(&entry.pos);
-            return (pos, entry.features.clone(), entry.lemma.clone());
-        }
-
-        if form.ends_with("s") && !form.ends_with("ss") {
-            let stem = &form[..form.len() - 1];
-            if let Some(entry) = self.lexicon.lookup_by_form(stem) {
-                let pos = self.lexicon.parse_pos(&entry.pos);
-                return (pos, entry.features.clone(), entry.lemma.clone());
-            }
-        }
-
-        if form.ends_with("ed") {
-            let stem = &form[..form.len() - 2];
-            if let Some(entry) = self.lexicon.lookup_by_form(stem) {
-                if entry.pos == "Verb" {
-                    return (
-                        PartOfSpeech::Verb,
-                        FeatureBundle {
-                            tense: Some(Tense::Past),
-                            ..entry.features.clone()
-                        },
-                        entry.lemma.clone(),
-                    );
-                }
-            }
-        }
-
-        (PartOfSpeech::Unknown, FeatureBundle::default(), form.to_string())
-    }
-
     fn build_partial_structure(&self, tokens: &[Token]) -> Result<Utterance, ParseError> {
         let mut sentence = Sentence::new();
 
         // Detect questions (does/do/did / ? ). Sets illocution so PL generator emits "Czy ... ?"
         let is_question = tokens.iter().any(|t| {
             let f = t.form.to_lowercase();
-            f == "did" || f == "does" || f == "do" || f == "?"
+            f == "did" || f == "does" || f == "do" || f == "is" || f == "?"
                 || self.lexicon.lookup_by_form(&f)
                     .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
                     .is_some()
@@ -158,7 +91,7 @@ impl EnglishParser {
         }
 
         // Find main verb - skip auxiliary "do/does/did" in questions
-        let verb_idx = if is_question && tokens.first().map_or(false, |t| {
+        let mut verb_idx = if is_question && tokens.first().map_or(false, |t| {
             let f = t.form.to_lowercase();
             f == "did" || f == "does" || f == "do"
         }) {
@@ -167,6 +100,16 @@ impl EnglishParser {
         } else {
             tokens.iter().position(|t| t.pos == PartOfSpeech::Verb)
         }.ok_or(ParseError::NoVerbFound)?;
+
+        // In a passive construction the lexical predicate is the participle,
+        // not the auxiliary `be` (e.g. “was created”).
+        if tokens.get(verb_idx).is_some_and(|t| t.lemma.as_deref() == Some("be")) {
+            if let Some((idx, _)) = tokens.iter().enumerate().skip(verb_idx + 1)
+                .find(|(_, t)| t.pos == PartOfSpeech::Verb || t.pos == PartOfSpeech::Participle)
+            {
+                verb_idx = idx;
+            }
+        }
 
         let verb_token = &tokens[verb_idx];
         let verb_lemma = verb_token.lemma.as_deref().unwrap_or(&verb_token.form);
@@ -439,6 +382,13 @@ impl EnglishParser {
             age
         } else if let Some(relation) = self.capital_relation(&tokens, &entities, &entity_pre_verb, &verb_concept) {
             relation
+        } else if matches!(verb_concept.as_str(), "LOCATED_IN" | "CREATED_BY" | "BORN_IN" | "WORKS_FOR") && frame_entities.len() >= 2 {
+            let subject = frame_entities[0].clone();
+            let object = frame_entities[1].clone();
+            Frame::Custom {
+                name: verb_concept.clone(),
+                roles: vec![(SemanticRole::Topic, subject), (SemanticRole::Location, object)],
+            }
         } else {
             self.build_frame(&frame_type, &roles, &frame_entities, &verb_concept)?
         };
@@ -516,301 +466,6 @@ impl EnglishParser {
             .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
             .is_some()
     }
-
-    fn definition_question(
-        &self,
-        tokens: &[Token],
-        entities: &[Entity],
-        verb_concept: &str,
-    ) -> Option<QuestionSemantics> {
-        if verb_concept != "BE" || entities.len() != 1 {
-            return None;
-        }
-        let kind = tokens.iter().find_map(|token| {
-            self.lexicon
-                .lookup_by_form(&token.form)
-                .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
-        })?;
-        Some(QuestionSemantics::definition(kind, entities[0].clone()))
-    }
-
-    fn question_semantics(
-        &self,
-        tokens: &[Token],
-        entities: &[Entity],
-        verb_concept: &str,
-    ) -> Option<QuestionSemantics> {
-        let kind = tokens.iter().find_map(|token| {
-            self.lexicon.lookup_by_form(&token.form).and_then(|entry| {
-                question_kind_from_concept(&ConceptId::new(&entry.concept))
-            })
-        })?;
-        if verb_concept == "BE" && tokens.iter().any(|token| {
-            self.lexicon.lookup_by_form(&token.form)
-                .is_some_and(|entry| entry.concept == "CAPITAL")
-        }) {
-            let object = self.capital_object(tokens, entities)?;
-            return Some(QuestionSemantics::relation(
-                kind,
-                ConceptId::new("CAPITAL_OF"),
-                object,
-                QueryProjection::Subject,
-            ));
-        }
-        self.definition_question(tokens, entities, verb_concept)
-    }
-
-    fn capital_relation(
-        &self,
-        tokens: &[Token],
-        entities: &[Entity],
-        pre_verb: &[bool],
-        verb_concept: &str,
-    ) -> Option<Frame> {
-        if verb_concept != "BE"
-            || !tokens.iter().any(|token| {
-                self.lexicon.lookup_by_form(&token.form)
-                    .is_some_and(|entry| entry.concept == "CAPITAL")
-            })
-        {
-            return None;
-        }
-        let subject = entities
-            .iter()
-            .find(|entity| entity.concept.0 != "CAPITAL")
-            .cloned()
-            .or_else(|| self.capital_subject(tokens))
-            .or_else(|| entities.iter().zip(pre_verb).find(|(_, before)| **before).map(|(entity, _)| entity).cloned())?;
-        let object = self.capital_object(tokens, entities)?;
-        Some(Frame::Custom {
-            name: "CAPITAL_OF".to_string(),
-            roles: vec![(SemanticRole::Topic, subject), (SemanticRole::Location, object)],
-        })
-    }
-
-    fn capital_object(&self, tokens: &[Token], entities: &[Entity]) -> Option<Entity> {
-        let capital_index = tokens.iter().position(|token| {
-            self.lexicon
-                .lookup_by_form(&token.form)
-                .is_some_and(|entry| entry.concept == "CAPITAL")
-        })?;
-        let token = tokens.iter().skip(capital_index + 1).find(|token| {
-            !matches!(token.form.to_lowercase().as_str(), "of" | "the")
-                && token.form.chars().any(char::is_alphabetic)
-        })?;
-        entities
-            .iter()
-            .find(|entity| entity.name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case(&token.form)))
-            .cloned()
-            .or_else(|| {
-                let concept = self
-                    .lexicon
-                    .lookup_by_form(&token.form)
-                    .map(|entry| entry.concept.clone())
-                    .unwrap_or_else(|| "ENTITY".to_string());
-                Some(Entity::new(ConceptId::new(&concept)).with_name(&token.form))
-            })
-    }
-
-    fn capital_subject(&self, tokens: &[Token]) -> Option<Entity> {
-        let capital_index = tokens.iter().position(|token| {
-            self.lexicon.lookup_by_form(&token.form).is_some_and(|entry| entry.concept == "CAPITAL")
-        })?;
-        let token = tokens[..capital_index].iter().rev().find(|token| {
-            !matches!(token.form.to_lowercase().as_str(), "the" | "is" | "a" | "an")
-                && token.form.chars().any(char::is_alphabetic)
-        })?;
-        Some(Entity::new(ConceptId::new("ENTITY")).with_name(&token.form))
-    }
-
-    fn pp_span_indices(tokens: &[Token]) -> std::collections::HashSet<usize> {
-        let mut span = std::collections::HashSet::new();
-        for (i, token) in tokens.iter().enumerate() {
-            if token.pos != PartOfSpeech::Preposition {
-                continue;
-            }
-            let prep = token.form.to_lowercase();
-            if !matches!(prep.as_str(), "with" | "in" | "on" | "at") {
-                continue;
-            }
-            span.insert(i);
-            let mut k = i + 1;
-            while k < tokens.len() {
-                let t = &tokens[k];
-                if t.pos == PartOfSpeech::Verb {
-                    break;
-                }
-                if t.pos == PartOfSpeech::Preposition && k > i + 1 {
-                    break;
-                }
-                if matches!(
-                    t.pos,
-                    PartOfSpeech::Noun
-                        | PartOfSpeech::Pronoun
-                        | PartOfSpeech::Adjective
-                        | PartOfSpeech::Determiner
-                ) {
-                    span.insert(k);
-                } else if matches!(t.form.as_str(), "," | "and" | "or") {
-                } else {
-                    break;
-                }
-                k += 1;
-            }
-        }
-        span
-    }
-
-    fn token_to_entity(&self, token: &Token) -> Entity {
-        let surface = &token.form;
-        let lookup = surface.to_lowercase();
-        let lemma = token.lemma.as_deref().unwrap_or(&lookup);
-        let entry = self
-            .lexicon
-            .lookup_by_form(&lookup)
-            .or_else(|| self.lexicon.lookup_by_lemma(lemma));
-        let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("en"));
-        // Preserve surface (AC1)
-        let name = surface.clone();
-        let mut entity = Entity::new(concept).with_name(&name);
-        entity.features = token.features.clone();
-        if let Some(e) = entry {
-            if entity.features.gender.is_none() {
-                entity.features.gender = e.features.gender;
-            }
-            if entity.features.animacy.is_none() {
-                entity.features.animacy = e.features.animacy;
-            }
-        }
-        if entity.features.number.is_none() {
-            entity.features.number = Some(Number::Singular);
-        }
-        self.lexicon.normalize_entity(&mut entity);
-        entity
-    }
-
-    fn extract_pp_entities(&self, tokens: &[Token]) -> Vec<Entity> {
-        let mut pp_entities: Vec<Entity> = Vec::new();
-        for (i, token) in tokens.iter().enumerate() {
-            if token.pos != PartOfSpeech::Preposition {
-                continue;
-            }
-            let prep = token.form.to_lowercase();
-            let is_with = prep == "with";
-            let mut collected: Vec<Entity> = Vec::new();
-            let mut k = i + 1;
-            while k < tokens.len() {
-                let t = &tokens[k];
-                if t.pos == PartOfSpeech::Verb {
-                    break;
-                }
-                if t.pos == PartOfSpeech::Preposition && k > i + 1 {
-                    break;
-                }
-                if t.pos == PartOfSpeech::Determiner {
-                    k += 1;
-                    continue;
-                }
-                if is_entity_candidate_token(t) {
-                    let mut ent = self.token_to_entity(t);
-                    let is_person_context =
-                        self.ontology.is_animate_entity(&ent);
-                    if is_with && is_person_context {
-                        ent.features.semantic_role = Some(SemanticRole::Location);
-                        ent.features.case = Some(Case::Instrumental);
-                    } else if let Some(role) = self.descriptor.syntax.preposition_roles.get(&prep) {
-                        ent.features.semantic_role = Some(*role);
-                        match role {
-                            SemanticRole::Location => ent.features.case = Some(Case::Locative),
-                            SemanticRole::Goal => ent.features.case = Some(Case::Accusative),
-                            SemanticRole::Source => ent.features.case = Some(Case::Genitive),
-                            _ => {}
-                        }
-                    }
-                    collected.push(ent);
-                } else if t.pos == PartOfSpeech::Adjective {
-                    if let Some(last) = collected.last_mut() {
-                        let adj = self.token_to_entity(t);
-                        last.adjectives.push(adj);
-                    }
-                } else if matches!(t.form.as_str(), "," | "and" | "or") {
-                } else {
-                    break;
-                }
-                k += 1;
-            }
-            if collected.is_empty() {
-                continue;
-            }
-            if collected.len() > 1 {
-                let conj = if tokens.iter().any(|tt| tt.form == "and") {
-                    "and".to_string()
-                } else {
-                    "or".to_string()
-                };
-                let coord = Coordination {
-                    items: collected.clone(),
-                    conjunction: conj,
-                };
-                let mut coord_ent = collected[0].clone();
-                coord_ent.coordination = Some(coord);
-                coord_ent.features.number = Some(Number::Plural);
-                pp_entities.push(coord_ent);
-            } else {
-                pp_entities.push(collected.into_iter().next().unwrap());
-            }
-        }
-        pp_entities
-    }
-
-    fn try_age_idiom_frame(
-        &self,
-        tokens: &[Token],
-        entities: &[Entity],
-        verb_concept: &str,
-    ) -> Option<Frame> {
-        if verb_concept != "BE" {
-            return None;
-        }
-        let has_year = tokens.iter().any(|t| {
-            self.lexicon
-                .lookup_by_form(&t.form.to_lowercase())
-                .map_or(false, |e| e.concept == "YEAR")
-        });
-        let has_old = tokens.iter().any(|t| {
-            self.lexicon
-                .lookup_by_form(&t.form.to_lowercase())
-                .map_or(false, |e| e.concept == "OLD")
-        });
-        let has_number = tokens.iter().any(|t| self.lexicon.cardinal_from_token(t).is_some());
-        if !has_year || !has_number || !has_old {
-            return None;
-        }
-        let possessor = entities.first()?.clone();
-        let year_entry = tokens.iter().find_map(|t| {
-            self.lexicon
-                .lookup_by_form(&t.form.to_lowercase())
-                .filter(|e| e.concept == "YEAR")
-        })?;
-        let mut possessed =
-            Entity::new(ConceptId::new(&year_entry.concept)).with_name(&year_entry.lemma);
-        possessed.features.number = Some(Number::Plural);
-        if let Some(old_entry) = self
-            .lexicon
-            .lookup_by_form("old")
-            .or_else(|| self.lexicon.lookup_concept("OLD"))
-        {
-            let mut adj = Entity::new(ConceptId::new(&old_entry.concept)).with_name(&old_entry.lemma);
-            adj.features = old_entry.features.clone();
-            possessed.adjectives.push(adj);
-        }
-        Some(Frame::Possession {
-            possessor,
-            possessed,
-            verb_concept: "BE".to_string(),
-        })
-    }
-
     fn build_frame(
         &self,
         frame_type: &str,

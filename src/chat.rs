@@ -1,9 +1,7 @@
 pub mod app;
-pub mod conversation_qa;
 pub mod commands;
 pub mod navigation;
 pub mod service;
-pub mod semantic;
 pub mod session;
 pub mod settings;
 pub mod shell;
@@ -16,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 pub use commands::{SlashCommand, SlashSuggestion};
-pub use service::{ChatJob, ChatJobResult, ChatResponse, ChatService, ChatWorker};
+pub use service::{ChatJob, ChatJobResult, ChatService, ChatWorker};
 pub use session::ChatSession;
 pub use settings::Verbosity;
 
@@ -27,9 +25,6 @@ pub struct ChatOptions {
     pub data_dir: String,
     pub offline: bool,
     pub trace_mode: TraceMode,
-    pub base_url: Option<String>,
-    pub model: Option<String>,
-    pub system_prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

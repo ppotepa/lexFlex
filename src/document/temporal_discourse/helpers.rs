@@ -9,8 +9,9 @@ use super::id::{
     TemporalRelationId,
 };
 use super::model::{
+    ClockTime,
     DiscourseRelation, DiscourseRelationKind, EventCoreferenceCluster, EventCoreferenceDecision,
-    EventCoreferenceDecisionKind, EventProfile,
+    EventCoreferenceDecisionKind, EventProfile, TimezoneOffset,
     TemporalClosureConflict, TemporalExpression, TemporalExpressionKind, TemporalNormalizedValue,
     TemporalRelation, TemporalRelationKind,
 };
@@ -46,6 +47,9 @@ pub(crate) fn normalize_temporal(
 ) -> TemporalNormalizedValue {
     match temporal {
         Some(crate::core::interlingua::TemporalReference::Absolute { timestamp }) => TemporalNormalizedValue::Absolute {
+            civil_date: parse_civil_date(&timestamp),
+            clock_time: parse_clock_time(&timestamp),
+            timezone_offset: parse_timezone_offset(&timestamp),
             iso_timestamp: Some(timestamp),
         },
         Some(crate::core::interlingua::TemporalReference::Relative { offset_days, anchor }) => TemporalNormalizedValue::Relative {
@@ -69,6 +73,42 @@ pub(crate) fn normalize_temporal(
                 .unwrap_or_else(|| format!("document-context:{text}")),
         },
     }
+}
+
+fn parse_civil_date(timestamp: &str) -> Option<crate::document::knowledge::CivilDate> {
+    let date = timestamp.split('T').next()?;
+    let mut parts = date.split('-');
+    let year = parts.next()?.parse().ok()?;
+    let month = parts.next().and_then(|value| value.parse().ok());
+    let day = parts.next().and_then(|value| value.parse().ok());
+    Some(crate::document::knowledge::CivilDate { year, month, day })
+}
+
+fn parse_clock_time(timestamp: &str) -> Option<ClockTime> {
+    let time = timestamp.split('T').nth(1)?;
+    let time = time.trim_end_matches('Z');
+    let time = time.split('+').next().unwrap_or(time);
+    let time = time.rsplit_once('-').map(|(left, right)| if right.contains(':') { left } else { time }).unwrap_or(time);
+    let mut parts = time.split(':');
+    let hour = parts.next()?.parse().ok()?;
+    let minute = parts.next()?.parse().ok()?;
+    let second = parts.next().and_then(|value| value.parse().ok());
+    Some(ClockTime { hour, minute, second })
+}
+
+fn parse_timezone_offset(timestamp: &str) -> Option<TimezoneOffset> {
+    if timestamp.ends_with('Z') {
+        return Some(TimezoneOffset { minutes_east_utc: 0 });
+    }
+    let (_, offset) = timestamp.rsplit_once(['+', '-'])?;
+    if !offset.contains(':') {
+        return None;
+    }
+    let sign = if timestamp.as_bytes().get(timestamp.len().saturating_sub(offset.len() + 1)) == Some(&b'-') { -1 } else { 1 };
+    let mut parts = offset.split(':');
+    let hours: i16 = parts.next()?.parse().ok()?;
+    let minutes: i16 = parts.next()?.parse().ok()?;
+    Some(TimezoneOffset { minutes_east_utc: sign * (hours * 60 + minutes) })
 }
 
 pub(crate) fn temporal_evidence(

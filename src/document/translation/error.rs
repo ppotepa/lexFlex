@@ -31,6 +31,8 @@ pub enum DocumentAssemblyError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DocumentTranslationError {
+    #[error("validated semantic rewrite is not implemented for this document profile")]
+    UnsupportedResolvedRewrite,
     #[error("compilation artifact is invalid")]
     InvalidCompilation {
         errors: Vec<DocumentCompilationValidationError>,

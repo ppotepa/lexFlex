@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,14 +71,62 @@ pub struct DocumentQualityGates {
     pub require_deterministic_output: bool,
     pub require_non_empty_output: bool,
     pub max_fatal_errors: usize,
-    pub required_name_preservation: f64,
-    pub required_number_preservation: f64,
-    pub required_negation_preservation: f64,
-    pub required_reference_accuracy: f64,
-    pub required_zero_anaphora_accuracy: f64,
-    pub required_frame_signature_recall: f64,
-    pub required_glossary_compliance: f64,
-    pub required_paragraph_preservation: f64,
+    pub required_name_preservation: ThresholdRatio,
+    pub required_number_preservation: ThresholdRatio,
+    pub required_negation_preservation: ThresholdRatio,
+    pub required_reference_accuracy: ThresholdRatio,
+    pub required_zero_anaphora_accuracy: ThresholdRatio,
+    pub required_frame_signature_recall: ThresholdRatio,
+    pub required_glossary_compliance: ThresholdRatio,
+    pub required_paragraph_preservation: ThresholdRatio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ThresholdRatio {
+    milli: u16,
+}
+
+impl ThresholdRatio {
+    pub const ZERO: Self = Self { milli: 0 };
+    pub const ONE: Self = Self { milli: 1000 };
+
+    pub const fn from_milli(milli: u16) -> Self {
+        Self { milli }
+    }
+
+    pub const fn milli(self) -> u16 {
+        self.milli
+    }
+
+    pub fn as_decimal_string(self) -> String {
+        format!("{}.{:03}", self.milli / 1000, self.milli % 1000)
+    }
+}
+
+impl Serialize for ThresholdRatio {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_f64(f64::from(self.milli) / 1000.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for ThresholdRatio {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        if !value.is_finite() || value < 0.0 {
+            return Err(serde::de::Error::custom("threshold must be a finite non-negative number"));
+        }
+        let milli = (value * 1000.0).round();
+        if !(0.0..=(u16::MAX as f64)).contains(&milli) {
+            return Err(serde::de::Error::custom("threshold milli value out of range"));
+        }
+        Ok(Self { milli: milli as u16 })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,7 +152,7 @@ pub enum DocumentProfileValidationError {
     DuplicateCapabilityTag { tag: String },
     RequiredCapabilityNotBlocking { id: String },
     DeferredCapabilityBlocking { id: String },
-    InvalidThreshold { field: String, value: f64 },
+    InvalidThreshold { field: String, value_milli: u16 },
     InvalidLengthRange { tier: String, field: String },
     NoBlockingLengthTier,
     MissingErrorCategory { category: String },
@@ -128,8 +176,8 @@ impl std::fmt::Display for DocumentProfileValidationError {
             Self::DeferredCapabilityBlocking { id } => {
                 write!(f, "deferred capability must not be blocking: {id}")
             }
-            Self::InvalidThreshold { field, value } => {
-                write!(f, "invalid threshold {field}={value}")
+            Self::InvalidThreshold { field, value_milli } => {
+                write!(f, "invalid threshold {field}={}.{:03}", value_milli / 1000, value_milli % 1000)
             }
             Self::InvalidLengthRange { tier, field } => {
                 write!(f, "invalid length range in {tier}.{field}")
@@ -189,10 +237,10 @@ impl DocumentProfile {
         }
 
         for (field, value) in threshold_fields(&self.quality_gates) {
-            if !(0.0..=1.0).contains(&value) {
+            if value.milli() > ThresholdRatio::ONE.milli() {
                 errors.push(DocumentProfileValidationError::InvalidThreshold {
                     field: field.to_string(),
-                    value,
+                    value_milli: value.milli(),
                 });
             }
         }
@@ -275,7 +323,7 @@ impl DocumentProfile {
     }
 }
 
-fn threshold_fields(gates: &DocumentQualityGates) -> [(&'static str, f64); 8] {
+fn threshold_fields(gates: &DocumentQualityGates) -> [(&'static str, ThresholdRatio); 8] {
     [
         ("required_name_preservation", gates.required_name_preservation),
         ("required_number_preservation", gates.required_number_preservation),
@@ -333,8 +381,8 @@ fn error_key(err: &DocumentProfileValidationError) -> (u8, String, String) {
         DocumentProfileValidationError::DeferredCapabilityBlocking { id } => {
             (6, id.clone(), String::new())
         }
-        DocumentProfileValidationError::InvalidThreshold { field, value } => {
-            (7, field.clone(), value.to_string())
+        DocumentProfileValidationError::InvalidThreshold { field, value_milli } => {
+            (7, field.clone(), value_milli.to_string())
         }
         DocumentProfileValidationError::InvalidLengthRange { tier, field } => {
             (8, tier.clone(), field.clone())

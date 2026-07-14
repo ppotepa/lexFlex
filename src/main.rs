@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
-use lexflex::api::LexFlexAPI;
 use lexflex::chat::{ChatOptions, TraceMode};
-use lexflex::document::temporal_discourse::DocumentTemporalDiscourse;
+use lexflex::engine::{ConversationEngine, EngineRequest, EngineResponse, EngineStatus, InspectTarget, LanguageMode, LocalSnapshotSourceProvider, SourceFetchPolicy, SourceKind, SourceProvider, SourceRequest, SourceSnapshot};
 use std::ffi::OsString;
+use std::path::Path;
 use std::process;
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 #[derive(Parser)]
 #[command(name = "lexflex")]
@@ -27,21 +29,12 @@ enum Commands {
         /// Data directory
         #[arg(short, long, default_value = "data")]
         data: String,
-        /// Disable any LLM-backed learner integration
+        /// Disable all live source access
         #[arg(long)]
         offline: bool,
         /// Default trace mode shown in the transcript
         #[arg(long, default_value = "brief")]
         trace: String,
-        /// Optional label shown in the header for the configured endpoint
-        #[arg(long)]
-        base_url: Option<String>,
-        /// Optional label shown in the header for the configured model
-        #[arg(long)]
-        model: Option<String>,
-        /// Optional system prompt label shown in the header
-        #[arg(long)]
-        system_prompt: Option<String>,
     },
 
     /// Translate text between languages
@@ -57,94 +50,119 @@ enum Commands {
         /// Data directory
         #[arg(short, long, default_value = "data")]
         data: String,
-    },
-    /// Parse text to Interlingua representation
-    Parse {
-        /// Input text
-        text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        lang: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-    },
-    /// List supported languages
-    Languages {
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-    },
-    /// Semantic digest: actors, actions, roles, discourse (IL-derived)
-    Explain {
-        /// Input text
-        text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        lang: String,
-        /// Output format: human or json
-        #[arg(short, long, default_value = "human")]
-        format: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-    },
-    /// Build a document graph from source text
-    DocumentGraph {
-        /// Input text
-        text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        lang: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-        /// Output format: json, pretty-json, summary
-        #[arg(short, long, default_value = "json")]
+        /// Output format: json, pretty-json, summary, answer
+        #[arg(long, default_value = "answer")]
         format: String,
     },
-    /// Resolve entities from a document graph
-    DocumentResolve {
-        /// Input text
+    /// Fetch or inspect raw source snapshots
+    Source {
+        #[command(subcommand)]
+        command: SourceCommands,
+    },
+    /// Ingest a source snapshot through the conversation engine
+    Ingest {
+        title: String,
+        #[arg(short, long, default_value = "en")] lang: String,
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long)] live: bool,
+        #[arg(long, default_value = "pretty-json")] format: String,
+    },
+    /// Answer a natural-language question from a saved engine session
+    Answer {
         text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        lang: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-        /// Output format: json, pretty-json, summary
-        #[arg(short, long, default_value = "json")]
+        #[arg(short, long, default_value = "auto")] lang: String,
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "pretty-json")] format: String,
+    },
+    /// Execute a serialized QueryInterlingua against a saved engine session
+    Query {
+        query: OsString,
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "pretty-json")] format: String,
+    },
+    /// Inspect a persisted engine session
+    Inspect {
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "session")] target: String,
+        #[arg(long, default_value = "pretty-json")] format: String,
+    },
+    /// Read a persisted deterministic engine trace
+    Trace {
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+        turn: String,
+    },
+    /// Validate or compare a structured benchmark corpus
+    Corpus {
+        #[command(subcommand)]
+        command: CorpusCommands,
+    },
+    /// Save a deterministic session snapshot
+    SessionSave {
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+    },
+    /// Load and validate a deterministic session snapshot
+    SessionLoad {
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "default")] session: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum CorpusCommands {
+    /// Validate a corpus manifest and report its deterministic case count
+    Run {
+        #[arg(default_value = "benchmarks/wikipedia_paris_v1")]
+        path: String,
+        #[arg(long, default_value = "summary")]
         format: String,
     },
-    /// Resolve temporal, event, and discourse structure
-    DocumentTemporalDiscourse {
-        /// Input text
-        text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        lang: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
-        /// Output format: json, pretty-json, summary, timeline, plan
-        #[arg(short, long, default_value = "summary")]
-        format: String,
+    /// Compare two corpus manifests by canonical file hash
+    Compare {
+        baseline: String,
+        candidate: String,
     },
-    /// Translate using the resolved document path
-    DocumentTranslateResolved {
-        /// Input text
-        text: OsString,
-        /// Source language (pl, en)
-        #[arg(short, long, default_value = "pl")]
-        from: String,
-        /// Target language (pl, en)
-        #[arg(short, long, default_value = "en")]
-        to: String,
-        /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
+}
+
+#[derive(Subcommand)]
+enum SourceCommands {
+    /// Resolve and print a source snapshot
+    Fetch {
+        title: String,
+        #[arg(short, long, default_value = "en")] lang: String,
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long)] live: bool,
+        #[arg(long, default_value = "pretty-json")] format: String,
     },
+    /// Inspect a locally available source snapshot without network access
+    Inspect {
+        title: String,
+        #[arg(short, long, default_value = "en")] lang: String,
+        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(long, default_value = "pretty-json")] format: String,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+struct CorpusManifestCli {
+    schema: u32,
+    #[serde(default)]
+    corpus_id: String,
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    total_cases: usize,
+    #[serde(default)]
+    cases: Vec<ron::Value>,
+    #[serde(default)]
+    sources: Vec<ron::Value>,
+    #[serde(default)]
+    required_question_count: usize,
 }
 
 fn main() {
@@ -158,9 +176,6 @@ fn main() {
             data,
             offline,
             trace,
-            base_url,
-            model,
-            system_prompt,
         } => {
             let trace_mode = match trace.as_str() {
                 "off" => TraceMode::Off,
@@ -174,9 +189,6 @@ fn main() {
                 data_dir: data,
                 offline,
                 trace_mode,
-                base_url,
-                model,
-                system_prompt,
             };
 
             if let Err(e) = lexflex::chat::run(options) {
@@ -184,207 +196,169 @@ fn main() {
                 process::exit(1);
             }
         }
-        Commands::Translate { text, from, to, data } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
+        Commands::Translate { text, from, to, data, format } => {
+            let mut engine = engine_or_exit(&data, "translate", true);
+            let response = engine.handle(EngineRequest::Translate { text: text.to_string_lossy().into_owned(), from: lexflex::core::interlingua::LanguageId::new(&from), to: lexflex::core::interlingua::LanguageId::new(&to) });
+            print_engine_response(response, &format);
+        }
+        Commands::Source { command } => match command {
+            SourceCommands::Fetch { title, lang, data, live, format } => {
+                let request = source_request(title, &lang, if live { SourceFetchPolicy::Live } else { SourceFetchPolicy::CacheFirst });
+                let provider = LocalSnapshotSourceProvider::new(&data, !live);
+                match provider.resolve(&request) {
+                    Ok(snapshot) => print_source_snapshot(snapshot, &format),
+                    Err(error) => {
+                        eprintln!("Source fetch error: {error:?}");
+                        process::exit(1);
+                    }
+                }
+            }
+            SourceCommands::Inspect { title, lang, data, format } => {
+                let request = source_request(title, &lang, SourceFetchPolicy::SnapshotOnly);
+                let provider = LocalSnapshotSourceProvider::new(&data, true);
+                match provider.resolve(&request) {
+                    Ok(snapshot) => print_source_snapshot(snapshot, &format),
+                    Err(error) => {
+                        eprintln!("Source inspect error: {error:?}");
+                        process::exit(1);
+                    }
+                }
+            }
+        },
+        Commands::Ingest { title, lang, data, session, live, format } => {
+            let mut engine = engine_or_exit(&data, &session, !live);
+            let request = source_request(title, &lang, if live { SourceFetchPolicy::Live } else { SourceFetchPolicy::SnapshotOnly });
+            let response = engine.handle(EngineRequest::IngestSource { source: request });
+            print_engine_response(response, &format);
+            if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
+        }
+        Commands::Answer { text, lang, data, session, format } => {
+            let mut engine = engine_or_exit(&data, &session, true);
+            if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+            let language = if lang == "auto" { LanguageMode::Auto } else { LanguageMode::Explicit(lang) };
+            print_engine_response(engine.handle(EngineRequest::UserTurn { text: text.to_string_lossy().into_owned(), language }), &format);
+        }
+        Commands::Query { query, data, session, format } => {
+            let mut engine = engine_or_exit(&data, &session, true);
+            if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+            let query = serde_json::from_str(&query.to_string_lossy()).unwrap_or_else(|error| { eprintln!("Query JSON error: {error}"); process::exit(1); });
+            print_engine_response(engine.handle(EngineRequest::Query { query }), &format);
+        }
+        Commands::Inspect { data, session, target, format } => {
+            let mut engine = engine_or_exit(&data, &session, true);
+            if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+            let target = match target.as_str() { "sources" => InspectTarget::Sources, "bundles" => InspectTarget::Bundles, _ => InspectTarget::Session };
+            print_engine_response(engine.handle(EngineRequest::Inspect { target }), &format);
+        }
+        Commands::Trace { data, session, turn } => {
+            let store = lexflex::engine::SessionStore::new(&data);
+            match store.load_trace(&session, &turn) {
+                Ok(trace) => println!("{trace}"),
+                Err(error) => { eprintln!("Trace load error: {error:?}"); process::exit(1); }
+            }
+        }
+        Commands::Corpus { command } => match command {
+            CorpusCommands::Run { path, format } => match corpus_manifest(&path) {
+                Ok((manifest, hash)) => {
+                    let corpus_id = if manifest.corpus_id.is_empty() { &manifest.id } else { &manifest.corpus_id };
+                    let case_count = if manifest.total_cases > 0 { manifest.total_cases } else { manifest.required_question_count.max(manifest.sources.len()) };
+                    let valid = if manifest.cases.is_empty() { !manifest.sources.is_empty() && case_count > 0 } else { manifest.cases.len() == case_count && case_count > 0 };
+                    if !valid { eprintln!("Corpus validation error: case count or source manifest mismatch"); process::exit(1); }
+                    if format == "summary" { println!("corpus={} schema={} cases={} sha256={}", corpus_id, manifest.schema, case_count, hash); }
+                    else { println!("{}", serde_json::json!({"corpus_id": corpus_id, "schema": manifest.schema, "cases": case_count, "manifest_sha256": hash})); }
+                }
+                Err(error) => { eprintln!("Corpus validation error: {error}"); process::exit(1); }
+            },
+            CorpusCommands::Compare { baseline, candidate } => match (manifest_hash(&baseline), manifest_hash(&candidate)) {
+                (Ok(left), Ok(right)) => println!("{}", serde_json::json!({"equal": left == right, "baseline_sha256": left, "candidate_sha256": right})),
+                (Err(error), _) | (_, Err(error)) => { eprintln!("Corpus compare error: {error}"); process::exit(1); }
+            },
+        },
+        Commands::SessionSave { data, session } => {
+            let mut engine = engine_or_exit(&data, &session, true);
+            let existing = engine
+                .store
+                .as_ref()
+                .and_then(|store| store.path_for(&session).ok())
+                .is_some_and(|path| path.exists());
+            if existing {
+                if let Err(error) = engine.load_session() {
+                    eprintln!("Session load error: {error:?}");
+                    process::exit(1);
+                }
+            }
+            match engine.save_session() { Ok(path) => println!("{}", path.display()), Err(error) => { eprintln!("Session save error: {error:?}"); process::exit(1); } }
+        }
+        Commands::SessionLoad { data, session } => {
+            let mut engine = engine_or_exit(&data, &session, true);
+            match engine.load_session() { Ok(()) => println!("{}", engine.session.snapshot_id), Err(error) => { eprintln!("Session load error: {error:?}"); process::exit(1); } }
+        }
+    }
+}
 
-            match api.translate(&text, &from, &to) {
-                Ok(result) => println!("{}", result),
-                Err(e) => {
-                    eprintln!("Translation error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::Parse { text, lang, data } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
+fn manifest_path(path: &str) -> std::path::PathBuf {
+    let path = Path::new(path);
+    if path.file_name().and_then(|name| name.to_str()) == Some("manifest.ron") { path.to_path_buf() } else { path.join("manifest.ron") }
+}
 
-            match api.parse(&text, &lang) {
-                Ok(il) => println!("{:#?}", il),
-                Err(e) => {
-                    eprintln!("Parse error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::Languages { data } => {
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
+fn corpus_manifest(path: &str) -> Result<(CorpusManifestCli, String), String> {
+    let path = manifest_path(path);
+    let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
+    let manifest: CorpusManifestCli = ron::de::from_bytes(&bytes).map_err(|error| error.to_string())?;
+    let mut hash = Sha256::new(); hash.update(&bytes);
+    Ok((manifest, format!("{:x}", hash.finalize())))
+}
 
-            let langs = api.supported_languages();
-            println!("Supported languages:");
-            for lang in langs {
-                println!("  - {}", lang);
-            }
-        }
-        Commands::Explain {
-            text,
-            lang,
-            format,
-            data,
-        } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
+fn manifest_hash(path: &str) -> Result<String, String> { corpus_manifest(path).map(|(_, hash)| hash) }
 
-            let result = match format.as_str() {
-                "json" => api.explain_json(&text, &lang),
-                "human" | _ => api.explain_human(&text, &lang),
-            };
-            match result {
-                Ok(out) => println!("{}", out),
-                Err(e) => {
-                    eprintln!("Explain error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::DocumentGraph {
-            text,
-            lang,
-            data,
-            format,
-        } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
-            match api.compile_document_graph(&text, &lang) {
-                Ok(graph) => match format.as_str() {
-                    "pretty-json" => match graph.to_pretty_json() {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Document graph serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                    "summary" => {
-                        println!("{}", graph_summary_text(&graph));
-                    }
-                    _ => match graph.to_canonical_json() {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Document graph serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                },
-                Err(e) => {
-                    eprintln!("Document graph error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::DocumentResolve {
-            text,
-            lang,
-            data,
-            format,
-        } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
-            match api.compile_resolved_document(&text, &lang) {
-                Ok(resolution) => match format.as_str() {
-                    "pretty-json" => match resolution.to_pretty_json() {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Document resolution serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                    "summary" => {
-                        println!("{}", resolution_summary_text(&resolution));
-                    }
-                    _ => match resolution.to_canonical_json() {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Document resolution serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                },
-                Err(e) => {
-                    eprintln!("Document resolution error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::DocumentTemporalDiscourse {
-            text,
-            lang,
-            data,
-            format,
-        } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
-            match api.compile_document_temporal_discourse(&text, &lang) {
-                Ok(artifact) => match format.as_str() {
-                    "pretty-json" => match serde_json::to_string_pretty(&artifact) {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Temporal discourse serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                    "json" => match serde_json::to_string(&artifact) {
-                        Ok(out) => println!("{}", out),
-                        Err(e) => {
-                            eprintln!("Temporal discourse serialization error: {}", e);
-                            std::process::exit(1);
-                        }
-                    },
-                    "timeline" => {
-                        println!("{}", temporal_discourse_timeline_text(&artifact));
-                    }
-                    "plan" => {
-                        println!("{}", temporal_discourse_plan_text(&artifact));
-                    }
-                    _ => {
-                        println!("{}", temporal_discourse_summary_text(&artifact));
-                    }
-                },
-                Err(e) => {
-                    eprintln!("Temporal discourse error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Commands::DocumentTranslateResolved {
-            text,
-            from,
-            to,
-            data,
-        } => {
-            let text = text.to_string_lossy().to_string();
-            let api = LexFlexAPI::builder()
-                .data_dir(&data)
-                .build()
-                .expect("Failed to initialize lexFlex");
-            match api.translate_document_resolved(&text, &from, &to) {
-                Ok(result) => println!("{}", result.output),
-                Err(e) => {
-                    eprintln!("Resolved translation error: {}", e);
-                    std::process::exit(1);
-                }
-            }
+fn source_request(title: String, lang: &str, policy: SourceFetchPolicy) -> SourceRequest {
+    SourceRequest {
+        source_kind: SourceKind::Wikipedia,
+        title,
+        language: lexflex::core::interlingua::LanguageId::new(lang),
+        policy,
+    }
+}
+
+fn engine_or_exit(data: &str, session: &str, offline: bool) -> ConversationEngine {
+    ConversationEngine::new(data, session, offline).unwrap_or_else(|error| { eprintln!("Engine initialization error: {error:?}"); process::exit(1); })
+}
+
+fn print_engine_response(response: EngineResponse, format: &str) {
+    if format == "summary" {
+        match &response { EngineResponse::Ingest(value) => println!("status={:?} source={} bundle={} snapshot={}", value.meta.status, value.source_id, value.bundle_id, value.meta.session_snapshot_id), EngineResponse::Error { error, .. } => println!("status=Error error={error:?}"), _ => println!("status={:?}", engine_status(&response)) }
+    } else {
+        let output = if format == "json" { serde_json::to_string(&response) } else { serde_json::to_string_pretty(&response) };
+        match output { Ok(value) => println!("{value}"), Err(error) => { eprintln!("Engine response serialization error: {error}"); process::exit(1); } }
+    }
+}
+
+fn engine_status(response: &EngineResponse) -> EngineStatus {
+    match response { EngineResponse::Conversation(value) => value.meta.status, EngineResponse::Translation(value) => value.meta.status, EngineResponse::Ingest(value) => value.meta.status, EngineResponse::Answer { meta, .. } => meta.status, EngineResponse::Inspection(value) => value.meta.status, EngineResponse::Error { meta, .. } => meta.status }
+}
+
+fn print_source_snapshot(snapshot: SourceSnapshot, format: &str) {
+    if format == "summary" {
+        println!(
+            "source={} title={} language={} revision={} sha256={}",
+            snapshot.source_id,
+            snapshot.title,
+            snapshot.language,
+            snapshot.revision.as_deref().unwrap_or("none"),
+            snapshot.content_sha256
+        );
+        return;
+    }
+    let output = if format == "json" {
+        serde_json::to_string(&snapshot)
+    } else {
+        serde_json::to_string_pretty(&snapshot)
+    };
+    match output {
+        Ok(value) => println!("{value}"),
+        Err(error) => {
+            eprintln!("Source serialization error: {error}");
+            process::exit(1);
         }
     }
 }
@@ -402,91 +376,4 @@ fn init_tracing(cli: &Cli) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default_filter));
     tracing_subscriber::fmt().with_env_filter(env_filter).init();
-}
-
-fn graph_summary_text(graph: &lexflex::document::graph::DocumentGraph) -> String {
-    [
-        format!("document_id: {}", graph.source_document_id),
-        format!("graph_id: {}", graph.id),
-        format!("schema_version: {}", graph.schema.schema_version),
-        format!("algorithm_version: {}", graph.schema.algorithm_version),
-        format!("nodes_total: {}", graph.summary.nodes_total),
-        format!("edges_total: {}", graph.summary.edges_total),
-        format!("source_sentence_nodes: {}", graph.summary.source_sentence_nodes),
-        format!("semantic_sentence_nodes: {}", graph.summary.semantic_sentence_nodes),
-        format!("frame_occurrence_nodes: {}", graph.summary.frame_occurrence_nodes),
-        format!("mention_nodes: {}", graph.summary.mention_nodes),
-        format!("entity_candidate_nodes: {}", graph.summary.entity_candidate_nodes),
-        format!("event_nodes: {}", graph.summary.event_nodes),
-        format!("unresolved_fragment_nodes: {}", graph.summary.unresolved_fragment_nodes),
-        format!("graph_sha256: {}", graph.graph_sha256),
-    ]
-    .join("\n")
-        + "\n"
-}
-
-fn resolution_summary_text(
-    resolution: &lexflex::document::resolution::DocumentEntityResolution,
-) -> String {
-    [
-        format!("resolution_id: {}", resolution.id),
-        format!("source_document_id: {}", resolution.source_document_id),
-        format!("source_graph_id: {}", resolution.source_graph_id),
-        format!("mentions_total: {}", resolution.summary.mentions_total),
-        format!(
-            "synthetic_mentions_total: {}",
-            resolution.summary.synthetic_mentions_total
-        ),
-        format!("decisions_total: {}", resolution.summary.decisions_total),
-        format!("accepted: {}", resolution.summary.accepted),
-        format!("hard_accepted: {}", resolution.summary.hard_accepted),
-        format!("ambiguous: {}", resolution.summary.ambiguous),
-        format!("deferred: {}", resolution.summary.deferred),
-        format!("unresolved: {}", resolution.summary.unresolved),
-        format!("clusters_total: {}", resolution.summary.clusters_total),
-        format!("diagnostics_fatal: {}", resolution.summary.diagnostics_fatal),
-        format!("resolution_sha256: {}", resolution.resolution_sha256),
-    ]
-    .join("\n")
-        + "\n"
-}
-
-fn temporal_discourse_summary_text(artifact: &DocumentTemporalDiscourse) -> String {
-    [
-        format!("temporal_discourse_id: {}", artifact.id),
-        format!("source_document_id: {}", artifact.source_document_id),
-        format!("source_graph_id: {}", artifact.source_graph_id),
-        format!("event_profiles: {}", artifact.summary.event_profiles_total),
-        format!("temporal_expressions: {}", artifact.summary.temporal_expressions_total),
-        format!("temporal_relations: {}", artifact.summary.temporal_relations_total),
-        format!("event_clusters: {}", artifact.summary.event_clusters_total),
-        format!("discourse_relations: {}", artifact.summary.discourse_relations_total),
-        format!("temporal_discourse_sha256: {}", artifact.temporal_discourse_sha256),
-    ]
-    .join("\n")
-        + "\n"
-}
-
-fn temporal_discourse_timeline_text(artifact: &DocumentTemporalDiscourse) -> String {
-    let mut lines = vec![format!("artifact: {}", artifact.id)];
-    for relation_id in &artifact.temporal_relation_order {
-        if let Some(relation) = artifact.temporal_relations.get(relation_id) {
-            lines.push(format!(
-                "{} | {:?} | {} -> {}",
-                relation.id, relation.kind, relation.from_event_id, relation.to_event_id
-            ));
-        }
-    }
-    lines.join("\n") + "\n"
-}
-
-fn temporal_discourse_plan_text(artifact: &DocumentTemporalDiscourse) -> String {
-    let mut lines = vec![format!("artifact: {}", artifact.id)];
-    if let Some(plan) = &artifact.generation_plan {
-        lines.push(format!("entity_clusters: {}", plan.entity_cluster_refs.len()));
-        for step in &plan.ordered_steps {
-            lines.push(step.clone());
-        }
-    }
-    lines.join("\n") + "\n"
 }

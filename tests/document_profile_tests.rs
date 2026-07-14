@@ -110,7 +110,7 @@ fn test_document_mvp_profile_thresholds_are_in_range() {
         profile.quality_gates.required_glossary_compliance,
         profile.quality_gates.required_paragraph_preservation,
     ];
-    assert!(thresholds.iter().all(|v| (0.0..=1.0).contains(v)));
+    assert!(thresholds.iter().all(|value| value.milli() <= 1000));
 }
 
 #[test]

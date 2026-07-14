@@ -64,7 +64,8 @@ impl LexFlexAPI {
         source_language: &str,
         target_language: &str,
     ) -> Result<DocumentTranslation, DocumentServiceError> {
-        DocumentService::new(self).translate_best_effort(input, source_language, target_language)
+        let _ = (input, source_language, target_language);
+        Err(DocumentServiceError::Translation(crate::document::translation::DocumentTranslationError::UnsupportedResolvedRewrite))
     }
 
     pub fn build_document_graph(

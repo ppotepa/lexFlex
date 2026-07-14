@@ -40,12 +40,6 @@ fn temporal_discourse_artifact_is_deterministic_and_valid() {
 #[test]
 fn resolved_translation_matches_best_effort_output() {
     let api = api();
-    let resolved = api
-        .translate_document_resolved(case_source(), "pl", "en")
-        .unwrap();
-    let best_effort = api
-        .translate_document_best_effort(case_source(), "pl", "en")
-        .unwrap();
-    assert_eq!(resolved.output, best_effort.output);
-    assert_eq!(resolved.translation_sha256, best_effort.translation_sha256);
+    let error = api.translate_document_resolved(case_source(), "pl", "en").unwrap_err();
+    assert!(error.to_string().contains("validated semantic rewrite is not implemented"));
 }

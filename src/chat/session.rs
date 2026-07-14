@@ -1,10 +1,6 @@
-use crate::chat::service::ChatResponse;
-use crate::chat::conversation_qa::ConversationKnowledgeSession;
-use crate::chat::semantic::SemanticConversationMemory;
 use crate::chat::settings::{ChatSettings, Verbosity};
 use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, Transcript};
 use crate::chat::trace::ChatTraceEntry;
-use crate::runtime::DocumentArtifactBundle;
 use crate::chat::{ChatOptions, TraceMode};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -40,9 +36,6 @@ pub struct RuntimeConfig {
     pub data_dir: String,
     pub trace_mode: TraceMode,
     pub offline: bool,
-    pub endpoint_label: Option<String>,
-    pub model_label: Option<String>,
-    pub system_prompt_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -167,14 +160,19 @@ pub struct PendingRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct ChatResponse {
+    pub title: String,
+    pub blocks: Vec<MessageBlock>,
+    pub notes: Vec<String>,
+    pub latency_ms: u128,
+}
+
+#[derive(Debug, Clone)]
 pub struct ChatSession {
     pub context: ChatContext,
     pub settings: ChatSettings,
     pub transcript: Transcript,
-    pub knowledge: ConversationKnowledgeSession,
-    pub semantic: Option<SemanticConversationMemory>,
     pub trace_log: Vec<ChatTraceEntry>,
-    pub document_bundles: Vec<DocumentArtifactBundle>,
     pub composer: ComposerState,
     pub overlays: OverlayState,
     pub pending: Option<PendingRequest>,
@@ -193,23 +191,6 @@ pub struct SessionSnapshot {
 
 impl ChatSession {
     pub fn new(options: ChatOptions) -> Self {
-        let semantic = crate::api::LexFlexAPI::builder()
-            .data_dir(&options.data_dir)
-            .build()
-            .ok()
-            .map(SemanticConversationMemory::new);
-        let endpoint_label = options
-            .base_url
-            .clone()
-            .or_else(|| std::env::var("LEXFLEX_LLM_BASE_URL").ok());
-        let model_label = options
-            .model
-            .clone()
-            .or_else(|| std::env::var("LEXFLEX_LLM_MODEL").ok());
-        let system_prompt_label = options
-            .system_prompt
-            .clone()
-            .or_else(|| std::env::var("LEXFLEX_LLM_SYSTEM_PROMPT").ok());
         Self {
             context: ChatContext {
                 source_lang: options.from,
@@ -219,10 +200,7 @@ impl ChatSession {
             },
             settings: ChatSettings::default(),
             transcript: Transcript::new(),
-            knowledge: ConversationKnowledgeSession::default(),
-            semantic,
             trace_log: Vec::new(),
-            document_bundles: Vec::new(),
             composer: ComposerState::default(),
             overlays: OverlayState::default(),
             pending: None,
@@ -232,9 +210,6 @@ impl ChatSession {
                 data_dir: options.data_dir,
                 trace_mode: options.trace_mode,
                 offline: options.offline,
-                endpoint_label,
-                model_label,
-                system_prompt_label,
             },
             viewport: TranscriptViewport::new(),
         }
@@ -321,12 +296,7 @@ impl ChatSession {
 
     pub fn clear_session(&mut self) {
         self.transcript.clear();
-        self.knowledge.clear();
-        if let Some(semantic) = self.semantic.as_mut() {
-            semantic.clear();
-        }
         self.trace_log.clear();
-        self.document_bundles.clear();
         self.composer = ComposerState::default();
         self.pending = None;
         self.viewport = TranscriptViewport::new();
@@ -342,12 +312,8 @@ impl ChatSession {
     }
 
     pub fn chat_language_for(&self, text: &str) -> String {
-        self.context
-            .chat_language_override
-            .clone()
-            .unwrap_or_else(|| {
-                crate::chat::conversation_qa::detect_language(text, &self.context.source_lang)
-            })
+        let _ = text;
+        self.context.chat_language_override.clone().unwrap_or_else(|| "auto".into())
     }
 
     pub fn chat_language_label(&self) -> String {
@@ -381,13 +347,12 @@ impl ChatSession {
                 pending.started_at.elapsed().as_millis()
             ),
             None => format!(
-                "{} | chat:{} | translate:{} -> {} | {} | facts:{}",
+                "{} | chat:{} | translate:{} -> {} | {}",
                 self.context.mode.as_str(),
                 self.chat_language_label(),
                 self.context.source_lang,
                 self.context.target_lang,
                 self.settings.verbosity.as_str(),
-                self.knowledge.fact_count(),
             ),
         }
     }

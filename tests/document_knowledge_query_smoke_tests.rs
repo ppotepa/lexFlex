@@ -84,7 +84,7 @@ fn chapter8_query_answer_smoke_test() {
     let answer = QueryService::answer_document_query(query, &knowledge).unwrap();
     assert_ne!(answer.status, AnswerStatus::InvalidQuery);
     assert!(!answer.answer_sha256.is_empty());
-    assert!(answer.text.as_deref().unwrap_or("").starts_with("matched "));
+    assert_eq!(answer.text.as_deref(), Some("matched 1"));
     assert!(answer
         .evidence
         .iter()
@@ -134,8 +134,45 @@ fn chapter8_query_can_filter_and_count_claims() {
     assert_eq!(answer.rows.len(), 1);
     assert_eq!(answer.rows[0].columns.get("count"), Some(&"1".to_string()));
     assert_eq!(answer.rows[0].columns.get("mode"), Some(&"count".to_string()));
+    assert_eq!(answer.text.as_deref(), Some("1"));
     assert!(answer
         .rows
         .iter()
         .all(|row| row.evidence.iter().any(|value| value == &format!("claim:{}", first_claim.id))));
+}
+
+#[test]
+fn chapter8_query_rejects_text_contains_shortcuts() {
+    let api = api();
+    let compilation = api.compile_document(case_source(), "pl").unwrap();
+    let graph = api.build_document_graph(&compilation).unwrap();
+    let knowledge = DocumentKnowledgeService::default()
+        .extract(&compilation, &graph, None, None)
+        .unwrap();
+
+    let query = QueryInterlingua {
+        schema: QuerySchema::V1,
+        id: QueryId::from_str("query-textcontains").unwrap(),
+        source_language: "pl".to_string(),
+        source_text: Some("szukaj tekstowo".to_string()),
+        intent: QueryIntent::Explain,
+        constraints: QueryConstraint::TextContains("Warszawa".to_string()),
+        projection: vec![QueryProjection::Text],
+        aggregation: None,
+        ordering: vec![],
+        limit: Some(10),
+        world_policy: QueryWorldPolicy::OpenWorld,
+        evidence_policy: QueryEvidencePolicy::Required,
+        query_sha256: String::new(),
+    };
+    let query = QueryInterlingua {
+        query_sha256: hash(&QueryInterlingua {
+            query_sha256: String::new(),
+            ..query.clone()
+        }),
+        ..query
+    };
+
+    let error = QueryService::answer_document_query(query, &knowledge).unwrap_err();
+    assert!(error.to_string().contains("TextContains is unsupported"));
 }

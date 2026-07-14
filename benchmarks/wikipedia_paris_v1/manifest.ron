@@ -1,0 +1,10 @@
+(
+    id: "wikipedia_paris_v1",
+    schema: 1,
+    sources: [
+        (language: "en", title: "Paris", path: "en/Paris.json"),
+        (language: "pl", title: "Paryż", path: "pl/Paryz.json"),
+    ],
+    required_question_count: 10,
+    snapshot_only: true,
+)

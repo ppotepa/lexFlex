@@ -79,6 +79,13 @@ pub struct EntityResolutionDecision {
     pub mention: ResolutionMentionRef,
     pub stage: EntityResolutionStage,
     pub kind: EntityResolutionDecisionKind,
+    /// Cluster containing the antecedent selected for this mention.
+    /// This is intentionally distinct from the cluster produced for the
+    /// result mention itself.
+    pub antecedent_cluster: Option<EntityClusterId>,
+    /// Cluster containing the mention after applying the decision.
+    pub result_cluster: Option<EntityClusterId>,
+    /// Compatibility projection retained in the serialized V1 contract.
     pub selected_cluster: Option<EntityClusterId>,
     pub selected_target: Option<ResolutionMentionRef>,
     pub score: i32,

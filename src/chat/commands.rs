@@ -12,12 +12,12 @@ pub enum SlashCommand {
     Lang(Option<String>),
     Translate { from: String, to: String },
     Settings,
-    Qa,
-    Ask(String),
-    Wiki(String),
-    Explain(String),
-    Parse(String),
-    Learn(String),
+    Ingest(String),
+    Query(String),
+    Inspect(String),
+    Trace,
+    Clear,
+    Quit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,12 +67,12 @@ pub fn parse_input(input: &str) -> InputAction {
             }
         }
         "settings" => InputAction::Slash(SlashCommand::Settings),
-        "qa" => InputAction::Slash(SlashCommand::Qa),
-        "ask" => InputAction::Slash(SlashCommand::Ask(args)),
-        "wiki" => InputAction::Slash(SlashCommand::Wiki(args)),
-        "explain" => InputAction::Slash(SlashCommand::Explain(args)),
-        "parse" => InputAction::Slash(SlashCommand::Parse(args)),
-        "learn" => InputAction::Slash(SlashCommand::Learn(args)),
+        "ingest" => InputAction::Slash(SlashCommand::Ingest(args)),
+        "query" => InputAction::Slash(SlashCommand::Query(args)),
+        "inspect" => InputAction::Slash(SlashCommand::Inspect(args)),
+        "trace" => InputAction::Slash(SlashCommand::Trace),
+        "clear" => InputAction::Slash(SlashCommand::Clear),
+        "quit" => InputAction::Slash(SlashCommand::Quit),
         _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
     }
 }
@@ -89,7 +89,6 @@ pub fn visible_suggestions(input: &str) -> Vec<SlashSuggestion> {
                 | SlashCommand::Lang(_)
                 | SlashCommand::Translate { .. }
                 | SlashCommand::Settings
-                | SlashCommand::Qa
         )
     ) {
         return vec![];
@@ -136,21 +135,6 @@ fn visible_catalog() -> Vec<SlashSuggestion> {
             label: "translate".to_string(),
             replacement: "/translate pl en".to_string(),
             description: "Set translation direction to Polish -> English".to_string(),
-        },
-        SlashSuggestion {
-            label: "qa".to_string(),
-            replacement: "/qa".to_string(),
-            description: "Switch to conversation knowledge mode".to_string(),
-        },
-        SlashSuggestion {
-            label: "ask".to_string(),
-            replacement: "/ask What is the capital of France?".to_string(),
-            description: "Ask a question against conversation memory".to_string(),
-        },
-        SlashSuggestion {
-            label: "wiki".to_string(),
-            replacement: "/wiki Paris :: Paris is the capital of France.".to_string(),
-            description: "Ingest a Wikipedia snapshot into memory".to_string(),
         },
     ]
 }
@@ -209,31 +193,8 @@ mod tests {
             parse_input("/settings"),
             InputAction::Slash(SlashCommand::Settings)
         );
-        assert_eq!(parse_input("/qa"), InputAction::Slash(SlashCommand::Qa));
-        assert_eq!(
-            parse_input("/ask What is the capital of France?"),
-            InputAction::Slash(SlashCommand::Ask(
-                "What is the capital of France?".to_string()
-            ))
-        );
-        assert_eq!(
-            parse_input("/wiki Paris :: Paris is the capital of France."),
-            InputAction::Slash(SlashCommand::Wiki(
-                "Paris :: Paris is the capital of France.".to_string()
-            ))
-        );
-        assert_eq!(
-            parse_input("/explain hello"),
-            InputAction::Slash(SlashCommand::Explain("hello".to_string()))
-        );
-        assert_eq!(
-            parse_input("/parse hello"),
-            InputAction::Slash(SlashCommand::Parse("hello".to_string()))
-        );
-        assert_eq!(
-            parse_input("/learn hello"),
-            InputAction::Slash(SlashCommand::Learn("hello".to_string()))
-        );
+        assert_eq!(parse_input("/clear"), InputAction::Slash(SlashCommand::Clear));
+        assert_eq!(parse_input("/quit"), InputAction::Slash(SlashCommand::Quit));
     }
 
     #[test]

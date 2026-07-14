@@ -7,6 +7,7 @@ use crate::document::temporal_discourse::{
     TemporalExpressionId,
 };
 use serde::{Deserialize, Serialize};
+use crate::document::span::SourceSpan;
 use std::collections::BTreeMap;
 
 use super::id::{
@@ -36,6 +37,19 @@ pub struct DecimalValue {
     pub scale: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CivilDate {
+    pub year: i32,
+    pub month: Option<u8>,
+    pub day: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuantityValue {
+    pub amount: DecimalValue,
+    pub unit: Option<String>,
+}
+
 impl DecimalValue {
     pub fn new(sign: i8, mantissa: i128, scale: u32) -> Self {
         let sign = if mantissa == 0 { 1 } else { sign.signum().clamp(-1, 1) };
@@ -47,6 +61,12 @@ impl DecimalValue {
 pub enum KnowledgeValue {
     Integer(i128),
     Decimal(DecimalValue),
+    Range { minimum: Option<DecimalValue>, maximum: Option<DecimalValue> },
+    Approximate(Box<KnowledgeValue>),
+    Quantity(QuantityValue),
+    Date(CivilDate),
+    Duration { days: i64 },
+    Frequency { times: i32, period: String },
     Text(String),
     Boolean(bool),
     Unknown,
@@ -200,6 +220,7 @@ pub struct PropositionOccurrence {
     pub temporal_scope: Option<ClaimTemporalScope>,
     pub confidence_milli: u16,
     pub evidence: Vec<String>,
+    pub source_spans: Vec<SourceSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

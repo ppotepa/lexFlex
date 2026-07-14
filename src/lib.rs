@@ -12,3 +12,4 @@ pub mod translator;
 pub mod api;
 pub mod generation;
 pub mod chat;
+pub mod engine;

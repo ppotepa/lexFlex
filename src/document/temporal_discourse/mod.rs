@@ -14,11 +14,13 @@ pub use id::{
     TemporalExpressionId, TemporalRelationId, DocumentTemporalDiscourseId,
 };
 pub use model::{
-    DiscourseRelation, DiscourseRelationKind, DocumentReferenceTime,
+    ClockTime, DiscourseRelation, DiscourseRelationKind, DocumentReferenceTime,
     DocumentTemporalDiscourse, DocumentTemporalDiscourseDiagnostic,
     DocumentTemporalDiscourseDiagnosticSeverity, DocumentTemporalDiscourseSummary,
     EventCoreferenceCluster, EventCoreferenceDecision, EventCoreferenceDecisionKind,
+    EventTemporalRef,
     EventProfile, EventTemporalAssignment, ResolvedDocumentGenerationPlan,
+    TimezoneOffset,
     TemporalClosureConflict, TemporalExpression, TemporalExpressionKind, TemporalNormalizedValue,
     TemporalRelation, TemporalRelationKind,
 };

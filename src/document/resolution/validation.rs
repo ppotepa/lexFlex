@@ -109,6 +109,17 @@ fn validate_decisions(
     errors: &mut Vec<DocumentEntityResolutionValidationError>,
 ) {
     for decision in resolution.decisions.values() {
+        for cluster in [decision.antecedent_cluster.as_ref(), decision.result_cluster.as_ref()].into_iter().flatten() {
+            if !resolution.clusters.contains_key(cluster) {
+                errors.push(DocumentEntityResolutionValidationError::DecisionSelectedClusterMissing);
+            }
+        }
+        if matches!(decision.kind, EntityResolutionDecisionKind::Accepted | EntityResolutionDecisionKind::HardAccepted)
+            && decision.selected_target.is_some()
+            && decision.antecedent_cluster.is_none()
+        {
+            errors.push(DocumentEntityResolutionValidationError::DecisionSelectedClusterMissing);
+        }
         match decision.kind {
             EntityResolutionDecisionKind::Seeded
             | EntityResolutionDecisionKind::Ambiguous

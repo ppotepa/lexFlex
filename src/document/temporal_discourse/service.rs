@@ -8,7 +8,7 @@ use super::id::DocumentTemporalDiscourseIdFactory;
 use super::model::{
     DiscourseRelation, DocumentReferenceTime, DocumentTemporalDiscourse,
     DocumentTemporalDiscourseDiagnostic, DocumentTemporalDiscourseDiagnosticSeverity, EventProfile, EventTemporalAssignment, ResolvedDocumentGenerationPlan, TemporalExpression,
-    TemporalRelation,
+    TemporalClosureConflict, TemporalRelation, TemporalRelationKind, EventTemporalRef,
 };
 use super::options::DocumentTemporalDiscourseOptions;
 use super::schema::DocumentTemporalDiscourseSchema;
@@ -74,7 +74,9 @@ impl DocumentTemporalDiscourseService {
                 .reference_time
                 .clone()
                 .unwrap_or_else(|| "document-context".to_string()),
-            iso_timestamp: self.options.reference_time.clone(),
+            civil_date: None,
+            clock_time: None,
+            timezone_offset: None,
             explicit: self.options.reference_time.is_some(),
         };
 
@@ -86,8 +88,6 @@ impl DocumentTemporalDiscourseService {
         let mut event_assignment_order = Vec::new();
         let mut temporal_relations = BTreeMap::new();
         let mut temporal_relation_order = Vec::new();
-        let temporal_closure = Vec::new();
-        let temporal_conflicts = Vec::new();
         let mut event_coreference_decisions = BTreeMap::new();
         let mut event_coreference_decision_order = Vec::new();
         let mut event_coreference_clusters = BTreeMap::new();
@@ -116,21 +116,22 @@ impl DocumentTemporalDiscourseService {
             discourse_units.insert(sentence.id.clone(), text.clone());
             discourse_unit_order.push(sentence.id.clone());
             if let Some((kind, canonical_direction, implicit)) = cue_relation(&text) {
-                let relation_id = DocumentTemporalDiscourseIdFactory::discourse_relation(
-                    &artifact_id,
-                    discourse_relation_order.len(),
-                );
-                let relation = DiscourseRelation {
-                    id: relation_id.clone(),
-                    from_sentence_id: sentence.id.clone(),
-                    to_sentence_id: sentence.id.clone(),
-                    kind,
-                    canonical_direction,
-                    cue_evidence: vec![text.clone()],
-                    implicit,
-                };
-                discourse_relations.insert(relation_id.clone(), relation);
-                discourse_relation_order.push(relation_id);
+                if let Some(previous_sentence) = compilation.document.ordered_sentences().get(sentence_index.saturating_sub(1)).filter(|_| sentence_index > 0) {
+                    let relation_id = DocumentTemporalDiscourseIdFactory::discourse_relation(&artifact_id, discourse_relation_order.len());
+                    let relation = DiscourseRelation {
+                        id: relation_id.clone(),
+                        from_sentence_id: previous_sentence.id.clone(),
+                        to_sentence_id: sentence.id.clone(),
+                        kind,
+                        canonical_direction,
+                        cue_evidence: vec![text.clone()],
+                        implicit,
+                    };
+                    discourse_relations.insert(relation_id.clone(), relation);
+                    discourse_relation_order.push(relation_id);
+                } else {
+                    diagnostics.push(document_temporal_discourse_diagnostic("DISCOURSE_CUE_WITHOUT_PREDECESSOR", &text));
+                }
             }
 
             for event in graph.events_for_source(&sentence.id) {
@@ -162,7 +163,7 @@ impl DocumentTemporalDiscourseService {
                 let normalized = normalize_temporal(
                     semantic_sentence.and_then(|semantic| semantic.temporal.clone()),
                     &text,
-                    reference_time.iso_timestamp.as_deref(),
+                    self.options.reference_time.as_deref(),
                 );
                 temporal_expressions.insert(
                     temporal_id.clone(),
@@ -198,6 +199,7 @@ impl DocumentTemporalDiscourseService {
                     assignment_id.clone(),
                     EventTemporalAssignment {
                         id: assignment_id.clone(),
+                        event_ref: EventTemporalRef::Event(profile_id.clone()),
                         event_profile_id: profile_id.clone(),
                         temporal_expression_id: Some(temporal_id.clone()),
                         relation: relation.clone(),
@@ -262,6 +264,8 @@ impl DocumentTemporalDiscourseService {
                 &mut event_coreference_cluster_order,
             );
         }
+
+        let (temporal_closure, temporal_conflicts) = build_temporal_closure(&artifact_id, &temporal_relations);
 
         if self.options.enable_generation_plan {
             diagnostics.push(DocumentTemporalDiscourseDiagnostic {
@@ -343,5 +347,64 @@ impl DocumentTemporalDiscourseService {
         };
         artifact.temporal_discourse_sha256 = document_temporal_discourse_hash(&artifact)?;
         Ok(artifact)
+    }
+}
+
+fn build_temporal_closure(
+    artifact_id: &str,
+    direct: &BTreeMap<super::id::TemporalRelationId, TemporalRelation>,
+) -> (Vec<TemporalRelation>, Vec<TemporalClosureConflict>) {
+    let mut edges = BTreeMap::<(crate::document::graph::GraphNodeId, crate::document::graph::GraphNodeId), TemporalRelationKind>::new();
+    for relation in direct.values() {
+        if !matches!(relation.kind, TemporalRelationKind::Before | TemporalRelationKind::After) { continue; }
+        let key = (relation.from_event_id.clone(), relation.to_event_id.clone());
+        if let Some(previous) = edges.insert(key.clone(), relation.kind.clone()) {
+            if previous != relation.kind {
+                // Retain the conflict below; the direct relation remains
+                // inspectable and is never silently discarded.
+                edges.insert(key, previous);
+            }
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let snapshot = edges.clone();
+        for ((left, middle), left_kind) in &snapshot {
+            for ((candidate_middle, right), right_kind) in &snapshot {
+                if middle != candidate_middle || left_kind != right_kind { continue; }
+                let key = (left.clone(), right.clone());
+                if !edges.contains_key(&key) {
+                    edges.insert(key, left_kind.clone());
+                    changed = true;
+                }
+            }
+        }
+    }
+    let mut closure = Vec::new();
+    for (ordinal, ((from, to), kind)) in edges.iter().enumerate() {
+        let id = DocumentTemporalDiscourseIdFactory::temporal_relation(artifact_id, 10_000 + ordinal);
+        closure.push(TemporalRelation { id, from_event_id: from.clone(), to_event_id: to.clone(), kind: kind.clone(), evidence: vec!["transitive-closure".into()] });
+    }
+    let mut conflicts = Vec::new();
+    for ((from, to), kind) in &edges {
+        let inverse = match kind { TemporalRelationKind::Before => TemporalRelationKind::After, TemporalRelationKind::After => TemporalRelationKind::Before, _ => continue };
+        if edges.get(&(to.clone(), from.clone())) == Some(&inverse) {
+            conflicts.push(TemporalClosureConflict { left_event_id: from.clone(), right_event_id: to.clone(), relation: kind.clone(), reason: "opposite temporal directions".into() });
+        }
+    }
+    conflicts.sort_by_key(|conflict| (conflict.left_event_id.clone(), conflict.right_event_id.clone()));
+    conflicts.dedup_by(|left, right| left.left_event_id == right.left_event_id && left.right_event_id == right.right_event_id);
+    (closure, conflicts)
+}
+
+fn document_temporal_discourse_diagnostic(
+    code: &str,
+    message: &str,
+) -> DocumentTemporalDiscourseDiagnostic {
+    DocumentTemporalDiscourseDiagnostic {
+        code: code.into(),
+        message: message.into(),
+        severity: DocumentTemporalDiscourseDiagnosticSeverity::Warning,
     }
 }
