@@ -84,7 +84,7 @@ impl EnglishGenerator {
                 Frame::Possession { possessor, possessed, .. } => (possessed.clone(), Some(possessor.clone())),
                 Frame::Custom { .. } => return Ok(words),
             };
-            let mut verb_lemma = resolve_surface_verb(
+            let verb_lemma = resolve_surface_verb(
                 frame,
                 &self.lexicon,
                 sentence.graph.as_ref(),
@@ -92,7 +92,7 @@ impl EnglishGenerator {
             );
 
             // Generate theme as subject
-            let theme_str = self.generate_entity_form_legacy(&theme, true)?;
+            let theme_str = self.generate_entity_form_without_graph(&theme, true)?;
             words.push(theme_str);
 
             // Add "be" auxiliary (past tense for now)
@@ -113,7 +113,7 @@ impl EnglishGenerator {
             // Add "by" phrase for agent
             if let Some(agent_entity) = agent {
                 words.push("by".to_string());
-                let agent_str = self.generate_entity_form_legacy(&agent_entity, true)?;
+                let agent_str = self.generate_entity_form_without_graph(&agent_entity, true)?;
                 words.push(agent_str);
             }
         }
@@ -239,7 +239,7 @@ impl EnglishGenerator {
             &self.descriptor.language,
         );
 
-        let agent_form = self.generate_entity_form_legacy(agent, false)?;
+        let agent_form = self.generate_entity_form_without_graph(agent, false)?;
         let pol = GenerationPolicy::new(&self.descriptor);
         // Use base form for questions and negations (do-support)
         let verb_form = if sentence.polarity == Polarity::Negative || sentence.illocution == Illocution::Question {
@@ -255,8 +255,8 @@ impl EnglishGenerator {
                 Some(Number::Singular),
             )?
         };
-        let theme_form = self.generate_entity_form_legacy(theme, true)?;
-        let recipient_form = self.generate_entity_form_legacy(recipient, false)?;
+        let theme_form = self.generate_entity_form_without_graph(theme, true)?;
+        let recipient_form = self.generate_entity_form_without_graph(recipient, false)?;
 
         let mut words = vec![];
         if pol.should_emit_subject(agent) {
@@ -292,7 +292,7 @@ impl EnglishGenerator {
             sentence.graph.as_ref(),
             &self.descriptor.language,
         );
-        let mover_form = self.generate_entity_form_legacy(mover, false)?;
+        let mover_form = self.generate_entity_form_without_graph(mover, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
@@ -303,13 +303,13 @@ impl EnglishGenerator {
         let mut words = vec![mover_form, verb_form];
 
         if let Some(ref g) = goal {
-            let goal_form = self.generate_entity_form_legacy(g, false)?;
+            let goal_form = self.generate_entity_form_without_graph(g, false)?;
             words.push("to".to_string());
             words.push(goal_form);
         }
 
         if let Some(ref s) = source {
-            let source_form = self.generate_entity_form_legacy(s, false)?;
+            let source_form = self.generate_entity_form_without_graph(s, false)?;
             words.push("from".to_string());
             words.push(source_form);
         }
@@ -327,7 +327,7 @@ impl EnglishGenerator {
         let pol = GenerationPolicy::new(&self.descriptor);
         let verb_lemma = self.find_verb_for_frame(frame)?;
 
-        let subject_form = self.generate_entity_form_legacy(subject, false)?;
+        let subject_form = self.generate_entity_form_without_graph(subject, false)?;
         let emit_sub = pol.should_emit_subject(subject);
 
         // Use AgreementEngine for correct number (coord -> Plural)
@@ -351,7 +351,7 @@ impl EnglishGenerator {
                 num,
             )?
         };
-        let object_form = self.generate_entity_form_legacy(object, true)?;
+        let object_form = self.generate_entity_form_without_graph(object, true)?;
 
         let mut words = vec![];
         if emit_sub {
@@ -396,19 +396,19 @@ impl EnglishGenerator {
             sentence.graph.as_ref(),
             &self.descriptor.language,
         );
-        let speaker_form = self.generate_entity_form_legacy(speaker, false)?;
+        let speaker_form = self.generate_entity_form_without_graph(speaker, false)?;
         let verb_form = self.morphology.inflect_verb(
             &verb_lemma,
             sentence.tense.unwrap_or(Tense::Present),
             Some(Person::Third),
             Some(Number::Singular),
         )?;
-        let message_form = self.generate_entity_form_legacy(message, true)?;
+        let message_form = self.generate_entity_form_without_graph(message, true)?;
 
         let mut words = vec![speaker_form, verb_form];
 
         if let Some(addr) = addressee {
-            let addr_form = self.generate_entity_form_legacy(addr, false)?;
+            let addr_form = self.generate_entity_form_without_graph(addr, false)?;
             words.push("to".to_string());
             words.push(addr_form);
         }
@@ -424,8 +424,8 @@ impl EnglishGenerator {
         property: &Entity,
         sentence: &Sentence,
     ) -> Result<Vec<String>, GenerateError> {
-        let subject_form = self.generate_entity_form_legacy(subject, false)?;
-        let property_form = self.generate_entity_form_legacy(property, false)?;
+        let subject_form = self.generate_entity_form_without_graph(subject, false)?;
+        let property_form = self.generate_entity_form_without_graph(property, false)?;
 
         let verb = match sentence.tense {
             Some(Tense::Past) => "was",
@@ -460,7 +460,7 @@ impl EnglishGenerator {
             res.extend(e);
             return Ok(res);
         }
-        let entity_form = self.generate_entity_form_legacy(entity, true)?;
+        let entity_form = self.generate_entity_form_without_graph(entity, true)?;
 
         // Use actual verb for non-BE/EXIST concepts (e.g., "live" for mieszkać)
         let verb = if verb_concept == "BE" || verb_concept == "EXIST" || verb_concept.is_empty() {
@@ -486,7 +486,7 @@ impl EnglishGenerator {
         let mut words = vec![entity_form, verb];
 
         if let Some(loc) = location {
-            let loc_form = self.generate_entity_form_legacy(loc, false)?;
+            let loc_form = self.generate_entity_form_without_graph(loc, false)?;
             words.push("in".to_string());
             words.push(loc_form);
         }
@@ -523,7 +523,7 @@ impl EnglishGenerator {
         Ok(parts.join(&format!(" {} ", conj)))
     }
 
-    fn generate_entity_form_legacy(
+    fn generate_entity_form_without_graph(
         &self,
         entity: &Entity,
         needs_article: bool,
@@ -667,7 +667,7 @@ impl EnglishGenerator {
         }
 
         let number = eff.features.number.unwrap_or(Number::Singular);
-        let mut noun_form = self.morphology.inflect_noun(&lemma, number, entry.and_then(|e| e.paradigm.as_deref()))?;
+        let noun_form = self.morphology.inflect_noun(&lemma, number, entry.and_then(|e| e.paradigm.as_deref()))?;
 
         if do_articles && number == Number::Singular {
             let is_definite = eff.features.definiteness == Some(Definiteness::Definite);
@@ -708,7 +708,7 @@ impl EnglishGenerator {
 
     /// Generate adjective surface form from entity with degree/concept features.
     /// Uses lexicon to map concept to target adjective lemma, then applies degree.
-    fn generate_adjective_form(&self, adj: &Entity, head_features: &FeatureBundle) -> Result<String, GenerateError> {
+    fn generate_adjective_form(&self, adj: &Entity, _head_features: &FeatureBundle) -> Result<String, GenerateError> {
         let concept = &adj.concept.0;
         let degree = adj.features.degree;
 
@@ -856,7 +856,7 @@ impl LanguageRealizer for EnglishGenerator {
         }
 
         // Age idiom (years old): post-nominal adjective order per construction registry.
-        let age_idiom = graph.map_or(false, |g| g.has_construction("AgeIdiom"));
+        let age_idiom = graph.map_or(false, |g| g.has_construction("AGE_IDIOM"));
         let mut result: Vec<String> = vec![];
         if age_idiom {
             let noun_form = self.generate_entity_form(&tmp, false, graph)?;
@@ -948,14 +948,14 @@ impl LanguageRealizer for EnglishGenerator {
         &self,
         lemma: &str,
         features: &FeatureBundle,
-        desc: &LanguageDescriptor,
+        _desc: &LanguageDescriptor,
     ) -> Result<String, GenerateError> {
         // Always use morphology inflect which has irregular past + 3sg "has" etc.
         // (find_past_participle is only for passive voice constructions)
         self.morphology.inflect_verb(lemma, features.tense.unwrap_or(Tense::Present), features.person, features.number)
     }
 
-    fn adjust_for_quantifier(&self, features: &mut FeatureBundle, q: &Quantifier, desc: &LanguageDescriptor) {
+    fn adjust_for_quantifier(&self, features: &mut FeatureBundle, q: &Quantifier, _desc: &LanguageDescriptor) {
         if let Quantifier::Numerical(n) = q {
             if *n > 1 {
                 features.number = Some(Number::Plural);
@@ -990,7 +990,7 @@ impl LanguageRealizer for EnglishGenerator {
         }
     }
 
-    fn realize_quantifier(&self, q: &Quantifier, desc: &LanguageDescriptor) -> Result<Vec<String>, GenerateError> {
+    fn realize_quantifier(&self, q: &Quantifier, _desc: &LanguageDescriptor) -> Result<Vec<String>, GenerateError> {
         let w = match q {
             Quantifier::Universal => "all",
             Quantifier::Existential => "some",
@@ -1005,7 +1005,7 @@ impl LanguageRealizer for EnglishGenerator {
         &self,
         items: Vec<Vec<String>>,
         conjunction: &str,
-        desc: &LanguageDescriptor,
+        _desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items.into_iter().next().unwrap_or_default()); }

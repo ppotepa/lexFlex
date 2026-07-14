@@ -377,19 +377,8 @@ impl LexicalDeductionService {
         let best_concept = self.infer_concept(&combined_semantics, word, context, lang);
 
         // === Phase 1/2: attempt to produce a main Interlingua concept proposal (new or strong) + bilingual seeds ===
-        let (concept_proposal, lexicon_proposals, primary_suggested_ron) =
+        let (concept_proposal, lexicon_proposals) =
             self.build_concept_and_lexicon_proposals(&combined_semantics, word, lang, &combined_surface, &best_concept);
-
-        let suggested_ron = primary_suggested_ron.or_else(|| {
-            best_concept.as_ref().map(|c| format!(
-                r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", features: ({})))"#,
-                word,
-                combined_surface.lemma.as_deref().unwrap_or(word),
-                combined_surface.pos.as_deref().unwrap_or("Unknown"),
-                c.concept_id,
-                self.features_to_ron(&combined_surface)
-            ))
-        });
 
         let confidence = concept_proposal.as_ref().map(|c| c.confidence)
             .or_else(|| best_concept.as_ref().map(|c| c.confidence))
@@ -401,7 +390,6 @@ impl LexicalDeductionService {
             surface: combined_surface,
             semantics: combined_semantics,
             best_concept,
-            suggested_ron_entry: suggested_ron,
             confidence,
             sources_used,
             concept_proposal,
@@ -502,10 +490,9 @@ impl LexicalDeductionService {
         lang: Language,
         surface: &SurfaceInfo,
         best: &Option<ConceptMatch>,
-    ) -> (Option<ProposedConcept>, Vec<LexiconProposal>, Option<String>) {
+    ) -> (Option<ProposedConcept>, Vec<LexiconProposal>) {
         let mut lexicon_proposals: Vec<LexiconProposal> = vec![];
         let mut concept_proposal: Option<ProposedConcept> = None;
-        let primary_ron: Option<String>;  // assigned before return in all branches
 
         let lemma = surface.lemma.as_deref().unwrap_or(word);
         let pos = surface.pos.as_deref().unwrap_or("Unknown");
@@ -566,7 +553,6 @@ impl LexicalDeductionService {
                 r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, proposed_id, features
             );
-            primary_ron = Some(encountered_ron.clone());
         } else if let Some(cid) = matched_existing {
             // prefer the algorithmically matched existing from is_a (even if best was none)
             primary_concept_id = cid.clone();
@@ -574,14 +560,12 @@ impl LexicalDeductionService {
                 r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, primary_concept_id, features
             );
-            primary_ron = Some(encountered_ron.clone());
         } else if let Some(b) = best.as_ref() {
             primary_concept_id = b.concept_id.clone();
             encountered_ron = format!(
                 r#"("{}" , (lemma: "{}", pos: "{}", concept: "{}", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, primary_concept_id, features
             );
-            primary_ron = Some(encountered_ron.clone());
         } else {
             // no evidence, no best -> fallback, no proposal
             primary_concept_id = "UNKNOWN".to_string();
@@ -589,7 +573,6 @@ impl LexicalDeductionService {
                 r#"("{}" , (lemma: "{}", pos: "{}", concept: "UNKNOWN", frame_type: None, roles: [], paradigm: None, features: ({})))"#,
                 word, lemma, pos, features
             );
-            primary_ron = Some(encountered_ron.clone());
         }
 
         // Seed the primary lexicon proposal for the input language (AFTER decision, using correct id)
@@ -626,7 +609,7 @@ impl LexicalDeductionService {
             concept_id: companion_concept,
         });
 
-        (concept_proposal, lexicon_proposals, primary_ron)
+        (concept_proposal, lexicon_proposals)
     }
 
     fn derive_concept_id(&self, word: &str, is_a: &[String]) -> String {

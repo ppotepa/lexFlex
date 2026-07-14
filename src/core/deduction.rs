@@ -2,7 +2,7 @@ use crate::core::constructions::{
     self, ACCOMPANIMENT, AGE_IDIOM, DEMONSTRATIVE_REFERENCE, IDENTIFICATION,
 };
 use crate::core::summary::trace_digest;
-use crate::core::graph::{self, EdgeKind};
+use crate::core::graph::{self};
 use crate::core::interlingua::*;
 use crate::core::ontology::Ontology;
 use crate::core::temporal;
@@ -87,7 +87,7 @@ pub fn apply_graph_inference(
         }
     }
 
-    // Age idiom: YEAR + numerical quantification → AgeIdiom construction on graph
+    // Age idiom: YEAR + numerical quantification -> AGE_IDIOM construction on graph
     if matches!(sentence.quantification, Some(Quantifier::Numerical(_))) {
         for frame in &mut sentence.frames {
             if let Frame::Possession { possessed, .. } = frame {

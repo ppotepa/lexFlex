@@ -3,9 +3,10 @@ name = "lexflex"
 version = "0.1.0"
 edition = "2021"
 description = "Universal meaning representation framework using Interlingua"
+default-run = "lexflex"
 
 [workspace]
-members = [".", "lexflex-learner"]
+members = [".", "lexflex-learner", "tools/document-benchmark"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -15,6 +16,10 @@ clap = { version = "4", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde_json = "1.0"
+crossterm = "0.27"
+ratatui = "0.27"
+sha2 = "0.10"
+unicode-width = "0.1"
 
 # Pull in the lexical deduction service so lexflex can automatically
 # learn concepts for unknown words using the same clean, data-driven
@@ -26,6 +31,8 @@ lexflex-learner = { path = "lexflex-learner" }
 idna = "=0.5.0"
 idna_adapter = "=1.0.0"
 tokio = { version = "1.39", features = ["rt-multi-thread"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+urlencoding = "2.1"
 
 [dev-dependencies]
 insta = "1"

@@ -1,0 +1,3 @@
+[
+    (id: "TERM-001", source: "urządzenie", preferred_target: "device", allowed_targets: ["device"], forbidden_targets: ["apparatus"], case_sensitive: false, minimum_occurrences: 2, consistency_required: true)
+]

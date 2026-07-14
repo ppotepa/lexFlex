@@ -1,0 +1,17 @@
+(
+    schema_version: 1,
+    id: "doc-pl-en-029",
+    title: "Another result",
+    source_language: "pl",
+    target_language: "en",
+    length_tier: "micro",
+    domain: "technical",
+    difficulty: 2,
+    tags: ["semantic_roles", "terminology", "causal"],
+    source_file: "source.pl.txt",
+    reference_files: ["reference.en.txt"],
+    expectations_file: "expectations.ron",
+    glossary_file: "glossary.ron",
+    known_limitations: [],
+    notes: Some("Document benchmark case doc-pl-en-029."),
+)

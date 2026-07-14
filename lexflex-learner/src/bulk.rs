@@ -87,13 +87,7 @@ pub async fn run_bulk(input: &str, lang: Language, output_dir: &str, max: usize,
                         println!("      + concept proposal -> {}", concept_path);
                     }
 
-                    // 2. Legacy single .ron (compat)
-                    if let Some(ron) = &result.suggested_ron_entry {
-                        let ron_path = format!("{}/{}_{}.ron", output_dir, i+1, safe_word);
-                        fs::write(ron_path, ron)?;
-                    }
-
-                    // 3. Per-language lexicon proposals (bilingual)
+                    // 2. Per-language lexicon proposals (bilingual)
                     for lp in &result.lexicon_proposals {
                         let lang_tag = match lp.lang {
                             crate::Language::Pl => "pl",
@@ -103,7 +97,7 @@ pub async fn run_bulk(input: &str, lang: Language, output_dir: &str, max: usize,
                         let _ = fs::write(&lp_path, &lp.ron_line);
                     }
 
-                    // 4. Enhanced graph hint with new deducer data
+                    // 3. Enhanced graph hint with new deducer data
                     let graph_hint = serde_json::json!({
                         "word": word,
                         "evokes": result.best_concept.as_ref().map(|c| &c.concept_id),

@@ -1,4 +1,4 @@
-//! Construction concept IDs and legacy name mapping.
+//! Canonical construction concept IDs.
 //! Source of truth: `data/concepts/concepts.ron`.
 
 use crate::core::interlingua::{ConceptId, ConstructionInstance, Frame, Sentence};
@@ -13,29 +13,12 @@ pub const ZERO_ANAPHORA: &str = "ZERO_ANAPHORA";
 pub const CONTINUING_AGENT: &str = "CONTINUING_AGENT";
 pub const CLAUSE: &str = "CLAUSE";
 
-/// Map legacy graph construction string names to concept IDs.
-pub fn legacy_to_concept(name: &str) -> &str {
-    match name {
-        "IdentificationalCopula" => IDENTIFICATION,
-        "DemonstrativeNP" => DEMONSTRATIVE_REFERENCE,
-        "AgeIdiom" => AGE_IDIOM,
-        "Accompaniment" => ACCOMPANIMENT,
-        other => other,
-    }
-}
-
-/// Resolve a construction query name (legacy or concept id) to canonical concept id.
-pub fn resolve_construction_id(name: &str) -> &str {
-    legacy_to_concept(name)
-}
-
-/// True when graph has a `PartOfConstruction` edge for this concept (legacy names accepted).
+/// True when graph has a `PartOfConstruction` edge for this canonical concept ID.
 pub fn graph_has_construction(graph: &LinguisticGraph, name: &str) -> bool {
-    let concept = resolve_construction_id(name);
     graph.edges.iter().any(|e| {
         matches!(
             &e.kind,
-            EdgeKind::PartOfConstruction(c) if c == name || c == concept
+            EdgeKind::PartOfConstruction(c) if c == name
         )
     })
 }
@@ -80,16 +63,16 @@ pub fn primary_construction_for_frame(
         if graph_has_construction(g, ZERO_ANAPHORA) {
             return ZERO_ANAPHORA;
         }
-        if graph_has_construction(g, IDENTIFICATION) || graph_has_construction(g, "IdentificationalCopula") {
+        if graph_has_construction(g, IDENTIFICATION) {
             return IDENTIFICATION;
         }
-        if graph_has_construction(g, DEMONSTRATIVE_REFERENCE) || graph_has_construction(g, "DemonstrativeNP") {
+        if graph_has_construction(g, DEMONSTRATIVE_REFERENCE) {
             return DEMONSTRATIVE_REFERENCE;
         }
-        if graph_has_construction(g, AGE_IDIOM) || graph_has_construction(g, "AgeIdiom") {
+        if graph_has_construction(g, AGE_IDIOM) {
             return AGE_IDIOM;
         }
-        if graph_has_construction(g, ACCOMPANIMENT) || graph_has_construction(g, "Accompaniment") {
+        if graph_has_construction(g, ACCOMPANIMENT) {
             return ACCOMPANIMENT;
         }
         if graph_has_construction(g, TOPIC_CONTINUATION) {
@@ -107,7 +90,7 @@ pub fn primary_construction_for_frame(
     }
 }
 
-/// Build IL construction tree from frames + graph, syncing `frames` for backward compatibility.
+/// Build the IL construction tree from frames and graph data.
 pub fn build_construction_tree(sentence: &mut Sentence) {
     let graph = sentence.graph.as_ref();
     sentence.constructions = sentence
@@ -128,17 +111,5 @@ pub fn sync_frames_from_constructions(sentence: &mut Sentence) {
             .iter()
             .map(|c| c.inner.clone())
             .collect();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn legacy_maps_to_concept() {
-        assert_eq!(legacy_to_concept("IdentificationalCopula"), IDENTIFICATION);
-        assert_eq!(legacy_to_concept("DemonstrativeNP"), DEMONSTRATIVE_REFERENCE);
-        assert_eq!(legacy_to_concept("ZERO_ANAPHORA"), ZERO_ANAPHORA);
     }
 }

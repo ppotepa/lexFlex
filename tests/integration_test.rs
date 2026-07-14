@@ -353,6 +353,7 @@ fn test_capability_checking() {
             polarity: Polarity::Positive,
             modality: None,
             illocution: Illocution::Statement,
+            question: None,
             voice: None,
             reflexive: false,
             temporal: None,
@@ -470,6 +471,7 @@ fn test_en_question_formation() {
             polarity: Polarity::Positive,
             modality: None,
             illocution: Illocution::Question,
+            question: None,
             voice: None,
             reflexive: false,
             temporal: None,
@@ -512,6 +514,7 @@ fn test_en_negation() {
             polarity: Polarity::Negative,
             modality: None,
             illocution: Illocution::Statement,
+            question: None,
             voice: None,
             reflexive: false,
             temporal: None,
@@ -554,6 +557,7 @@ fn test_en_question_and_negation() {
             polarity: Polarity::Negative,
             modality: None,
             illocution: Illocution::Question,
+            question: None,
             voice: None,
             reflexive: false,
             temporal: None,
@@ -599,6 +603,7 @@ fn test_en_passive_voice_generation() {
             polarity: Polarity::Positive,
             modality: None,
             illocution: Illocution::Statement,
+            question: None,
             voice: Some(Voice::Passive),
             reflexive: false,
             temporal: None,
@@ -652,6 +657,7 @@ fn test_pl_passive_voice_generation() {
             polarity: Polarity::Positive,
             modality: None,
             illocution: Illocution::Statement,
+            question: None,
             voice: Some(Voice::Passive),
             reflexive: false,
             temporal: None,
@@ -1056,7 +1062,7 @@ fn test_role_consistency_perception() {
     let mut checked = 0usize;
     for (_form, entry) in &pl_lex.entries {
         if entry.frame_type.as_deref() == Some("Perception") {
-            // Accept the canonical or the historical Agent/Theme for now, but prefer canonical.
+            // Perception frames use only the canonical Experiencer/Stimulus roles.
             let roles = &entry.roles;
             let ok = roles == &vec!["Experiencer".to_string(), "Stimulus".to_string()];
             assert!(ok, "Perception verb {} must use canonical Experiencer/Stimulus roles: {:?}", entry.lemma, roles);
@@ -1092,19 +1098,19 @@ fn test_constructions_attached() {
     let utt = api.parse("Ten kot czyta książkę.", "pl").expect("parse");
     let natural = utt.as_natural().expect("natural");
     let g = natural.sentences[0].graph.as_ref().expect("graph");
-    assert!(g.has_construction("DemonstrativeNP"), "DemonstrativeNP construction should be attached for 'Ten'");
+    assert!(g.has_construction("DEMONSTRATIVE_REFERENCE"), "DEMONSTRATIVE_REFERENCE construction should be attached for 'Ten'");
 
     let utt2 = api.parse("To jest czerwony kot.", "pl").expect("parse copula");
     let natural2 = utt2.as_natural().expect("natural");
     let g2 = natural2.sentences[0].graph.as_ref().expect("graph");
-    assert!(g2.has_construction("IdentificationalCopula"), "IdentificationalCopula should be attached for 'To jest'");
+    assert!(g2.has_construction("IDENTIFICATION"), "IDENTIFICATION should be attached for 'To jest'");
 
     // For plural copula + adj (data driven via lexicon concepts RED/BLUE etc on attached adjectives).
     // Parser must produce grouped entity (CAT/HOUSE + adjectives with correct concept); no "they", no dups, no raw PL surface.
     let utt3 = api.parse("To są czerwone koty.", "pl").expect("parse plural");
     let natural3 = utt3.as_natural().expect("natural");
     let g3 = natural3.sentences[0].graph.as_ref().expect("graph");
-    let has_copula = g3.has_construction("IdentificationalCopula");
+    let has_copula = g3.has_construction("IDENTIFICATION");
     // Write debug IL (for evidence)
     let debug = format!("PLURAL IL: {:#?}\nhas_copula: {}\n", natural3, has_copula);
     std::fs::write("/tmp/grok-goal-89d79c20138f/implementer/debug-plural-il.txt", debug).ok();
@@ -1126,5 +1132,3 @@ fn test_constructions_attached() {
     });
     assert!(has_grouped_adj || has_copula, "IL must carry adj concept on grouped entity or construction for copula");
 }
-
-

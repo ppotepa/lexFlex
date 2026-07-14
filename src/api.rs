@@ -13,6 +13,8 @@ use crate::engines::pl::morphology::PolishMorphology;
 use crate::error::LexFlexError;
 use crate::translator::UniversalTranslator;
 
+mod document;
+
 pub struct LexFlexAPI {
     translator: UniversalTranslator,
 }
@@ -162,8 +164,16 @@ impl LexFlexBuilder {
         } else {
             Vec::new()
         };
-        let ontology = loader::build_ontology_from_concepts(&concepts);
-        let concept_ids: Vec<String> = concepts.iter().map(|c| c.id.clone()).collect();
+        let ontology_path = data_path.join("ontology/ontology.ron");
+        let ontology = if ontology_path.exists() {
+            loader::load_ontology(&ontology_path)?
+        } else {
+            loader::build_ontology_from_concepts(&concepts)
+        };
+        let mut concept_ids = concepts.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
+        concept_ids.extend(ontology.concept_ids());
+        concept_ids.sort();
+        concept_ids.dedup();
 
         if self.enable_pl {
             let pl_lexicon = self.load_lexicon(data_path, "pl")?;
@@ -276,6 +286,7 @@ impl LexFlexBuilder {
             Ok(Vec::new())
         }
     }
+
 }
 
 impl Default for LexFlexBuilder {

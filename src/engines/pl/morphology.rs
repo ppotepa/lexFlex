@@ -115,7 +115,7 @@ impl PolishMorphology {
 
         // Supplet from lexicon feature if present (data-driven, RON for regular).
         let mut stem = lemma.to_string();
-        let mut use_degree_in_features = degree;
+        let use_degree_in_features = degree;
         if let Some(d) = degree {
             // For supplet cases, RON or lexicon feature provides stem (see data extend); here keep simple for regular + naj prefix.
             if d == crate::core::interlingua::Degree::Superlative {

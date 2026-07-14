@@ -55,7 +55,7 @@ process_word() {
 
   echo "  [deduce] $word"
   local json_out="$OUTDIR/${out_prefix}_${word}.json"
-  ./target/debug/lexlearn deduce "$word" --lang "$lang" $OFFLINE_FLAG > /dev/null 2>&1 || true
+  cargo run -p lexflex-learner --quiet --bin lexlearn -- deduce "$word" --lang "$lang" $OFFLINE_FLAG > /dev/null 2>&1 || true
 
   # The deduce doesn't save by default, so we capture via temp or modify? 
   # For simplicity, use bulk for main, single for recursive by saving manually? 
@@ -68,7 +68,7 @@ process_word() {
   echo "$word" > "$tmp_in"
   local rec_dir="$OUTDIR/recursive"
   mkdir -p "$rec_dir"
-  ./target/debug/lexlearn bulk --input "$tmp_in" --lang "$lang" --max 1 --output-dir "$rec_dir/single-$word" $OFFLINE_FLAG > /dev/null 2>&1 || true
+  cargo run -p lexflex-learner --quiet --bin lexlearn -- bulk --input "$tmp_in" --lang "$lang" --max 1 --output-dir "$rec_dir/single-$word" $OFFLINE_FLAG > /dev/null 2>&1 || true
   rm -f "$tmp_in"
 
   # Copy any new .concept.ron and .lex.ron to central proposals
@@ -86,7 +86,7 @@ for input in "${INPUTS[@]}"; do
   base=$(basename "$input" .txt)
   bulk_out="$OUTDIR/bulk-$base"
   echo "Processing $input -> $bulk_out"
-  ./target/debug/lexlearn bulk \
+  cargo run -p lexflex-learner --quiet --bin lexlearn -- bulk \
     --input "$input" \
     --lang pl \
     --max 0 \

@@ -1,0 +1,3 @@
+[
+    (id: "TERM-001", source: "silnik renderujący", preferred_target: "rendering engine", allowed_targets: ["rendering engine"], forbidden_targets: ["render motor"], case_sensitive: false, minimum_occurrences: 3, consistency_required: true)
+]

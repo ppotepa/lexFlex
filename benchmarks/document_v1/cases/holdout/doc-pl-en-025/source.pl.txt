@@ -1,0 +1,5 @@
+To jest dłuższy dokument próbny. Zawiera kilka zdań. Wymaga zachowania kontekstu.
+
+Drugi akapit rozwija temat i dodaje kolejne szczegóły.
+
+Trzeci akapit zamyka opis.

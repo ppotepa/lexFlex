@@ -125,6 +125,30 @@ impl PolishParser {
     /// Split tokens into clause groups based on clause boundary conjunctions.
     /// Returns a vec of token vectors, one per clause.
     fn split_into_clauses(&self, tokens: &[Token]) -> Vec<Vec<Token>> {
+        let initial_subordinators = ["bo", "ponieważ", "kiedy", "gdy", "jeśli", "jeżeli", "że"];
+        if tokens
+            .first()
+            .map(|t| initial_subordinators.contains(&t.form.to_lowercase().as_str()))
+            .unwrap_or(false)
+        {
+            let verb_positions: Vec<usize> = tokens
+                .iter()
+                .enumerate()
+                .filter_map(|(i, t)| (t.pos == PartOfSpeech::Verb).then_some(i))
+                .collect();
+            if verb_positions.len() >= 2 {
+                let first_verb = verb_positions[0];
+                let second_verb = verb_positions[1];
+                let split_idx = (first_verb + 1..second_verb)
+                    .rev()
+                    .find(|&i| is_entity_candidate_token(&tokens[i]))
+                    .unwrap_or(second_verb);
+                if split_idx > 0 && split_idx < tokens.len() {
+                    return vec![tokens[..split_idx].to_vec(), tokens[split_idx..].to_vec()];
+                }
+            }
+        }
+
         // Conjunctions that always mark clause boundaries
         let always_boundary = ["ale", "a", "że", "bo", "ponieważ", "jeśli", "jeżeli", "gdy", "kiedy", "dlatego"];
         // Conjunctions that mark clause boundaries only when there's a verb on both sides
@@ -133,9 +157,10 @@ impl PolishParser {
         let mut boundaries: Vec<usize> = vec![];
 
         for (i, token) in tokens.iter().enumerate() {
-            if always_boundary.contains(&token.form.as_str()) {
+            let form = token.form.to_lowercase();
+            if always_boundary.contains(&form.as_str()) {
                 boundaries.push(i);
-            } else if sometimes_boundary.contains(&token.form.as_str()) {
+            } else if sometimes_boundary.contains(&form.as_str()) {
                 let verb_before = tokens[..i].iter().any(|t| t.pos == PartOfSpeech::Verb);
                 let verb_after = tokens[i+1..].iter().any(|t| t.pos == PartOfSpeech::Verb);
                 if verb_before && verb_after {
@@ -338,8 +363,6 @@ impl PolishParser {
     fn build_partial_structure(&self, tokens: &[Token]) -> Result<Utterance, ParseError> {
         let mut sentence = Sentence::new();
 
-        let pp_span = Self::pp_list_span_indices(tokens);
-
         let verb_idx = tokens
             .iter()
             .position(|t| t.pos == PartOfSpeech::Verb)
@@ -355,7 +378,7 @@ impl PolishParser {
             .or_else(|| self.lexicon.lookup_by_form(verb_lemma))
             .or_else(|| self.lexicon.lookup_by_lemma(verb_lemma));
 
-        let (mut frame_type, mut roles, mut verb_concept) = if let Some(entry) = verb_entry {
+        let (frame_type, roles, verb_concept) = if let Some(entry) = verb_entry {
             if let Some(ref ft) = entry.frame_type {
                 let parsed_roles: Vec<SemanticRole> = entry.roles.iter()
                     .filter_map(|r| parse_role_str(r))
@@ -375,43 +398,14 @@ impl PolishParser {
         sentence.tense = verb_token.features.tense.or(Some(Tense::Present));
         sentence.aspect = verb_token.features.aspect;
 
-        // Pro-drop detection: if verb has 1st/2nd person and no explicit pronoun, add implicit subject
-        let verb_person = verb_token.features.person;
-        let verb_number = verb_token.features.number;
-        // DEBUG removed per plan (no leaks)
-        let has_explicit_subject = tokens.iter().any(|t| {
-            t.pos == PartOfSpeech::Pronoun && t.features.person == verb_person
-        });
-        // DEBUG removed per plan (no leaks)
-
-        let implicit_subject = if !has_explicit_subject && verb_person.is_some() {
-            let (pronoun_name, pronoun_person) = match (verb_person, verb_number) {
-                (Some(Person::First), Some(Number::Singular)) => (Some("I"), Some(Person::First)),
-                (Some(Person::First), Some(Number::Plural)) => (Some("we"), Some(Person::First)),
-                (Some(Person::Second), Some(Number::Singular)) => (Some("you"), Some(Person::Second)),
-                (Some(Person::Second), Some(Number::Plural)) => (Some("you"), Some(Person::Second)),
-                (Some(Person::Third), Some(Number::Plural)) => (Some("they"), Some(Person::Third)),  // for 3rd plural pro-drop like "mieszkają"
-                _ => (None, None),
-            };
-            // DEBUG removed per plan (no leaks)
-            pronoun_name.map(|name| {
-                let mut entity = Entity::new(ConceptId::new("PERSON"))
-                    .with_name(name);
-                entity.features.person = pronoun_person;
-                entity.features.number = verb_number;
-                // DEBUG removed per plan (no leaks)
-                entity
-            })
-        } else {
-            None
-        };
-
         let negation = tokens.iter().any(|t| t.pos == PartOfSpeech::Negation);
         if negation {
             sentence.polarity = Polarity::Negative;
         }
 
-        let question = tokens.iter().any(|t| t.form.eq_ignore_ascii_case("czy"));
+        let question = tokens.iter().any(|t| {
+            t.form.eq_ignore_ascii_case("czy") || self.is_question_token(t)
+        });
         if question {
             sentence.illocution = Illocution::Question;
         }
@@ -462,6 +456,7 @@ impl PolishParser {
                     && t.form != "się"
                     && !matches!(t.form.as_str(), "trzy" | "cztery" | "pięć" | "30" | "3" | "five" | "three" | "szybko")
                     && !pp_span.contains(idx)
+                    && !self.is_question_token(t)
             })
             .map(|(idx, t)| (idx, t))
             .collect();
@@ -471,17 +466,11 @@ impl PolishParser {
         // Track which entities are before vs after the verb (for coordination grouping)
         let mut entity_pre_verb: Vec<bool> = Vec::new();
 
-        // Add implicit subject (pro-drop) if detected
-        if let Some(subject) = implicit_subject {
-            entities.push(subject);
-            entity_pre_verb.push(true);
-        }
-
         for (np_idx, np) in &np_tokens {
             let surface = &np.form;
             let lookup = surface.to_lowercase();
             let lemma = np.lemma.as_deref().unwrap_or(&lookup);
-            let entry = self.lexicon.lookup_by_form(&lookup)
+            let _entry = self.lexicon.lookup_by_form(&lookup)
                 .or_else(|| self.lexicon.lookup_by_form(surface))
                 .or_else(|| self.lexicon.lookup_by_lemma(lemma));
 
@@ -618,6 +607,44 @@ impl PolishParser {
             entity_pre_verb = grouped_pre_verb;
         }
 
+        // Insert a placeholder subject when the clause has a finite verb but no explicit
+        // pre-verbal subject. This keeps subordinate clauses from assigning the nearest
+        // noun as the actor/experiencer, and allows discourse resolution to recover the
+        // continuing topic later.
+        let has_explicit_subject = entities
+            .iter()
+            .zip(entity_pre_verb.iter())
+            .any(|(entity, pre_verb)| {
+                *pre_verb
+                    && entity.concept.0 != "unknown"
+                    && entity.concept.0 != "DUMMY_SUBJECT"
+                    && entity.name.is_some()
+            });
+        if !has_explicit_subject && verb_token.features.person.is_some() {
+            let (pronoun_name, pronoun_person) = match (verb_token.features.person, verb_token.features.number) {
+                (Some(Person::First), Some(Number::Singular)) => (Some("I"), Some(Person::First)),
+                (Some(Person::First), Some(Number::Plural)) => (Some("we"), Some(Person::First)),
+                (Some(Person::Second), Some(Number::Singular)) => (Some("you"), Some(Person::Second)),
+                (Some(Person::Second), Some(Number::Plural)) => (Some("you"), Some(Person::Second)),
+                (Some(Person::Third), Some(Number::Plural)) => (Some("they"), Some(Person::Third)),
+                _ => (None, None),
+            };
+
+            let mut placeholder = if let Some(name) = pronoun_name {
+                let mut entity = Entity::new(ConceptId::new("PERSON")).with_name(name);
+                entity.reference = Reference::Direct;
+                entity
+            } else {
+                let mut entity = Entity::new(ConceptId::new("DUMMY_SUBJECT")).with_name("it");
+                entity.reference = Reference::Unresolved;
+                entity
+            };
+            placeholder.features.person = pronoun_person.or(Some(Person::Third));
+            placeholder.features.number = verb_token.features.number.or(Some(Number::Singular));
+            entities.insert(0, placeholder);
+            entity_pre_verb.insert(0, true);
+        }
+
         // Data-driven retain + grouping fix for THIS/dummy in copula (incl. plural 'są'/'być' forms).
         // Graph/lexicon is source of truth: drop THIS (concept or surface), attach loose adjs (by lexicon pos or adj concept) to main noun head.
         // Goal: single main Entity (e.g. CAT with .adjectives=[BLUE/RED entity]) so Existence/Statement uses correct grouped NP.
@@ -626,6 +653,23 @@ impl PolishParser {
             || verb_lemma == "jest"
             || matches!(verb_token.form.as_str(), "są" | "byli" | "były" | "było" | "byłyśmy" | "byliście")
             || tokens.iter().any(|t| t.form == "są" || t.form == "jest");
+        let copula_statement = if is_copula {
+            let subject = entities
+                .iter()
+                .zip(entity_pre_verb.iter())
+                .find(|(_, before)| **before)
+                .map(|(entity, _)| entity.clone());
+            let property = entities
+                .iter()
+                .zip(entity_pre_verb.iter())
+                .find(|(entity, before)| !**before && entity.concept.0 != "unknown")
+                .map(|(entity, _)| entity.clone());
+            subject
+                .filter(|subject| subject.concept.0 != "THIS")
+                .zip(property)
+        } else {
+            None
+        };
         if is_copula {
             let this_forms = ["to", "ten", "ta", "te", "this", "these"];
             entities.retain(|e| {
@@ -654,7 +698,7 @@ impl PolishParser {
                 .filter(|e| is_adj_ent(e) && e.adjectives.is_empty())
                 .cloned()
                 .collect();
-            let mut heads: Vec<Entity> = entities.iter()
+            let heads: Vec<Entity> = entities.iter()
                 .filter(|e| !is_adj_ent(e) && e.concept.0 != "THIS" && e.concept.0 != "DUMMY_SUBJECT")
                 .cloned()
                 .collect();
@@ -858,7 +902,7 @@ impl PolishParser {
                     if is_entity_candidate_token(t) {
                         let surface = &t.form;
                         let lemma = t.lemma.as_deref().unwrap_or(surface);
-                        let entry = self.lexicon.lookup_by_form(surface).or_else(|| self.lexicon.lookup_by_lemma(lemma));
+                        let _entry = self.lexicon.lookup_by_form(surface).or_else(|| self.lexicon.lookup_by_lemma(lemma));
                         let concept = resolve_concept_for_unknown(&self.lexicon, surface, lemma, None, &self.concept_ids, Some("pl"));
                         let mut ent = Entity::new(concept).with_name(surface);
                         ent.features = t.features.clone();
@@ -933,6 +977,14 @@ impl PolishParser {
         }
         let frame = if let Some(age) = self.try_age_idiom_frame(tokens, &entities, &sentence) {
             age
+        } else if let Some(relation) = self.capital_relation(tokens, &entities, &entity_pre_verb, &verb_concept) {
+            relation
+        } else if let Some((subject, property)) = copula_statement {
+            Frame::Statement {
+                subject,
+                property,
+                verb_concept: verb_concept.to_string(),
+            }
         } else {
             self.build_frame(
                 &eff_frame_type,
@@ -942,6 +994,9 @@ impl PolishParser {
                 Some(&entity_pre_verb),
             )?
         };
+        if sentence.illocution == Illocution::Question {
+            sentence.question = self.question_semantics(tokens, &entities, &verb_concept);
+        }
 
         sentence.frames.push(frame.clone());
 
@@ -1036,6 +1091,119 @@ impl PolishParser {
             .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
+    }
+
+    fn is_question_token(&self, token: &Token) -> bool {
+        self.lexicon
+            .lookup_by_form(&token.form)
+            .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
+            .is_some()
+    }
+
+    fn definition_question(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        verb_concept: &str,
+    ) -> Option<QuestionSemantics> {
+        if verb_concept != "BE" || entities.len() != 1 {
+            return None;
+        }
+        let kind = tokens.iter().find_map(|token| {
+            self.lexicon
+                .lookup_by_form(&token.form)
+                .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
+        })?;
+        Some(QuestionSemantics::definition(kind, entities[0].clone()))
+    }
+
+    fn question_semantics(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        verb_concept: &str,
+    ) -> Option<QuestionSemantics> {
+        let kind = tokens.iter().find_map(|token| {
+            self.lexicon.lookup_by_form(&token.form).and_then(|entry| {
+                question_kind_from_concept(&ConceptId::new(&entry.concept))
+            })
+        })?;
+        if verb_concept == "BE" && tokens.iter().any(|token| {
+            self.lexicon.lookup_by_form(&token.form)
+                .is_some_and(|entry| entry.concept == "CAPITAL")
+        }) {
+            let object = self.capital_object(tokens, entities)?;
+            return Some(QuestionSemantics::relation(
+                kind,
+                ConceptId::new("CAPITAL_OF"),
+                object,
+                QueryProjection::Subject,
+            ));
+        }
+        self.definition_question(tokens, entities, verb_concept)
+    }
+
+    fn capital_relation(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        pre_verb: &[bool],
+        verb_concept: &str,
+    ) -> Option<Frame> {
+        if verb_concept != "BE"
+            || !tokens.iter().any(|token| {
+                self.lexicon.lookup_by_form(&token.form)
+                    .is_some_and(|entry| entry.concept == "CAPITAL")
+            })
+        {
+            return None;
+        }
+        let subject = entities
+            .iter()
+            .find(|entity| entity.concept.0 != "CAPITAL")
+            .cloned()
+            .or_else(|| self.capital_subject(tokens))
+            .or_else(|| entities.iter().zip(pre_verb).find(|(_, before)| **before).map(|(entity, _)| entity).cloned())?;
+        let object = self.capital_object(tokens, entities)?;
+        Some(Frame::Custom {
+            name: "CAPITAL_OF".to_string(),
+            roles: vec![(SemanticRole::Topic, subject), (SemanticRole::Location, object)],
+        })
+    }
+
+    fn capital_object(&self, tokens: &[Token], entities: &[Entity]) -> Option<Entity> {
+        let capital_index = tokens.iter().position(|token| {
+            self.lexicon
+                .lookup_by_form(&token.form)
+                .is_some_and(|entry| entry.concept == "CAPITAL")
+        })?;
+        let token = tokens.iter().skip(capital_index + 1).find(|token| {
+            !matches!(token.form.to_lowercase().as_str(), "z" | "jest")
+                && token.form.chars().any(char::is_alphabetic)
+        })?;
+        entities
+            .iter()
+            .find(|entity| entity.name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case(&token.form)))
+            .cloned()
+            .or_else(|| {
+                let concept = self
+                    .lexicon
+                    .lookup_by_form(&token.form)
+                    .map(|entry| entry.concept.clone())
+                    .unwrap_or_else(|| "ENTITY".to_string());
+                Some(Entity::new(ConceptId::new(&concept)).with_name(&token.form))
+            })
+    }
+
+    fn capital_subject(&self, tokens: &[Token]) -> Option<Entity> {
+        let capital_index = tokens.iter().position(|token| {
+            self.lexicon.lookup_by_form(&token.form).is_some_and(|entry| entry.concept == "CAPITAL")
+        })?;
+        let token = tokens[..capital_index].iter().rev().find(|token| {
+            !matches!(token.form.to_lowercase().as_str(), "jest" | "to")
+                && token.form.chars().any(char::is_alphabetic)
+        })?;
+        Some(Entity::new(ConceptId::new("ENTITY")).with_name(&token.form))
     }
 
     fn try_age_idiom_frame(
@@ -1506,7 +1674,7 @@ impl PolishParser {
                     roles: vec![(SemanticRole::Agent, agent)],
                 })
             },
-            other => {
+            _other => {
                 Ok(Frame::Statement {
                     subject: entities.first().cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),
                     property: entities.get(1).cloned().unwrap_or(Entity::new(ConceptId::new("unknown"))),

@@ -2,6 +2,13 @@
 // All entries are LEMMAS. English has minimal inflection (regular -s, -ed, -ing).
 
 [
+    ("what", (lemma: "what", pos: "Pronoun", concept: "WH_THING", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("who", (lemma: "who", pos: "Pronoun", concept: "WH_PERSON", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("where", (lemma: "where", pos: "Adverb", concept: "WH_LOCATION", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("when", (lemma: "when", pos: "Adverb", concept: "WH_TIME", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("which", (lemma: "which", pos: "Determiner", concept: "WH_CHOICE", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("how", (lemma: "how", pos: "Adverb", concept: "WH_MANNER", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("many", (lemma: "many", pos: "Determiner", concept: "WH_COUNT", frame_type: None, roles: [], paradigm: None, features: ())),
     // ═══ NOUNS — People ═══
     ("tom", (lemma: "Tom", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Masculine), number: Some(Singular), animacy: Some(Animate)))),
     ("mary", (lemma: "Mary", pos: "Noun", concept: "PERSON", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), animacy: Some(Animate)))),
@@ -61,6 +68,7 @@
     // ═══ NOUNS — Places ═══
     ("house", (lemma: "house", pos: "Noun", concept: "HOUSE", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
     ("city", (lemma: "city", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
+    ("capital", (lemma: "capital", pos: "Noun", concept: "CAPITAL", frame_type: None, roles: [], paradigm: None, features: (number: Some(Singular), countability: Some(Count)))),
     ("warsaw", (lemma: "Warsaw", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count), initial_sound: Some("consonant")))),
     ("warszawa", (lemma: "Warsaw", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count), initial_sound: Some("consonant")))),
     ("warszawie", (lemma: "Warsaw", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: None, features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count), case: Some(Locative)))),

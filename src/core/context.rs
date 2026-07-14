@@ -148,11 +148,17 @@ pub fn resolve_discourse_context(utterance: &mut Utterance) {
                 let sentence = &mut utterance.sentences[si];
                 let mut resolved_any = false;
                 for frame in &mut sentence.frames {
-                    let needs_resolution = frame
-                        .agent_entity()
+                    let agent = frame.agent_entity().cloned();
+                    let should_continue_topic = agent
+                        .as_ref()
+                        .map(|entity| !is_salient_subject(entity))
+                        .unwrap_or(false);
+                    let needs_resolution = agent
+                        .as_ref()
                         .map(is_placeholder_agent)
                         .unwrap_or(false);
-                    if needs_resolution {
+
+                    if needs_resolution || should_continue_topic {
                         let resolved = make_continued_entity(topic);
                         frame.set_agent_entity(resolved);
                         resolved_any = true;
@@ -266,7 +272,17 @@ fn is_placeholder_agent(entity: &Entity) -> bool {
 
 fn is_salient_subject(entity: &Entity) -> bool {
     !is_placeholder_agent(entity)
-        && (entity.name.is_some() || entity.features.animacy == Some(Animacy::Animate))
+        && (entity.features.animacy == Some(Animacy::Animate)
+            || entity
+                .name
+                .as_ref()
+                .map(|name| {
+                    name.chars()
+                        .find(|ch| ch.is_alphabetic())
+                        .map(|ch| ch.is_uppercase())
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false))
 }
 
 fn make_continued_entity(topic: &Entity) -> Entity {

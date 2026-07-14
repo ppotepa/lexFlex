@@ -1,0 +1,8 @@
+(
+    expected_paragraph_count: Some(3),
+    expected_min_sentence_count: Some(2),
+    invariants: [
+    RequireParagraphCount(count: 3),
+    ],
+    allowed_failures: [],
+)

@@ -149,6 +149,9 @@ impl EnglishParser {
         let is_question = tokens.iter().any(|t| {
             let f = t.form.to_lowercase();
             f == "did" || f == "does" || f == "do" || f == "?"
+                || self.lexicon.lookup_by_form(&f)
+                    .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
+                    .is_some()
         }) || tokens.first().map_or(false, |t| t.form.eq_ignore_ascii_case("did") || t.form.eq_ignore_ascii_case("does") || t.form.eq_ignore_ascii_case("do"));
         if is_question {
             sentence.illocution = Illocution::Question;
@@ -225,6 +228,7 @@ impl EnglishParser {
                     && !matches!(f.as_str(), "years" | "year" | "old")
                     && f.parse::<i32>().is_err()
                     && is_entity_candidate_token(t)
+                    && !self.is_question_token(t)
                     && t.pos != PartOfSpeech::Particle
             })
             .collect();
@@ -433,9 +437,14 @@ impl EnglishParser {
 
         let frame = if let Some(age) = self.try_age_idiom_frame(tokens, &frame_entities, &verb_concept) {
             age
+        } else if let Some(relation) = self.capital_relation(&tokens, &entities, &entity_pre_verb, &verb_concept) {
+            relation
         } else {
             self.build_frame(&frame_type, &roles, &frame_entities, &verb_concept)?
         };
+        if sentence.illocution == Illocution::Question {
+            sentence.question = self.question_semantics(tokens, &entities, &verb_concept);
+        }
         sentence.frames.push(frame.clone());
 
         let (mut graph, word_ids) = LinguisticGraph::from_tokens(tokens);
@@ -499,6 +508,119 @@ impl EnglishParser {
             .map_err(|_| ParseError::NoVerbFound)?;
 
         Ok(Utterance::single_sentence(sentence))
+    }
+
+    fn is_question_token(&self, token: &Token) -> bool {
+        self.lexicon
+            .lookup_by_form(&token.form)
+            .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
+            .is_some()
+    }
+
+    fn definition_question(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        verb_concept: &str,
+    ) -> Option<QuestionSemantics> {
+        if verb_concept != "BE" || entities.len() != 1 {
+            return None;
+        }
+        let kind = tokens.iter().find_map(|token| {
+            self.lexicon
+                .lookup_by_form(&token.form)
+                .and_then(|entry| question_kind_from_concept(&ConceptId::new(&entry.concept)))
+        })?;
+        Some(QuestionSemantics::definition(kind, entities[0].clone()))
+    }
+
+    fn question_semantics(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        verb_concept: &str,
+    ) -> Option<QuestionSemantics> {
+        let kind = tokens.iter().find_map(|token| {
+            self.lexicon.lookup_by_form(&token.form).and_then(|entry| {
+                question_kind_from_concept(&ConceptId::new(&entry.concept))
+            })
+        })?;
+        if verb_concept == "BE" && tokens.iter().any(|token| {
+            self.lexicon.lookup_by_form(&token.form)
+                .is_some_and(|entry| entry.concept == "CAPITAL")
+        }) {
+            let object = self.capital_object(tokens, entities)?;
+            return Some(QuestionSemantics::relation(
+                kind,
+                ConceptId::new("CAPITAL_OF"),
+                object,
+                QueryProjection::Subject,
+            ));
+        }
+        self.definition_question(tokens, entities, verb_concept)
+    }
+
+    fn capital_relation(
+        &self,
+        tokens: &[Token],
+        entities: &[Entity],
+        pre_verb: &[bool],
+        verb_concept: &str,
+    ) -> Option<Frame> {
+        if verb_concept != "BE"
+            || !tokens.iter().any(|token| {
+                self.lexicon.lookup_by_form(&token.form)
+                    .is_some_and(|entry| entry.concept == "CAPITAL")
+            })
+        {
+            return None;
+        }
+        let subject = entities
+            .iter()
+            .find(|entity| entity.concept.0 != "CAPITAL")
+            .cloned()
+            .or_else(|| self.capital_subject(tokens))
+            .or_else(|| entities.iter().zip(pre_verb).find(|(_, before)| **before).map(|(entity, _)| entity).cloned())?;
+        let object = self.capital_object(tokens, entities)?;
+        Some(Frame::Custom {
+            name: "CAPITAL_OF".to_string(),
+            roles: vec![(SemanticRole::Topic, subject), (SemanticRole::Location, object)],
+        })
+    }
+
+    fn capital_object(&self, tokens: &[Token], entities: &[Entity]) -> Option<Entity> {
+        let capital_index = tokens.iter().position(|token| {
+            self.lexicon
+                .lookup_by_form(&token.form)
+                .is_some_and(|entry| entry.concept == "CAPITAL")
+        })?;
+        let token = tokens.iter().skip(capital_index + 1).find(|token| {
+            !matches!(token.form.to_lowercase().as_str(), "of" | "the")
+                && token.form.chars().any(char::is_alphabetic)
+        })?;
+        entities
+            .iter()
+            .find(|entity| entity.name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case(&token.form)))
+            .cloned()
+            .or_else(|| {
+                let concept = self
+                    .lexicon
+                    .lookup_by_form(&token.form)
+                    .map(|entry| entry.concept.clone())
+                    .unwrap_or_else(|| "ENTITY".to_string());
+                Some(Entity::new(ConceptId::new(&concept)).with_name(&token.form))
+            })
+    }
+
+    fn capital_subject(&self, tokens: &[Token]) -> Option<Entity> {
+        let capital_index = tokens.iter().position(|token| {
+            self.lexicon.lookup_by_form(&token.form).is_some_and(|entry| entry.concept == "CAPITAL")
+        })?;
+        let token = tokens[..capital_index].iter().rev().find(|token| {
+            !matches!(token.form.to_lowercase().as_str(), "the" | "is" | "a" | "an")
+                && token.form.chars().any(char::is_alphabetic)
+        })?;
+        Some(Entity::new(ConceptId::new("ENTITY")).with_name(&token.form))
     }
 
     fn pp_span_indices(tokens: &[Token]) -> std::collections::HashSet<usize> {

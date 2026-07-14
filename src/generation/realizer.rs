@@ -6,7 +6,7 @@ use crate::data::descriptor::LanguageDescriptor;
 use crate::data::lexicon::Lexicon;
 use crate::error::GenerateError;
 
-/// Apply AgeIdiom construction features from graph before NP realization.
+/// Apply AGE_IDIOM construction features from graph before NP realization.
 pub fn adjust_age_idiom_entity(
     entity: &mut Entity,
     features: &mut FeatureBundle,
@@ -14,7 +14,7 @@ pub fn adjust_age_idiom_entity(
     lexicon: &Lexicon,
     lang: &str,
 ) {
-    if !graph.map_or(false, |g| g.has_construction("AgeIdiom")) || entity.concept.0 != "YEAR" {
+    if !graph.map_or(false, |g| g.has_construction("AGE_IDIOM")) || entity.concept.0 != "YEAR" {
         return;
     }
     if lang == "pl" {
@@ -106,11 +106,11 @@ pub trait LanguageRealizer {
         Ok(vec![list_str])
     }
 
-    fn adjust_for_quantifier(&self, features: &mut FeatureBundle, q: &Quantifier, desc: &LanguageDescriptor) {
+    fn adjust_for_quantifier(&self, _features: &mut FeatureBundle, _q: &Quantifier, _desc: &LanguageDescriptor) {
         // default no-op; PL impl will set case for Numerical
     }
 
-    fn realize_quantifier(&self, q: &Quantifier, desc: &LanguageDescriptor) -> Result<Vec<String>, GenerateError> {
+    fn realize_quantifier(&self, q: &Quantifier, _desc: &LanguageDescriptor) -> Result<Vec<String>, GenerateError> {
         match q {
             Quantifier::Universal => Ok(vec!["all".to_string()]), // stub
             Quantifier::Existential => Ok(vec!["some".to_string()]),

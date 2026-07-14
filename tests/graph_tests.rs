@@ -245,7 +245,7 @@ fn test_accompaniment_construction_paths() {
     assert!(paths[0].len() >= 3);
     assert!(graph.edges.iter().any(|e| matches!(
         e.kind,
-        EdgeKind::PartOfConstruction(ref c) if c == "ACCOMPANIMENT" || c == "Accompaniment"
+        EdgeKind::PartOfConstruction(ref c) if c == "ACCOMPANIMENT"
     )));
 }
 
@@ -370,7 +370,7 @@ fn test_construction_concepts_backed_by_ron() {
     let sentence = &il.as_natural().expect("natural").sentences[0];
     if let Some(g) = sentence.graph.as_ref() {
         assert!(
-            g.has_construction("IDENTIFICATION") || g.has_construction("IdentificationalCopula")
+            g.has_construction("IDENTIFICATION")
         );
     }
     assert!(
@@ -530,6 +530,65 @@ fn test_rich_discourse_three_clause_zero_anaphora() {
     );
 }
 
+#[test]
+fn test_subordinate_because_clause_keeps_topic() {
+    let api = build_api();
+    let input = "Tomek poszedł do sklepu, bo chciał kupić mleko.";
+    let il = api.parse(input, "pl").expect("parse");
+    let utt = il.as_natural().expect("natural");
+    assert!(utt.sentences.len() >= 2, "expected split subordinate clauses");
+
+    let first = utt.sentences[0]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("first clause agent");
+    let second = utt.sentences[1]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("second clause agent");
+
+    assert_eq!(first.name.as_deref(), Some("Tomek"));
+    assert_eq!(second.name.as_deref(), Some("Tomek"));
+    assert!(
+        matches!(second.reference, Reference::Anaphoric(_)),
+        "subordinate clause should resolve to the continuing topic"
+    );
+
+    let out = api.translate(input, "pl", "en").expect("translate");
+    let lower = out.to_lowercase();
+    assert!(lower.contains("because") || lower.contains("wanted"));
+    assert!(lower.contains("he") || lower.contains("tomek"));
+}
+
+#[test]
+fn test_initial_temporal_clause_splits_into_two_sentences() {
+    let api = build_api();
+    let input = "Kiedy Tomek poszedł do sklepu, mama kupiła mleko.";
+    let il = api.parse(input, "pl").expect("parse");
+    let utt = il.as_natural().expect("natural");
+    assert!(utt.sentences.len() >= 2, "expected initial subordinate clause split");
+
+    let first = utt.sentences[0]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("first clause agent");
+    let second = utt.sentences[1]
+        .frames
+        .first()
+        .and_then(|f| f.agent_entity())
+        .expect("second clause agent");
+
+    assert_eq!(first.name.as_deref(), Some("Tomek"));
+    assert_eq!(second.name.as_deref(), Some("mama"));
+    let out = api.translate(input, "pl", "en").expect("translate");
+    let lower = out.to_lowercase();
+    assert!(lower.contains("store") || lower.contains("shop"));
+    assert!(lower.contains("mother") || lower.contains("mama"));
+}
+
 // ─── Dialogue graph (Phase 7) ──────────────────────────────────────────────────
 
 #[test]
@@ -581,8 +640,8 @@ fn test_construction_registry_find_construction() {
     let graph = graph_from_parse("Tomek mieszka z żoną i córką.", "pl");
     assert!(!graph.constructions.is_empty());
     let verbs: Vec<_> = graph.find_verbs().into_iter().map(|v| v.id).collect();
-    let found = verbs.iter().find_map(|&vid| graph.find_construction(vid, "Accompaniment"));
-    assert!(found.is_some(), "Accompaniment construction should be discoverable");
+    let found = verbs.iter().find_map(|&vid| graph.find_construction(vid, "ACCOMPANIMENT"));
+    assert!(found.is_some(), "ACCOMPANIMENT construction should be discoverable");
 }
 
 #[test]

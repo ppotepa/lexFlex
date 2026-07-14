@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::core::interlingua::{
     ConceptId, Entity, FeatureBundle, Frame, SemanticRole,
@@ -37,6 +37,12 @@ impl Ontology {
         self.entries.values()
     }
 
+    pub fn concept_ids(&self) -> Vec<String> {
+        let mut ids = self.entries.keys().map(|id| id.0.clone()).collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
     pub fn is_temporal_concept(&self, concept: &str) -> bool {
         matches!(
             concept.to_uppercase().as_str(),
@@ -71,12 +77,24 @@ impl Ontology {
     }
 
     pub fn is_a(&self, child: &ConceptId, parent: &ConceptId) -> bool {
+        self.is_a_inner(child, parent, &mut HashSet::new())
+    }
+
+    fn is_a_inner(
+        &self,
+        child: &ConceptId,
+        parent: &ConceptId,
+        visited: &mut HashSet<ConceptId>,
+    ) -> bool {
         if child == parent {
             return true;
         }
+        if !visited.insert(child.clone()) {
+            return false;
+        }
         if let Some(entry) = self.entries.get(child) {
             if let Some(ref p) = entry.parent {
-                return self.is_a(p, parent);
+                return self.is_a_inner(p, parent, visited);
             }
         }
         false

@@ -157,12 +157,7 @@ fn print_result(result: &DeductionResult, format: &str) {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
         }
         "ron" => {
-            if let Some(ron) = &result.suggested_ron_entry {
-                println!("{}", ron);
-            } else {
-                println!("// No strong concept match. Raw data:");
-                println!("{}", ron::ser::to_string_pretty(result, ron::ser::PrettyConfig::default()).unwrap());
-            }
+            println!("{}", ron::ser::to_string_pretty(result, ron::ser::PrettyConfig::default()).unwrap());
         }
         _ => {
             // pretty
@@ -211,11 +206,6 @@ fn print_result(result: &DeductionResult, format: &str) {
                 if let Some(p) = &prop.parent_suggestion {
                     println!("  suggested_parent: {}", p);
                 }
-            }
-
-            if let Some(ron) = &result.suggested_ron_entry {
-                println!("\n[Suggested RON entry for lexicon.ron]");
-                println!("{}", ron);
             }
 
             if !result.lexicon_proposals.is_empty() {

@@ -912,7 +912,7 @@ impl LanguageRealizer for PolishGenerator {
         &self,
         items: Vec<Vec<String>>,
         conjunction: &str,
-        desc: &LanguageDescriptor,
+        _desc: &LanguageDescriptor,
     ) -> Result<Vec<String>, GenerateError> {
         if items.is_empty() { return Ok(vec![]); }
         if items.len() == 1 { return Ok(items[0].clone()); }

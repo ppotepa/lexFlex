@@ -1,0 +1,8 @@
+(
+    expected_paragraph_count: Some(1),
+    expected_min_sentence_count: Some(2),
+    invariants: [
+    RequireOutputContains(any_of: ["bread"], case_sensitive: false),
+    ],
+    allowed_failures: [],
+)

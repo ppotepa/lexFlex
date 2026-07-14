@@ -105,10 +105,9 @@ pub fn resolve_surface_verb(
         Frame::Existence { verb_concept, .. } => verb_concept.as_str(),
         Frame::Possession { verb_concept, .. } => verb_concept.as_str(),
         Frame::Custom { name, .. } => name.as_str(),
-        _ => "UNKNOWN",
     };
 
-    let age_idiom_have = graph.map_or(false, |g| g.has_construction("AgeIdiom"))
+    let age_idiom_have = graph.map_or(false, |g| g.has_construction("AGE_IDIOM"))
         && lang == "pl"
         && matches!(frame, Frame::Possession { verb_concept, .. } if verb_concept == "BE");
 

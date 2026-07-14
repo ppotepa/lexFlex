@@ -32,8 +32,6 @@ pub struct DeductionResult {
     pub surface: SurfaceInfo,
     pub semantics: SemanticInfo,
     pub best_concept: Option<ConceptMatch>,
-    /// Legacy single RON for lexicon (kept for compatibility).
-    pub suggested_ron_entry: Option<String>,
     pub confidence: f32,
     pub sources_used: Vec<String>,
 

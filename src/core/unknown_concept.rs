@@ -86,7 +86,7 @@ pub fn resolve_concept_for_unknown(
     surface: &str,
     lemma: &str,
     context_hint: Option<&str>,
-    known_concepts: &[String],
+    _known_concepts: &[String],
     lang_hint: Option<&str>, // "pl" or "en" to guide learner
 ) -> ConceptId {
     if let Some(entry) = lexicon
@@ -130,6 +130,7 @@ pub fn resolve_concept_for_unknown(
 
 /// Try to locate the canonical concepts.ron with several strategies suitable for
 /// cargo test, cargo run, docker /app, installed layouts, etc.
+#[allow(dead_code)]
 fn find_concepts_ron_path() -> Option<PathBuf> {
     // Highest priority: explicit env override
     if let Ok(dir) = std::env::var("LEXFLEX_DATA_DIR") {
@@ -200,6 +201,7 @@ fn find_concepts_ron_path() -> Option<PathBuf> {
 /// Baked copy of concepts.ron included at compile time.
 /// Guarantees that even if runtime FS lookup for data/ fails (odd cwd, installed binary, tests in temp dir),
 /// we *always* get real ConceptIds from the project data, never a synthetic placeholder, "xyzqwe", or "UNKNOWN" for entities.
+#[allow(dead_code)]
 const BAKED_CONCEPTS_RON: &str = include_str!("../../data/concepts/concepts.ron");
 
 /// Load real concept ids from data/concepts/concepts.ron using proper RON deserialization.
@@ -208,6 +210,7 @@ const BAKED_CONCEPTS_RON: &str = include_str!("../../data/concepts/concepts.ron"
 /// 2. Baked include_str (always available, full list from build time)
 /// 3. Hardcoded small real list (last resort)
 /// This ensures *no path ever* produces a synthetic placeholder or raw unknown surface as ConceptId.
+#[allow(dead_code)]
 pub(crate) fn load_concept_ids() -> Vec<String> {
     // 1. Try runtime FS discovery first (allows using custom data dir at runtime)
     if let Some(p) = find_concepts_ron_path() {
@@ -370,7 +373,7 @@ mod tests {
 /// and data/lexicons/{pl,en}/lexicon.ron so they fit the existing base DB + language lexicons structure.
 fn try_learn_unknown(
     surface: &str,
-    lemma: &str,
+    _lemma: &str,
     context_hint: Option<&str>,
     lang_hint: Option<&str>,
 ) -> Option<DeductionResult> {

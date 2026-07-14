@@ -3,6 +3,14 @@
 // Only irregular/closed-class forms that can't be derived from paradigms are listed explicitly.
 
 [
+    ("co", (lemma: "co", pos: "Pronoun", concept: "WH_THING", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("kto", (lemma: "kto", pos: "Pronoun", concept: "WH_PERSON", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("gdzie", (lemma: "gdzie", pos: "Adverb", concept: "WH_LOCATION", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("kiedy", (lemma: "kiedy", pos: "Adverb", concept: "WH_TIME", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("jaki", (lemma: "jaki", pos: "Adjective", concept: "WH_CHOICE", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("jaka", (lemma: "jaki", pos: "Adjective", concept: "WH_CHOICE", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("jakie", (lemma: "jaki", pos: "Adjective", concept: "WH_CHOICE", frame_type: None, roles: [], paradigm: None, features: ())),
+    ("ile", (lemma: "ile", pos: "Determiner", concept: "WH_COUNT", frame_type: None, roles: [], paradigm: None, features: ())),
     // ═══════════════════════════════════════════
     // NOUNS — People
     // ═══════════════════════════════════════════
@@ -60,6 +68,9 @@
     // ═══ NOUNS — Places ═══
     ("dom", (lemma: "dom", pos: "Noun", concept: "HOUSE", frame_type: None, roles: [], paradigm: Some("masculine_consonant"), features: (gender: Some(Masculine), number: Some(Singular), countability: Some(Count)))),
     ("miasto", (lemma: "miasto", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), countability: Some(Count)))),
+    ("stolica", (lemma: "stolica", pos: "Noun", concept: "CAPITAL", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("stolicą", (lemma: "stolica", pos: "Noun", concept: "CAPITAL", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
+    ("miastem", (lemma: "miasto", pos: "Noun", concept: "CITY", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), case: Some(Instrumental), countability: Some(Count)))),
     ("wieś", (lemma: "wieś", pos: "Noun", concept: "VILLAGE", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),
     ("biuro", (lemma: "biuro", pos: "Noun", concept: "OFFICE", frame_type: None, roles: [], paradigm: Some("neuter_o"), features: (gender: Some(Neuter), number: Some(Singular), countability: Some(Count)))),
     ("szkoła", (lemma: "szkoła", pos: "Noun", concept: "SCHOOL", frame_type: None, roles: [], paradigm: Some("feminine_a"), features: (gender: Some(Feminine), number: Some(Singular), countability: Some(Count)))),

@@ -1,0 +1,17 @@
+(
+    schema_version: 1,
+    id: "doc-pl-en-002",
+    title: "Female pronoun chain",
+    source_language: "pl",
+    target_language: "en",
+    length_tier: "micro",
+    domain: "communication",
+    difficulty: 1,
+    tags: ["pronoun_chain", "communication", "semantic_roles", "proper_name_chain"],
+    source_file: "source.pl.txt",
+    reference_files: ["reference.en.txt"],
+    expectations_file: "expectations.ron",
+    glossary_file: "glossary.ron",
+    known_limitations: [],
+    notes: Some("Document benchmark case doc-pl-en-002."),
+)

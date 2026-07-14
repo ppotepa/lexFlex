@@ -146,6 +146,7 @@ Interlingua is the single source of truth. Language engines (pl, en) are plugins
 
 ### Conventions
 
+- **Canonical V1 only:** lexFlex is a fresh project. Internal APIs, artifacts, paths, and schemas use the canonical V1 form; do not add compatibility aliases, historical baselines, `legacy` code paths, or V2-suffixed artifacts. External protocol versions and linguistic terms such as German verb-second `V2` are not project versions.
 - **Data-driven:** Linguistic knowledge lives in RON files under `data/`, **not** in Rust code.
 - **Algorithmic morphology:** All word forms are computed from paradigm rules. No `contains()`, string hacks, or hardcoded inflected forms.
 - **No surface-form hacks:** Use the morphology engine for everything inflection-related.
@@ -270,4 +271,3 @@ You can extend with more filters (e.g. for benchmark scripts or data loading).
 - New tools (`sd`, `tldr`) functional after PATH update
 
 This file should be kept in sync with `QWEN.md` for the shared project rules and conventions.
-

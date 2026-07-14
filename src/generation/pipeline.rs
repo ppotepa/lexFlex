@@ -200,7 +200,7 @@ pub fn generate_sentence(
     let age_idiom = sentence
         .graph
         .as_ref()
-        .map_or(false, |g| g.has_construction("AgeIdiom"));
+        .map_or(false, |g| g.has_construction("AGE_IDIOM"));
     if age_idiom && desc.language == "pl" {
         // additional for Polish age? but general cap above covers
     }
@@ -598,7 +598,7 @@ fn generate_frame(
                                         matches!(
                                             e.kind,
                                             EdgeKind::PartOfConstruction(ref c)
-                                                if c == "ACCOMPANIMENT" || c == "Accompaniment"
+                                                if c == "ACCOMPANIMENT"
                                         )
                                     })
                                     .map(|e| e.id)

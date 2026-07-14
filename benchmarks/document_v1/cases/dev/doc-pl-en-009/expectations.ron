@@ -1,0 +1,8 @@
+(
+    expected_paragraph_count: Some(1),
+    expected_min_sentence_count: Some(2),
+    invariants: [
+    PreserveNegation(sentence_hint: 0, predicate_concept: Some("WORK")),
+    ],
+    allowed_failures: [],
+)

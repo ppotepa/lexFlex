@@ -1,0 +1,8 @@
+(
+    expected_paragraph_count: Some(1),
+    expected_min_sentence_count: Some(2),
+    invariants: [
+    RequireReference(mention: "He", antecedent_name: "Tomek", target_forms: ["he"]),
+    ],
+    allowed_failures: [],
+)

@@ -399,24 +399,24 @@ impl LinguisticGraph {
             return;
         }
         self.register_construction(ConstructionPattern {
-            name: "Accompaniment".into(),
+            name: "ACCOMPANIMENT".into(),
             prep_forms: vec!["z".into(), "with".into(), "razem z".into()],
             concept_filter: vec![],
         });
         self.register_construction(ConstructionPattern {
-            name: "AgeIdiom".into(),
+            name: "AGE_IDIOM".into(),
             prep_forms: vec![],
             concept_filter: vec!["YEAR".into(), "BE".into()],
         });
         // Plan enrichment: lightweight named constructions for demonstratives and copulas.
         // These allow declarative handling instead of many special cases in parser/generator.
         self.register_construction(ConstructionPattern {
-            name: "DemonstrativeNP".into(),
+            name: "DEMONSTRATIVE_REFERENCE".into(),
             prep_forms: vec![],
             concept_filter: vec!["THIS".into()],
         });
         self.register_construction(ConstructionPattern {
-            name: "IdentificationalCopula".into(),
+            name: "IDENTIFICATION".into(),
             prep_forms: vec![],
             concept_filter: vec!["BE".into()],
         });
@@ -424,7 +424,7 @@ impl LinguisticGraph {
 
     /// Find nodes participating in a named construction anchored at a word.
     pub fn find_construction(&self, word_id: NodeId, name: &str) -> Option<Vec<NodeId>> {
-        if name == "Accompaniment" {
+        if name == "ACCOMPANIMENT" {
             return self
                 .find_accompaniment_paths()
                 .into_iter()
@@ -653,7 +653,7 @@ impl LinguisticGraph {
         visited == expected_count
     }
 
-    /// True when any edge marks participation in a construction (legacy name or concept ID).
+    /// True when any edge marks participation in a canonical construction concept.
     pub fn has_construction(&self, name: &str) -> bool {
         crate::core::constructions::graph_has_construction(self, name)
     }

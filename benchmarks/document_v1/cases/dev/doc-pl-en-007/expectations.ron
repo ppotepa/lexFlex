@@ -1,0 +1,8 @@
+(
+    expected_paragraph_count: Some(1),
+    expected_min_sentence_count: Some(2),
+    invariants: [
+    RequireTemporal(kind: "sequence", target_forms: ["yesterday", "today", "tomorrow"]),
+    ],
+    allowed_failures: [],
+)

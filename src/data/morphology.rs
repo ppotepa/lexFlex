@@ -200,7 +200,7 @@ pub fn analyze_via_paradigms(form: &str, paradigms: &[MorphParadigm]) -> Option<
 pub fn analyze_morph(form: &str, paradigms: &[MorphParadigm], lexicon: &crate::data::lexicon::Lexicon) -> Option<(String, FeatureBundle)> {
     // 1. Try direct lexicon degree entry (e.g. "lepszy" entry with degree=Comp, lemma="dobry")
     if let Some((_, entry)) = lexicon.entries.iter().find(|(f, e)| *f == form || e.lemma == form) {
-        let mut fb = entry.features.clone();
+        let fb = entry.features.clone();
         if fb.degree.is_some() || form != entry.lemma.as_str() {
             return Some((entry.lemma.clone(), fb));
         }
@@ -257,9 +257,6 @@ impl AgreementEngine for DefaultAgreement {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::data::lexicon::Lexicon; // for type
-
     #[test]
     fn test_analyze_morph_degree_letszy() {
         // Note: full test uses real lexicon load in integration; here structural

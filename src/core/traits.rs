@@ -10,7 +10,7 @@ pub enum LanguageKind {
     Domain,
 }
 
-pub trait IMeaningRepresentation {
+pub trait IMeaningRepresentation: Send + Sync {
     type Input: ?Sized;
     type Output;
 

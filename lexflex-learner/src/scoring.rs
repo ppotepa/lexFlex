@@ -54,7 +54,7 @@ mod tests {
         let known = vec!["SWEET_ADJ".to_string()];
         let res = score_from_is_a(&["sweet_adj".to_string()], &known);
         assert!(res.is_some());
-        let (c, _, r) = res.unwrap();
+        let (c, _, _r) = res.unwrap();
         assert_eq!(c, "SWEET_ADJ");
     }
 

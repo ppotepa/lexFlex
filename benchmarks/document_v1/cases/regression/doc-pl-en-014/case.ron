@@ -1,0 +1,17 @@
+(
+    schema_version: 1,
+    id: "doc-pl-en-014",
+    title: "Relative clause",
+    source_language: "pl",
+    target_language: "en",
+    length_tier: "short",
+    domain: "daily_narrative",
+    difficulty: 2,
+    tags: ["relative_clause", "topic_continuation"],
+    source_file: "source.pl.txt",
+    reference_files: ["reference.en.txt"],
+    expectations_file: "expectations.ron",
+    glossary_file: "glossary.ron",
+    known_limitations: [],
+    notes: Some("Document benchmark case doc-pl-en-014."),
+)
