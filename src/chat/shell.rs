@@ -141,15 +141,6 @@ fn handle_key_event(
         session.select_next_message();
         return Ok(false);
     }
-    if matches!(key.code, KeyCode::Char('+')) && matches!(session.overlays.focus, FocusTarget::Transcript) {
-        let _ = session.collapse_selected(false);
-        return Ok(false);
-    }
-    if matches!(key.code, KeyCode::Char('-')) && matches!(session.overlays.focus, FocusTarget::Transcript) {
-        let _ = session.collapse_selected(true);
-        return Ok(false);
-    }
-
     match session.overlays.focus {
         FocusTarget::CommandPopup => handle_command_popup_key(session, key),
         FocusTarget::Transcript => handle_transcript_key(session, key),
@@ -963,4 +954,66 @@ fn current_layout(
 )-> Result<ChatLayout, Box<dyn Error>> {
     let size = terminal.size()?;
     Ok(layout_for(size))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_transcript_key;
+    use crate::chat::session::{ChatSession, FocusTarget};
+    use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, TranscriptNode};
+    use crate::chat::{ChatOptions, TraceMode};
+    use crate::engine::SourceFetchPolicy;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn session_with_fact_tree() -> ChatSession {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(),
+            to: "en".into(),
+            data_dir: "data".into(),
+            offline: true,
+            trace_mode: TraceMode::Full,
+            source_policy: SourceFetchPolicy::SnapshotOnly,
+        });
+        session.transcript.push(
+            MessageRole::EngineFacts,
+            "facts",
+            vec![MessageBlock::Tree(vec![TranscriptNode {
+                key: "facts".into(),
+                label: "Facts".into(),
+                summary: None,
+                tone: None,
+                expanded: true,
+                blocks: vec![],
+                children: vec![TranscriptNode {
+                    key: "facts.answer".into(),
+                    label: "Answer".into(),
+                    summary: None,
+                    tone: None,
+                    expanded: false,
+                    blocks: vec![MessageBlock::Paragraph("evidence".into())],
+                    children: vec![],
+                }],
+            }])],
+            MessageMeta::default(),
+        );
+        session.selected_turn = Some(1);
+        session.overlays.focus = FocusTarget::Transcript;
+        session
+    }
+
+    #[test]
+    fn plus_and_minus_control_tree_nodes_in_transcript_focus() {
+        let mut session = session_with_fact_tree();
+        handle_transcript_key(
+            &mut session,
+            KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE),
+        );
+        assert!(session.node_expanded(1, "facts.answer", false));
+
+        handle_transcript_key(
+            &mut session,
+            KeyEvent::new(KeyCode::Char('-'), KeyModifiers::NONE),
+        );
+        assert!(!session.node_expanded(1, "facts", true));
+    }
 }

@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_widget_has_white_border_and_inactive_widget_is_gray() {
+    fn focused_widget_has_white_bold_border_and_inactive_widget_is_dark_gray() {
         let mut session = ChatSession::new(ChatOptions {
             from: "pl".into(),
             to: "en".into(),
@@ -158,6 +158,11 @@ mod tests {
         terminal.draw(|frame| draw(frame, &session)).unwrap();
         let layout = layout_for(Rect::new(0, 0, 80, 24));
         assert_eq!(terminal.backend().buffer().get(layout.footer.x, layout.footer.y + 3).fg, ratatui::style::Color::White);
-        assert_eq!(terminal.backend().buffer().get(layout.chat.x, layout.chat.y).fg, ratatui::style::Color::Gray);
+        assert_eq!(terminal.backend().buffer().get(layout.chat.x, layout.chat.y).fg, ratatui::style::Color::DarkGray);
+
+        session.overlays.focus = FocusTarget::Transcript;
+        terminal.draw(|frame| draw(frame, &session)).unwrap();
+        assert_eq!(terminal.backend().buffer().get(layout.chat.x, layout.chat.y).fg, ratatui::style::Color::White);
+        assert_eq!(terminal.backend().buffer().get(layout.footer.x, layout.footer.y + 3).fg, ratatui::style::Color::DarkGray);
     }
 }

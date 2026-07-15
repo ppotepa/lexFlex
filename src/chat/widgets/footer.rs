@@ -1,5 +1,5 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use unicode_width::UnicodeWidthChar;
@@ -82,20 +82,27 @@ fn render_input(frame: &mut ratatui::Frame, area: Rect, input: &str, cursor: usi
         })
         .collect::<Vec<_>>();
 
+    let border_style = if focused {
+        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
     frame.render_widget(
         Paragraph::new(Text::from(lines)).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("input")
-                .border_style(Style::default().fg(if focused { Color::White } else { Color::Gray })),
+                .title(if focused { "input [FOCUS]" } else { "input" })
+                .border_style(border_style),
         ),
         area,
     );
 
-    let cursor_row = layout.cursor_row.saturating_sub(start) as u16;
-    let cursor_x = area.x.saturating_add(1 + 2 + layout.cursor_col as u16);
-    let cursor_y = area.y.saturating_add(1 + cursor_row);
-    frame.set_cursor(cursor_x, cursor_y);
+    if focused {
+        let cursor_row = layout.cursor_row.saturating_sub(start) as u16;
+        let cursor_x = area.x.saturating_add(1 + 2 + layout.cursor_col as u16);
+        let cursor_y = area.y.saturating_add(1 + cursor_row);
+        frame.set_cursor(cursor_x, cursor_y);
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

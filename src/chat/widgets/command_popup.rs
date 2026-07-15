@@ -30,13 +30,18 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Comm
             Span::styled(item.description.clone(), Style::default().fg(Color::Gray)),
         ]));
     }
+    let border_style = if vm.focused {
+        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
     let paragraph = Paragraph::new(Text::from(lines))
         .style(Style::default().fg(Color::White))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("commands")
-                .border_style(Style::default().fg(if vm.focused { Color::White } else { Color::Gray })),
+                .title(if vm.focused { "commands [FOCUS]" } else { "commands" })
+                .border_style(border_style),
         )
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);

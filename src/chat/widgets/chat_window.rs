@@ -1,5 +1,5 @@
 use crate::chat::transcript::{MessageBlock, MessageRole, TranscriptMessage, TranscriptNode};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use std::collections::BTreeMap;
@@ -52,9 +52,14 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Chat
     let lines: Vec<Line> = rendered.iter().map(|row| render_row(row, content_width)).collect();
     let max_scroll = max_scroll_for_height(vm.messages, area, vm.expanded_nodes);
     let scroll = if vm.scroll == u16::MAX { max_scroll } else { vm.scroll.min(max_scroll) };
+    let border_style = if vm.focused {
+        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
     let paragraph = Paragraph::new(Text::from(lines))
         .style(Style::default().fg(Color::White))
-        .block(Block::default().borders(Borders::ALL).title("chat").border_style(Style::default().fg(if vm.focused { Color::White } else { Color::Gray })))
+        .block(Block::default().borders(Borders::ALL).title(if vm.focused { "chat [FOCUS]" } else { "chat" }).border_style(border_style))
         .wrap(Wrap { trim: false })
         .scroll((scroll, 0));
     frame.render_widget(paragraph, area);
