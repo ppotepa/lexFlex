@@ -1,19 +1,20 @@
 use crate::chat::commands::{parse_input, visible_suggestions, InputAction, SlashCommand};
 use crate::chat::navigation;
-use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatWorker, ChatWorkerEvent};
-use crate::chat::session::{ChatMode, ChatSession, FocusTarget, OverlayKind, PendingRequest};
+use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatProgressEvent, ChatWorker, ChatWorkerEvent};
+use crate::chat::session::{EngineMode, ChatSession, FocusTarget, OverlayKind};
 use crate::chat::tui::input::{
     backspace, delete_forward, insert_char, insert_newline, insert_text, move_down, move_left,
     move_right, move_up, recall_next_input, recall_previous_input,
 };
-use crate::chat::tui::render::{draw, main_layout};
-use crate::chat::widgets::chat_window::max_scroll_for_height;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crate::chat::tui::render::{draw, layout_for, ChatLayout};
+use crate::chat::widgets::chat_window::{max_scroll_for_height, turn_at_row_offset};
+use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::execute;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::error::Error;
 use std::io::Stdout;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub fn run(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
@@ -23,10 +24,14 @@ pub fn run(
     let worker = ChatWorker::spawn(service);
     let tick_rate = Duration::from_millis(50);
     loop {
-        while let Some(event) = worker.try_receive() {
+        for _ in 0..4 {
+            let Some(event) = worker.try_receive() else { break; };
             match event {
                 ChatWorkerEvent::Progress(progress) => apply_progress(session, progress),
-                ChatWorkerEvent::Result(result) => apply_job_result(session, result),
+                ChatWorkerEvent::Result(result) => {
+                    apply_job_result(session, result);
+                    break;
+                }
             }
         }
         session.tick_pending();
@@ -37,12 +42,15 @@ pub fn run(
         if event::poll(tick_rate)? {
             match event::read()? {
                 Event::Key(key) => {
-                    let chat_area = current_chat_area(terminal)?;
-                    if handle_key_event(session, &worker, key, chat_area)? {
+                    if handle_key_event(session, terminal, &worker, key)? {
                         break;
                     }
                 }
                 Event::Resize(_, _) => {}
+                Event::Mouse(mouse) => {
+                    let layout = current_layout(terminal)?;
+                    handle_mouse_event(session, mouse, layout);
+                }
                 Event::Paste(text) => {
                     if matches!(session.overlays.focus, FocusTarget::Composer) {
                         insert_text(&mut session.composer, &text);
@@ -58,14 +66,17 @@ pub fn run(
 
 fn handle_key_event(
     session: &mut ChatSession,
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     worker: &ChatWorker,
     key: KeyEvent,
-    chat_area: ratatui::layout::Rect,
 ) -> Result<bool, Box<dyn Error>> {
     if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
         return Ok(false);
     }
-    if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c')) {
+    if key.modifiers.contains(KeyModifiers::CONTROL)
+        && !key.modifiers.contains(KeyModifiers::SHIFT)
+        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+    {
         return Ok(true);
     }
     if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('l')) {
@@ -73,17 +84,97 @@ fn handle_key_event(
         session.push_system_message("screen cleared.");
         return Ok(false);
     }
+    if key.modifiers.contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+        && matches!(key.code, KeyCode::Char('b') | KeyCode::Char('B'))
+    {
+        match copy_transcript_to_clipboard(session) {
+            Ok(()) => session.push_system_message("chat transcript copied to clipboard."),
+            Err(error) => session.push_error_message(format!("copy failed: {error}")),
+        }
+        return Ok(false);
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+    {
+        match copy_selected_to_clipboard(session) {
+            Ok(()) => session.push_system_message("selected chat entry copied to clipboard."),
+            Err(error) => session.push_error_message(format!("copy failed: {error}")),
+        }
+        return Ok(false);
+    }
     if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Char('v')) {
         let verbosity = session.cycle_verbosity();
         session.push_system_message(format!("verbosity set to {}.", verbosity.as_str()));
         return Ok(false);
     }
+    if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Char('m')) {
+        session.mouse_capture_enabled = !session.mouse_capture_enabled;
+        if session.mouse_capture_enabled {
+            execute!(terminal.backend_mut(), EnableMouseCapture)?;
+            session.push_system_message("mouse capture enabled.");
+        } else {
+            execute!(terminal.backend_mut(), DisableMouseCapture)?;
+            session.push_system_message("mouse capture disabled; native terminal selection is available.");
+        }
+        return Ok(false);
+    }
+    if matches!(key.code, KeyCode::Tab) {
+        if matches!(session.overlays.focus, FocusTarget::CommandPopup) {
+            close_overlay(session);
+        }
+        session.toggle_main_focus();
+        return Ok(false);
+    }
+    if matches!(key.code, KeyCode::F(6)) {
+        session.overlays.focus = match session.overlays.focus {
+            FocusTarget::Composer => FocusTarget::Transcript,
+            FocusTarget::Transcript => FocusTarget::Composer,
+            FocusTarget::CommandPopup => FocusTarget::Composer,
+        };
+        return Ok(false);
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Up) {
+        session.select_previous_message();
+        return Ok(false);
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Down) {
+        session.select_next_message();
+        return Ok(false);
+    }
+    if matches!(key.code, KeyCode::Char('+')) && matches!(session.overlays.focus, FocusTarget::Transcript) {
+        let _ = session.collapse_selected(false);
+        return Ok(false);
+    }
+    if matches!(key.code, KeyCode::Char('-')) && matches!(session.overlays.focus, FocusTarget::Transcript) {
+        let _ = session.collapse_selected(true);
+        return Ok(false);
+    }
 
     match session.overlays.focus {
         FocusTarget::CommandPopup => handle_command_popup_key(session, key),
-        FocusTarget::Composer => handle_composer_key(session, worker, key, chat_area)?,
+        FocusTarget::Transcript => handle_transcript_key(session, key),
+        FocusTarget::Composer => handle_composer_key(session, worker, key)?,
     }
     Ok(false)
+}
+
+fn handle_transcript_key(session: &mut ChatSession, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc | KeyCode::F(6) => session.overlays.focus = FocusTarget::Composer,
+        KeyCode::Up => session.select_previous_message(),
+        KeyCode::Down => session.select_next_message(),
+        KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') => {
+            if let Some(turn) = session.selected_turn {
+                if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
+                    let _ = session.collapse_selected(!message.collapsed);
+                }
+            }
+        }
+        KeyCode::Char('-') => {
+            let _ = session.collapse_selected(true);
+        }
+        _ => {}
+    }
 }
 
 fn handle_command_popup_key(session: &mut ChatSession, key: KeyEvent) {
@@ -125,9 +216,7 @@ fn handle_composer_key(
     session: &mut ChatSession,
     worker: &ChatWorker,
     key: KeyEvent,
-    chat_area: ratatui::layout::Rect,
 ) -> Result<(), Box<dyn Error>> {
-    let max_scroll = max_scroll_for_height(&session.transcript.messages, chat_area);
     match key.code {
         KeyCode::Esc => {
             if session.overlays.active.is_some() {
@@ -183,8 +272,7 @@ fn handle_composer_key(
                 recall_next_input(&mut session.composer);
             }
         }
-        KeyCode::PageUp => navigation::page_up(session, 8, max_scroll),
-        KeyCode::PageDown => navigation::page_down(session, 8, max_scroll),
+        KeyCode::PageUp | KeyCode::PageDown => {}
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
             insert_newline(&mut session.composer);
             sync_command_popup(session);
@@ -193,6 +281,88 @@ fn handle_composer_key(
         _ => {}
     }
     Ok(())
+}
+
+fn handle_mouse_event(
+    session: &mut ChatSession,
+    mouse: MouseEvent,
+    layout: ChatLayout,
+) {
+    let chat_area = layout.chat;
+    let max_scroll = max_scroll_for_height(&session.transcript.messages, chat_area, &session.expanded_nodes);
+    match mouse.kind {
+        MouseEventKind::ScrollUp if in_rect(mouse.column, mouse.row, layout.chat) => {
+            session.overlays.focus = FocusTarget::Transcript;
+            navigation::page_up(session, 3, max_scroll)
+        }
+        MouseEventKind::ScrollDown if in_rect(mouse.column, mouse.row, layout.chat) => {
+            session.overlays.focus = FocusTarget::Transcript;
+            navigation::page_down(session, 3, max_scroll)
+        }
+        MouseEventKind::Down(MouseButton::Left) => {
+            if in_rect(mouse.column, mouse.row, layout.footer) {
+                session.overlays.focus = FocusTarget::Composer;
+                if session.overlays.active.is_some() {
+                    close_overlay(session);
+                }
+                return;
+            }
+            if !in_rect(mouse.column, mouse.row, layout.chat) {
+                return;
+            }
+            if mouse.column > chat_area.x
+                && mouse.column < chat_area.x.saturating_add(chat_area.width.saturating_sub(1))
+                && mouse.row > chat_area.y
+                && mouse.row < chat_area.y.saturating_add(chat_area.height.saturating_sub(1))
+            {
+                let row_offset = mouse.row.saturating_sub(chat_area.y.saturating_add(1));
+                let scroll = if session.viewport.stick_to_bottom {
+                    max_scroll
+                } else {
+                    session.viewport.scroll_offset.min(max_scroll)
+                };
+                if let Some(target) = crate::chat::widgets::chat_window::hit_target_at_row_offset(
+                    &session.transcript.messages,
+                    chat_area,
+                    scroll,
+                    row_offset,
+                    mouse.column.saturating_sub(chat_area.x + 1),
+                    &session.expanded_nodes,
+                ) {
+                    match target {
+                        crate::chat::widgets::chat_window::ChatHitTarget::Message { turn } => {
+                            session.selected_turn = Some(turn);
+                            session.overlays.focus = FocusTarget::Transcript;
+                        }
+                        crate::chat::widgets::chat_window::ChatHitTarget::Node { turn, key } => {
+                            session.selected_turn = Some(turn);
+                            let _ = session.toggle_selected_node(&key);
+                            session.overlays.focus = FocusTarget::Transcript;
+                        }
+                    }
+                } else if let Some(turn) = turn_at_row_offset(&session.transcript.messages, chat_area, scroll, row_offset, &session.expanded_nodes) {
+                    session.selected_turn = Some(turn);
+                }
+            }
+        }
+        MouseEventKind::Down(MouseButton::Right) => {
+            if matches!(session.overlays.focus, FocusTarget::Transcript) {
+                if let Some(turn) = session.selected_turn {
+                    if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
+                        let _ = session.collapse_selected(!message.collapsed);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn in_rect(column: u16, row: u16, area: ratatui::layout::Rect) -> bool {
+    column >= area.x
+        && column < area.x.saturating_add(area.width)
+        && row >= area.y
+        && row < area.y.saturating_add(area.height)
 }
 
 fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Box<dyn Error>> {
@@ -218,17 +388,17 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
         InputAction::UserMessage(text) => {
             let turn = session.push_user_message(text.clone());
             match session.context.mode {
-                ChatMode::Chat => {
+                EngineMode::Conversation => {
                     handle_chat_message(session, worker, text, turn);
                 }
-                ChatMode::Translate => {
+                EngineMode::Translation => {
                     submit_translate(session, worker, text);
                 }
             }
         }
         InputAction::Slash(command) => match command {
             SlashCommand::Chat => {
-                session.set_mode(ChatMode::Chat);
+                session.set_mode(EngineMode::Conversation);
                 session.push_system_message(
                     "chat mode enabled. Ask questions or continue the conversation.",
                 );
@@ -240,8 +410,23 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
             }
             SlashCommand::Translate { from, to } => {
                 session.set_translation_direction(from.clone(), to.clone());
-                session.set_mode(ChatMode::Translate);
-                session.push_system_message(format!("translation direction set to {} -> {}.", from, to));
+                session.set_mode(EngineMode::Translation);
+                submit_engine_request(session, worker, "translation configure", crate::engine::EngineRequest::Translation(
+                    crate::engine::TranslationRequest::Configure {
+                        from: if from == "auto" { crate::engine::LanguageMode::Auto } else { crate::engine::LanguageMode::Explicit(from) },
+                        to: crate::core::interlingua::LanguageId::new(&to),
+                    }
+                ));
+            }
+            SlashCommand::AnswerLanguage(language) => {
+                let language = match language.as_str() {
+                    "auto" => crate::engine::AnswerLanguage::Auto,
+                    "source" => crate::engine::AnswerLanguage::Source,
+                    value => crate::engine::AnswerLanguage::Explicit(crate::core::interlingua::LanguageId::new(value)),
+                };
+                submit_engine_request(session, worker, "answer language", crate::engine::EngineRequest::Conversation(
+                    crate::engine::ConversationRequest::SetAnswerLanguage { language }
+                ));
             }
             SlashCommand::Settings => {
                 let verbosity = session.cycle_verbosity();
@@ -253,9 +438,7 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
             }
             SlashCommand::Query(text) => {
                 match serde_json::from_str::<crate::query::QueryInterlingua>(&text) {
-                    Ok(query) => {
-                        submit_query(session, worker, query);
-                    }
+                    Ok(query) => { submit_query(session, worker, query); }
                     Err(err) => session.push_error_message(format!("/query expects QueryInterlingua JSON: {err}")),
                 }
             }
@@ -263,8 +446,80 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
                 let target = match target.as_str() { "sources" => crate::engine::InspectTarget::Sources, "bundles" => crate::engine::InspectTarget::Bundles, _ => crate::engine::InspectTarget::Session };
                 submit_inspect(session, worker, target);
             }
-            SlashCommand::Trace => push_trace_message(session),
-            SlashCommand::Clear => submit_clear(session, worker),
+            SlashCommand::Facts(command) => {
+                session.push_user_message(input.clone());
+                submit_engine_request(
+                    session,
+                    worker,
+                    "engine debug",
+                    crate::engine::EngineRequest::Debug {
+                        command: crate::engine::DebugCommand::Facts(crate::engine::FactsDebugQuery {
+                            selector: command.selector,
+                            role: command.role,
+                            limit: command.limit,
+                            page: command.page,
+                        }),
+                    },
+                );
+            }
+            SlashCommand::Evidence(reference) => {
+                let Some(claim_id) = session.claim_id_for_debug_reference(&reference) else {
+                    session.push_error_message("unknown evidence reference; use /evidence <claim-id|fact-number> after /facts.");
+                    return Ok(());
+                };
+                session.push_user_message(input.clone());
+                submit_engine_request(
+                    session,
+                    worker,
+                    "engine evidence",
+                    crate::engine::EngineRequest::Debug {
+                        command: crate::engine::DebugCommand::Evidence(crate::engine::EvidenceDebugQuery {
+                            claim_id,
+                        }),
+                    },
+                );
+            }
+            SlashCommand::Debug(target) => {
+                session.push_user_message(input.clone());
+                submit_engine_request(
+                    session,
+                    worker,
+                    "engine debug",
+                    crate::engine::EngineRequest::Debug {
+                        command: crate::engine::DebugCommand::Inspect(match target.as_str() {
+                            "interlingua" => crate::engine::DebugInspectTarget::Interlingua,
+                            "entities" => crate::engine::DebugInspectTarget::Entities,
+                            "query" => crate::engine::DebugInspectTarget::Query,
+                            "pipeline" => crate::engine::DebugInspectTarget::Pipeline,
+                            "sources" => crate::engine::DebugInspectTarget::Sources,
+                            "snapshot" => crate::engine::DebugInspectTarget::Snapshot,
+                            "trace" => crate::engine::DebugInspectTarget::Trace { run_id: None },
+                            _ => unreachable!(),
+                        }),
+                    },
+                );
+            }
+            SlashCommand::Trace => submit_engine_request(
+                session,
+                worker,
+                "engine trace",
+                crate::engine::EngineRequest::Debug {
+                    command: crate::engine::DebugCommand::Inspect(
+                        crate::engine::DebugInspectTarget::Trace { run_id: None },
+                    ),
+                },
+            ),
+            SlashCommand::Clear(target) => {
+                let target = match target.as_deref() {
+                    Some("conversation") => crate::engine::ClearTarget::Conversation,
+                    Some("translation") => crate::engine::ClearTarget::Translation,
+                    Some("all") => crate::engine::ClearTarget::All,
+                    None if matches!(session.context.mode, EngineMode::Translation) => crate::engine::ClearTarget::Translation,
+                    None => crate::engine::ClearTarget::Conversation,
+                    _ => unreachable!(),
+                };
+                submit_clear(session, worker, target)
+            }
             SlashCommand::Quit => session.should_quit = true,
         },
         InputAction::IncompleteSlash(draft) => {
@@ -274,6 +529,16 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
                 );
             } else if draft.command == "lang" {
                 session.push_error_message("invalid language command; use /lang en, /lang pl, or /lang auto.");
+            } else if draft.command == "facts" {
+                session.push_error_message("invalid facts command; use /facts <entity> [--role any|subject|object] [--limit N|--all] [--page N].");
+            } else if draft.command == "evidence" {
+                session.push_error_message("invalid evidence command; use /evidence <claim-id|fact-number>.");
+            } else if draft.command == "debug" {
+                session.push_error_message("invalid debug target; use /debug interlingua|entities|query|pipeline|sources|snapshot|trace.");
+            } else if draft.command == "answer-lang" {
+                session.push_error_message("invalid answer language; use /answer-lang auto|source|pl|en.");
+            } else if draft.command == "clear" {
+                session.push_error_message("invalid clear target; use /clear [conversation|translation|all].");
             } else {
                 session.push_error_message(format!("unknown or incomplete command: /{}", draft.command));
             }
@@ -306,7 +571,7 @@ fn apply_job_result(session: &mut ChatSession, result: ChatJobResult) {
     }
 }
 
-fn apply_progress(session: &mut ChatSession, event: crate::engine::TraceEvent) {
+fn apply_progress(session: &mut ChatSession, event: ChatProgressEvent) {
     let full = matches!(session.settings.verbosity, crate::chat::Verbosity::FullStack)
         || matches!(session.runtime.trace_mode, crate::chat::TraceMode::Full);
     session.append_stream_progress(&event, full);
@@ -314,26 +579,41 @@ fn apply_progress(session: &mut ChatSession, event: crate::engine::TraceEvent) {
 
 fn apply_engine_response(session: &mut ChatSession, response: crate::engine::EngineResponse, latency_ms: u128) {
     use crate::engine::EngineResponse;
-    let (title, text, mut notes, meta) = match response {
+    let (title, presentation, mut notes, meta, role) = match response {
         EngineResponse::Conversation(value) => {
             let notes = value.answer.as_ref().map(|answer| answer.evidence.clone()).unwrap_or_default();
-            ("conversation", value.text.unwrap_or_else(|| format!("status: {:?}", value.meta.status)), notes, value.meta)
+            ("conversation", value.presentation, notes, value.meta, crate::chat::transcript::MessageRole::Assistant)
         }
-        EngineResponse::Translation(value) => ("translation", value.text, Vec::new(), value.meta),
-        EngineResponse::Ingest(value) => ("ingest", format!("ingested {}", value.source_id), vec![format!("bundle: {}", value.bundle_id)], value.meta),
-        EngineResponse::Answer { meta, answer } => ("answer", answer.text.unwrap_or_else(|| format!("status: {:?}", answer.status)), answer.evidence, meta),
-        EngineResponse::Inspection(value) => ("inspection", serde_json::to_string_pretty(&value.values).unwrap_or_default(), vec![], value.meta),
-        EngineResponse::Error { meta, error } => ("engine error", format!("{error:?}"), vec![], meta),
+        EngineResponse::Translation(value) => {
+            ("translation", value.presentation, Vec::new(), value.meta, crate::chat::transcript::MessageRole::Assistant)
+        }
+        EngineResponse::Ingest(value) => {
+            ("ingest", value.presentation, Vec::new(), value.meta, crate::chat::transcript::MessageRole::Assistant)
+        }
+        EngineResponse::Answer { meta, answer, presentation } => {
+            ("answer", presentation, answer.evidence, meta, crate::chat::transcript::MessageRole::Assistant)
+        }
+        EngineResponse::Inspection(value) => {
+            ("inspection", value.presentation, vec![], value.meta, crate::chat::transcript::MessageRole::Assistant)
+        }
+        EngineResponse::Debug(value) => {
+            session.remember_debug_claim_ids(value.facts.iter().map(|fact| fact.claim_id.clone()).collect());
+            ("engine debug", value.ui, Vec::new(), value.meta, debug_role_for(&value.presentation.category))
+        }
+        EngineResponse::Error { meta, error: _, presentation } => {
+            ("engine error", presentation, vec![], meta, crate::chat::transcript::MessageRole::Error)
+        }
     };
     session.last_trace_run_id = Some(meta.run_id.clone());
     notes.extend(response_meta_notes(session, &meta));
-    let mut blocks = vec![crate::chat::transcript::MessageBlock::Paragraph(text)];
+    let mut blocks = presentation_blocks(&presentation, session.settings.verbosity);
     if !notes.is_empty() {
         blocks.push(crate::chat::transcript::MessageBlock::BulletList(notes));
     }
     let include_trace = matches!(session.settings.verbosity, crate::chat::Verbosity::FullStack)
         || matches!(session.runtime.trace_mode, crate::chat::TraceMode::Full);
-    session.finish_stream(
+    session.finish_stream_as(
+        role,
         title.into(),
         blocks,
         crate::chat::transcript::MessageMeta { latency_ms: Some(latency_ms), command: None },
@@ -341,9 +621,149 @@ fn apply_engine_response(session: &mut ChatSession, response: crate::engine::Eng
     );
 }
 
+fn presentation_blocks(
+    presentation: &crate::engine::EnginePresentation,
+    verbosity: crate::chat::Verbosity,
+) -> Vec<crate::chat::transcript::MessageBlock> {
+    use crate::chat::transcript::{MessageBlock, TranscriptNode};
+    let mut nodes = Vec::new();
+    nodes.push(TranscriptNode {
+        key: "summary".into(),
+        label: presentation.title.clone(),
+        summary: Some(presentation.summary.clone()),
+        tone: Some(format!("{:?}", presentation.tone)),
+        expanded: true,
+        blocks: vec![
+            MessageBlock::Paragraph(presentation.summary.clone()),
+            MessageBlock::KeyValue { key: "status".into(), value: presentation.status_line.clone() },
+        ],
+        children: Vec::new(),
+    });
+    for (index, section) in presentation.sections.iter().enumerate() {
+        let mut children = Vec::new();
+        for (block_index, block) in section.blocks.iter().enumerate() {
+            match block {
+                crate::engine::EnginePresentationBlock::Text(value) => children.push(TranscriptNode {
+                    key: format!("section.{index}.text.{block_index}"),
+                    label: "Detail".into(),
+                    summary: Some(value.clone()),
+                    tone: Some(format!("{:?}", section.tone)),
+                    expanded: false,
+                    blocks: vec![MessageBlock::Paragraph(value.clone())],
+                    children: Vec::new(),
+                }),
+                crate::engine::EnginePresentationBlock::Fields(values) => children.push(TranscriptNode {
+                    key: format!("section.{index}.fields.{block_index}"),
+                    label: "Fields".into(),
+                    summary: Some(format!("{} field(s)", values.len())),
+                    tone: Some(format!("{:?}", section.tone)),
+                    expanded: false,
+                    blocks: values
+                        .iter()
+                        .map(|(key, value)| MessageBlock::KeyValue { key: key.clone(), value: value.clone() })
+                        .collect(),
+                    children: Vec::new(),
+                }),
+                crate::engine::EnginePresentationBlock::BulletList(values) if !values.is_empty() => children.push(TranscriptNode {
+                    key: format!("section.{index}.bullets.{block_index}"),
+                    label: "Items".into(),
+                    summary: Some(format!("{} item(s)", values.len())),
+                    tone: Some(format!("{:?}", section.tone)),
+                    expanded: false,
+                    blocks: vec![MessageBlock::BulletList(values.clone())],
+                    children: Vec::new(),
+                }),
+                crate::engine::EnginePresentationBlock::Notice { tone, message } if !matches!(verbosity, crate::chat::Verbosity::Compact) => children.push(TranscriptNode {
+                    key: format!("section.{index}.notice.{block_index}"),
+                    label: format!("{tone:?}"),
+                    summary: Some(message.clone()),
+                    tone: Some(format!("{tone:?}")),
+                    expanded: false,
+                    blocks: vec![MessageBlock::Notice { tone: format!("{tone:?}"), text: message.clone() }],
+                    children: Vec::new(),
+                }),
+                crate::engine::EnginePresentationBlock::Timeline(values) if !values.is_empty() => children.push(TranscriptNode {
+                    key: format!("section.{index}.timeline.{block_index}"),
+                    label: "Timeline".into(),
+                    summary: Some(format!("{} item(s)", values.len())),
+                    tone: Some(format!("{:?}", section.tone)),
+                    expanded: false,
+                    blocks: vec![MessageBlock::Timeline(values.clone())],
+                    children: Vec::new(),
+                }),
+                crate::engine::EnginePresentationBlock::TechnicalRefs(values) if matches!(verbosity, crate::chat::Verbosity::FullStack) && !values.is_empty() => children.push(TranscriptNode {
+                    key: format!("section.{index}.technical.{block_index}"),
+                    label: "Technical details".into(),
+                    summary: Some(format!("{} ref(s)", values.len())),
+                    tone: Some(format!("{:?}", section.tone)),
+                    expanded: false,
+                    blocks: vec![MessageBlock::TechnicalList(values.clone())],
+                    children: Vec::new(),
+                }),
+                _ => {}
+            }
+        }
+        nodes.push(TranscriptNode {
+            key: format!("section.{index}"),
+            label: section.title.clone(),
+            summary: None,
+            tone: Some(format!("{:?}", section.tone)),
+            expanded: false,
+            blocks: Vec::new(),
+            children,
+        });
+    }
+    if !presentation.hints.is_empty() {
+        nodes.push(TranscriptNode {
+            key: "hints".into(),
+            label: "Hints".into(),
+            summary: Some(format!("{} hint(s)", presentation.hints.len())),
+            tone: Some("info".into()),
+            expanded: false,
+            blocks: vec![MessageBlock::BulletList(presentation.hints.iter().map(|hint| format!("hint: {hint}")).collect())],
+            children: Vec::new(),
+        });
+    }
+    vec![MessageBlock::Tree(nodes)]
+}
+
+fn humanize_status(status: crate::engine::EngineStatus) -> String {
+    match status {
+        crate::engine::EngineStatus::Ok => "Completed successfully.".into(),
+        crate::engine::EngineStatus::Unknown => "The engine could not produce an evidence-backed answer.".into(),
+        crate::engine::EngineStatus::Unsupported => "This request is not supported by the current engine path.".into(),
+        crate::engine::EngineStatus::Error => "The engine failed while processing the request.".into(),
+    }
+}
+
+fn shorten_hash(value: &str) -> String {
+    if value.len() <= 16 {
+        value.to_string()
+    } else {
+        format!("{}..{}", &value[..8], &value[value.len().saturating_sub(8)..])
+    }
+}
+
+fn debug_role_for(
+    category: &crate::engine::DebugPresentationCategory,
+) -> crate::chat::transcript::MessageRole {
+    match category {
+        crate::engine::DebugPresentationCategory::Facts => crate::chat::transcript::MessageRole::EngineFacts,
+        crate::engine::DebugPresentationCategory::Evidence => crate::chat::transcript::MessageRole::EngineEvidence,
+        crate::engine::DebugPresentationCategory::Interlingua => crate::chat::transcript::MessageRole::EngineInterlingua,
+        crate::engine::DebugPresentationCategory::Entities => crate::chat::transcript::MessageRole::EngineEntities,
+        crate::engine::DebugPresentationCategory::Query => crate::chat::transcript::MessageRole::EngineQuery,
+        crate::engine::DebugPresentationCategory::Pipeline => crate::chat::transcript::MessageRole::EnginePipeline,
+        crate::engine::DebugPresentationCategory::Sources => crate::chat::transcript::MessageRole::EngineSources,
+        crate::engine::DebugPresentationCategory::Snapshot => crate::chat::transcript::MessageRole::EngineSnapshot,
+        crate::engine::DebugPresentationCategory::Trace => crate::chat::transcript::MessageRole::EngineTrace,
+        crate::engine::DebugPresentationCategory::Diagnostics => crate::chat::transcript::MessageRole::Error,
+    }
+}
+
 fn response_meta_notes(session: &ChatSession, meta: &crate::engine::ResponseMeta) -> Vec<String> {
     let mut notes = vec![
-        format!("status: {:?}", meta.status),
+        format!("status: {}", humanize_status(meta.status)),
         format!("snapshot: {}", meta.session_snapshot_id),
         format!("request: {}", meta.request_id),
     ];
@@ -351,66 +771,16 @@ fn response_meta_notes(session: &ChatSession, meta: &crate::engine::ResponseMeta
         notes.push(format!("diagnostics: {}", meta.diagnostics.join(", ")));
     }
     if !matches!(session.settings.verbosity, crate::chat::Verbosity::Compact) {
-        notes.extend(meta.artifact_hashes.iter().map(|(key, value)| format!("{key}: {value}")));
+        notes.extend(
+            meta.artifact_hashes
+                .iter()
+                .map(|(key, value)| format!("{key}: {}", shorten_hash(value))),
+        );
     }
     if !matches!(session.runtime.trace_mode, crate::chat::TraceMode::Off) {
         notes.push(format!("trace: {}", meta.run_id));
     }
     notes
-}
-
-fn load_trace_notes(session: &ChatSession, run_id: &str) -> Vec<String> {
-    let store = crate::engine::SessionStore::new(&session.runtime.data_dir);
-    let Ok(trace) = store.load_trace(&session.runtime.engine_session_id, run_id) else {
-        return vec![format!("trace: unavailable for {run_id}")];
-    };
-    let mut errors = Vec::new();
-    let mut events = Vec::new();
-    for (index, line) in trace.lines().enumerate() {
-        match serde_json::from_str::<crate::engine::TraceEvent>(line) {
-            Ok(event) => events.push(event),
-            Err(error) => errors.push(format!("trace: corrupt line {}: {}", index + 1, error)),
-        }
-    }
-    if events.is_empty() {
-        if errors.is_empty() {
-            return vec![format!("trace: empty for {run_id}")];
-        }
-        return errors;
-    }
-    if matches!(session.runtime.trace_mode, crate::chat::TraceMode::Brief) {
-        events.sort_by(|left, right| left.stage.cmp(&right.stage));
-        let mut stages = events.into_iter().map(|event| event.stage).collect::<Vec<_>>();
-        stages.dedup();
-        let mut notes = vec![format!("trace: {}", stages.join(" -> "))];
-        notes.extend(errors);
-        return notes;
-    }
-    let mut notes = events
-        .into_iter()
-        .map(|event| match event.payload {
-            Some(payload) => format!("trace {} {}", event.stage, payload),
-            None => format!("trace {}", event.stage),
-        })
-        .collect::<Vec<_>>();
-    notes.extend(errors);
-    notes
-}
-
-fn push_trace_message(session: &mut ChatSession) {
-    let store = crate::engine::SessionStore::new(&session.runtime.data_dir);
-    let run_id = session.last_trace_run_id.clone().or_else(|| store.latest_trace(&session.runtime.engine_session_id).ok().map(|value| value.0));
-    let Some(run_id) = run_id else {
-        session.push_system_message("no trace available yet.");
-        return;
-    };
-    let notes = load_trace_notes(session, &run_id);
-    session.push_response(crate::chat::session::ChatResponse {
-        title: "trace".into(),
-        blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(format!("trace for {run_id}"))],
-        notes,
-        latency_ms: 0,
-    }, None);
 }
 
 fn submit_engine_request(
@@ -419,23 +789,85 @@ fn submit_engine_request(
     label: &str,
     request: crate::engine::EngineRequest,
 ) {
-    session.pending = Some(PendingRequest {
-        label: label.into(),
-        started_at: Instant::now(),
-        stream_turn: session.start_stream(label),
-        current_stage: "queued".into(),
-        progress_lines: Vec::new(),
-        spinner_index: 0,
-    });
+    session.start_stream(label);
     if let Err(err) = worker.submit(ChatJob::Engine { request }) {
         session.pending = None;
+        session.activity = Default::default();
         session.push_error_message(err.to_string());
     }
 }
 
-fn submit_clear(session: &mut ChatSession, worker: &ChatWorker) {
+fn copy_transcript_to_clipboard(session: &ChatSession) -> Result<(), String> {
+    let text = session.export_transcript_text();
+    copy_text_to_clipboard(&text)
+}
+
+fn copy_selected_to_clipboard(session: &ChatSession) -> Result<(), String> {
+    let Some(turn) = session.selected_turn else {
+        return Err("no transcript entry selected".into());
+    };
+    let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) else {
+        return Err("selected transcript entry no longer exists".into());
+    };
+    let mut text = vec![format!("[{} #{}]", message.title, message.turn)];
+    text.extend(message.blocks.iter().map(render_block_for_copy));
+    copy_text_to_clipboard(&text.join("\n"))
+}
+
+fn render_block_for_copy(block: &crate::chat::transcript::MessageBlock) -> String {
+    match block {
+        crate::chat::transcript::MessageBlock::Section(value)
+        | crate::chat::transcript::MessageBlock::Paragraph(value) => value.clone(),
+        crate::chat::transcript::MessageBlock::KeyValue { key, value } => format!("{key}: {value}"),
+        crate::chat::transcript::MessageBlock::BulletList(values) => values.iter().map(|value| format!("- {value}")).collect::<Vec<_>>().join("\n"),
+        crate::chat::transcript::MessageBlock::Notice { tone, text } => format!("[{tone}] {text}"),
+        crate::chat::transcript::MessageBlock::Timeline(values) => values.iter().map(|value| format!("> {value}")).collect::<Vec<_>>().join("\n"),
+        crate::chat::transcript::MessageBlock::TechnicalList(values) => values.iter().map(|value| format!("# {value}")).collect::<Vec<_>>().join("\n"),
+        crate::chat::transcript::MessageBlock::Trace(values) => values.join("\n"),
+        crate::chat::transcript::MessageBlock::Tree(nodes) => nodes.iter().map(render_node_for_copy).collect::<Vec<_>>().join("\n"),
+    }
+}
+
+fn render_node_for_copy(node: &crate::chat::transcript::TranscriptNode) -> String {
+    let mut lines = vec![match &node.summary {
+        Some(summary) => format!("{}: {summary}", node.label),
+        None => node.label.clone(),
+    }];
+    lines.extend(node.blocks.iter().map(render_block_for_copy));
+    lines.extend(node.children.iter().map(render_node_for_copy));
+    lines.join("\n")
+}
+
+fn copy_text_to_clipboard(text: &str) -> Result<(), String> {
+    for (program, args) in [
+        ("wl-copy", Vec::<&str>::new()),
+        ("xclip", vec!["-selection", "clipboard"]),
+        ("xsel", vec!["--clipboard", "--input"]),
+        ("pbcopy", Vec::<&str>::new()),
+    ] {
+        let mut command = std::process::Command::new(program);
+        command.args(args);
+        command.stdin(std::process::Stdio::piped());
+        command.stdout(std::process::Stdio::null());
+        command.stderr(std::process::Stdio::null());
+        let Ok(mut child) = command.spawn() else { continue; };
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            if stdin.write_all(text.as_bytes()).is_err() {
+                let _ = child.wait();
+                continue;
+            }
+        }
+        if child.wait().map(|status| status.success()).unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    Err("no clipboard utility found; tried wl-copy, xclip, xsel, pbcopy".into())
+}
+
+fn submit_clear(session: &mut ChatSession, worker: &ChatWorker, target: crate::engine::ClearTarget) {
     session.clear_session();
-    submit_engine_request(session, worker, "clear", crate::engine::EngineRequest::ClearSession);
+    submit_engine_request(session, worker, "clear", crate::engine::EngineRequest::Session(crate::engine::SessionRequest::Clear { target }));
 }
 
 fn submit_ingest(session: &mut ChatSession, worker: &ChatWorker, title: String) {
@@ -445,7 +877,7 @@ fn submit_ingest(session: &mut ChatSession, worker: &ChatWorker, title: String) 
         session,
         worker,
         "ingest",
-        crate::engine::EngineRequest::IngestSource { source: request },
+        crate::engine::EngineRequest::Conversation(crate::engine::ConversationRequest::IngestSource { source: request }),
     );
 }
 
@@ -454,7 +886,7 @@ fn submit_query(session: &mut ChatSession, worker: &ChatWorker, query: crate::qu
         session,
         worker,
         "query",
-        crate::engine::EngineRequest::Query { query },
+        crate::engine::EngineRequest::Conversation(crate::engine::ConversationRequest::Query { query }),
     );
 }
 
@@ -463,7 +895,7 @@ fn submit_inspect(session: &mut ChatSession, worker: &ChatWorker, target: crate:
         session,
         worker,
         "inspect",
-        crate::engine::EngineRequest::Inspect { target },
+        crate::engine::EngineRequest::Conversation(crate::engine::ConversationRequest::Inspect { target }),
     );
 }
 
@@ -476,11 +908,11 @@ fn submit_translate(
         session,
         worker,
         "translate",
-        crate::engine::EngineRequest::Translate {
+        crate::engine::EngineRequest::Translation(crate::engine::TranslationRequest::Turn {
             text,
-            from: crate::core::interlingua::LanguageId::new(&session.context.source_lang),
-            to: crate::core::interlingua::LanguageId::new(&session.context.target_lang),
-        },
+            from: Some(if session.context.source_lang == "auto" { crate::engine::LanguageMode::Auto } else { crate::engine::LanguageMode::Explicit(session.context.source_lang.clone()) }),
+            to: Some(crate::core::interlingua::LanguageId::new(&session.context.target_lang)),
+        }),
     );
 }
 
@@ -495,7 +927,7 @@ fn submit_user_turn(session: &mut ChatSession, worker: &ChatWorker, text: String
         session,
         worker,
         "engine",
-        crate::engine::EngineRequest::UserTurn { text, language },
+        crate::engine::EngineRequest::Conversation(crate::engine::ConversationRequest::Turn { text, language }),
     );
 }
 
@@ -522,10 +954,9 @@ fn close_overlay(session: &mut ChatSession) {
     session.overlays.command_popup.selected_index = 0;
 }
 
-fn current_chat_area(
+fn current_layout(
     terminal: &Terminal<CrosstermBackend<Stdout>>,
-) -> Result<ratatui::layout::Rect, Box<dyn Error>> {
+)-> Result<ChatLayout, Box<dyn Error>> {
     let size = terminal.size()?;
-    let root = main_layout(size);
-    Ok(root[1])
+    Ok(layout_for(size))
 }

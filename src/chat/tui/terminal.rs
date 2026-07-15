@@ -1,5 +1,5 @@
 use crossterm::cursor::{Hide, Show};
-use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
+use crossterm::event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -12,6 +12,9 @@ use std::io::{self, Stdout};
 pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
+    // Keep mouse capture disabled initially so the terminal emulator can select
+    // and copy text natively. The chat can opt into application mouse events via
+    // Alt+M after the UI has started.
     execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Hide)?;
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)
@@ -51,6 +54,7 @@ pub fn restore_terminal(
         terminal.backend_mut(),
         Show,
         DisableBracketedPaste,
+        DisableMouseCapture,
         LeaveAlternateScreen
     )?;
     terminal.show_cursor()?;

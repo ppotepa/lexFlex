@@ -1,5 +1,5 @@
 use super::types::EngineError;
-use super::workspace::SessionWorkspace;
+use super::workspace::EngineSession;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -8,13 +8,39 @@ pub struct SessionStore { root: PathBuf }
 
 impl SessionStore {
     pub fn new(root: impl Into<PathBuf>) -> Self { Self { root: root.into() } }
-    pub fn path_for(&self, session_id: &str) -> Result<PathBuf, EngineError> {
-        if session_id.is_empty() || session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") { return Err(EngineError::Persistence("invalid session id".into())); }
-        let path = self.root.join("sessions").join(session_id).join("snapshots").join("current.json");
+    pub fn session_dir(&self, session_id: &str) -> Result<PathBuf, EngineError> {
+        if session_id.is_empty() || session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") {
+            return Err(EngineError::Persistence("invalid session id".into()));
+        }
+        let path = self.root.join("sessions").join(session_id);
         if !is_safe_store_path(&path) { return Err(EngineError::Persistence("unsafe session path".into())); }
         Ok(path)
     }
-    pub fn save(&self, workspace: &SessionWorkspace) -> Result<PathBuf, EngineError> {
+    pub fn path_for(&self, session_id: &str) -> Result<PathBuf, EngineError> {
+        let path = self.session_dir(session_id)?.join("snapshots").join("current.json");
+        if !is_safe_store_path(&path) { return Err(EngineError::Persistence("unsafe session path".into())); }
+        Ok(path)
+    }
+    pub fn quarantine_session(&self, session_id: &str) -> Result<Option<PathBuf>, EngineError> {
+        let session_dir = self.session_dir(session_id)?;
+        if !session_dir.exists() {
+            return Ok(None);
+        }
+        let sessions_root = session_dir.parent().ok_or_else(|| EngineError::Persistence("invalid session path".into()))?;
+        for ordinal in 1..=10_000u32 {
+            let candidate = sessions_root.join(format!("{session_id}.corrupt.{ordinal:04}"));
+            if !is_safe_store_path(&candidate) {
+                return Err(EngineError::Persistence("unsafe quarantine path".into()));
+            }
+            if candidate.exists() {
+                continue;
+            }
+            fs::rename(&session_dir, &candidate).map_err(|e| EngineError::Persistence(e.to_string()))?;
+            return Ok(Some(candidate));
+        }
+        Err(EngineError::Persistence("unable to allocate quarantine session path".into()))
+    }
+    pub fn save(&self, workspace: &EngineSession) -> Result<PathBuf, EngineError> {
         workspace.validate().map_err(EngineError::Persistence)?;
         let path = self.path_for(&workspace.session_id)?;
         let parent = path.parent().ok_or_else(|| EngineError::Persistence("invalid store path".into()))?;
@@ -25,12 +51,12 @@ impl SessionStore {
         let bundles_dir = session_dir.join("bundles");
         fs::create_dir_all(&sources_dir).map_err(|e| EngineError::Persistence(e.to_string()))?;
         fs::create_dir_all(&bundles_dir).map_err(|e| EngineError::Persistence(e.to_string()))?;
-        for (source_id, source) in &workspace.sources {
+        for (source_id, source) in &workspace.conversation.sources {
             let source_path = safe_artifact_path(&sources_dir, source_id)?;
             let source_bytes = serde_json::to_vec_pretty(source).map_err(|e| EngineError::Persistence(e.to_string()))?;
             atomic_write(&source_path, &source_bytes)?;
         }
-        for (bundle_id, bundle) in &workspace.bundles {
+        for (bundle_id, bundle) in &workspace.conversation.bundles {
             let bundle_path = safe_artifact_path(&bundles_dir, bundle_id)?;
             let bundle_bytes = serde_json::to_vec_pretty(bundle).map_err(|e| EngineError::Persistence(e.to_string()))?;
             atomic_write(&bundle_path, &bundle_bytes)?;
@@ -41,7 +67,7 @@ impl SessionStore {
         atomic_write(&path, workspace.snapshot_id.as_bytes())?;
         Ok(path)
     }
-    pub fn load(&self, session_id: &str) -> Result<SessionWorkspace, EngineError> {
+    pub fn load(&self, session_id: &str) -> Result<EngineSession, EngineError> {
         let path = self.path_for(session_id)?;
         let snapshot_id = String::from_utf8(fs::read(&path).map_err(|e| EngineError::Persistence(e.to_string()))?)
             .map_err(|e| EngineError::Persistence(e.to_string()))?;
@@ -50,15 +76,15 @@ impl SessionStore {
         }
         let snapshot_path = path.parent().ok_or_else(|| EngineError::Persistence("invalid snapshot path".into()))?.join(format!("{snapshot_id}.json"));
         let bytes = fs::read(snapshot_path).map_err(|e| EngineError::Persistence(e.to_string()))?;
-        let workspace: SessionWorkspace = serde_json::from_slice(&bytes).map_err(|e| EngineError::Persistence(e.to_string()))?;
+        let workspace: EngineSession = serde_json::from_slice(&bytes).map_err(|e| EngineError::Persistence(format!("unsupported or corrupt session schema: {e}")))?;
         if workspace.session_id != session_id { return Err(EngineError::Persistence("session id mismatch".into())); }
         let session_dir = path.parent().and_then(Path::parent).ok_or_else(|| EngineError::Persistence("invalid session path".into()))?;
-        for (source_id, expected) in &workspace.sources {
+        for (source_id, expected) in &workspace.conversation.sources {
             let artifact = safe_artifact_path(&session_dir.join("sources"), source_id)?;
             let actual: super::types::SourceSnapshot = serde_json::from_slice(&fs::read(artifact).map_err(|e| EngineError::Persistence(e.to_string()))?).map_err(|e| EngineError::Persistence(e.to_string()))?;
             if &actual != expected { return Err(EngineError::Persistence(format!("source artifact mismatch: {source_id}"))); }
         }
-        for (bundle_id, expected) in &workspace.bundles {
+        for (bundle_id, expected) in &workspace.conversation.bundles {
             let artifact = safe_artifact_path(&session_dir.join("bundles"), bundle_id)?;
             let actual: crate::runtime::DocumentArtifactBundle = serde_json::from_slice(&fs::read(artifact).map_err(|e| EngineError::Persistence(e.to_string()))?).map_err(|e| EngineError::Persistence(e.to_string()))?;
             if &actual != expected { return Err(EngineError::Persistence(format!("bundle artifact mismatch: {bundle_id}"))); }
@@ -135,3 +161,35 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), EngineError> {
 }
 
 pub fn is_safe_store_path(path: &Path) -> bool { !path.components().any(|component| matches!(component, Component::ParentDir)) }
+
+#[cfg(test)]
+mod tests {
+    use super::SessionStore;
+    use std::fs;
+
+    fn temp_root(name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("lexflex-session-store-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("sessions/chat-session/snapshots")).unwrap();
+        root
+    }
+
+    #[test]
+    fn quarantine_session_renames_existing_session_directory() {
+        let root = temp_root("quarantine");
+        fs::write(
+            root.join("sessions/chat-session/snapshots/current.json"),
+            b"snapshot:0",
+        )
+        .unwrap();
+        let store = SessionStore::new(&root);
+        let archived = store
+            .quarantine_session("chat-session")
+            .expect("quarantine should succeed")
+            .expect("session should exist");
+        assert!(archived.ends_with("chat-session.corrupt.0001"));
+        assert!(archived.exists());
+        assert!(!root.join("sessions/chat-session").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+}

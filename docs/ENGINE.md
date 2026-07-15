@@ -1,19 +1,21 @@
-# Conversation engine
+# Runtime engine
 
-`ConversationEngine` is the runtime boundary used by both the CLI and the TUI. Clients submit typed `EngineRequest` values and render typed `EngineResponse` values. They do not access parser, graph or knowledge internals directly.
+`LexFlexEngine` is the runtime boundary used by both the CLI and the TUI. Clients submit typed `EngineRequest` values and render typed `EngineResponse` values. They do not access parser, graph or knowledge internals directly.
 
 ## Request contract
 
 ```rust
 pub enum EngineRequest {
-    UserTurn { text: String, language: LanguageMode },
-    Translate { text: String, from: LanguageId, to: LanguageId },
-    IngestSource { source: SourceRequest },
-    Query { query: QueryInterlingua },
-    Inspect { target: InspectTarget },
-    ClearSession,
+    Conversation(ConversationRequest),
+    Translation(TranslationRequest),
+    Session(SessionRequest),
+    Debug { command: DebugCommand },
 }
 ```
+
+Conversation owns sources, claims, queries and evidence-backed answers. Translation owns multilingual turn context and generation settings. Both use the same Interlingua and document pipeline. A Translation turn compiles its original input and publishes that knowledge to Conversation without source discovery or Wikipedia access; generation may return `Unsupported` without discarding successfully compiled knowledge.
+
+Developer inspection uses the same boundary through `EngineRequest::Debug`. The first typed command is `DebugCommand::Facts(FactsDebugQuery)`, returned as `EngineResponse::Debug(DebugResponse)`. It performs exact canonical-name/alias selection over the current immutable workspace and never invokes a source provider.
 
 The main response variants are:
 
@@ -24,7 +26,7 @@ The main response variants are:
 - `Inspection` for session inspection;
 - `Error` for typed engine, source, pipeline, query or persistence failures.
 
-Every response carries status, request ID, session snapshot ID, diagnostics, trace reference and artifact hashes. Fact answers also carry typed rows and evidence.
+Every response carries status, request ID, session snapshot ID, diagnostics, trace reference and artifact hashes. Fact answers and debug facts carry typed evidence. Each debug fact includes its claim, bundle, occurrence, source metadata, exact sentence and validated source spans.
 
 ## Runtime flow
 
@@ -51,7 +53,7 @@ SourceSnapshot
   → DocumentTemporalDiscourse
   → DocumentKnowledgeExtraction
   → DocumentArtifactBundle
-  → SessionWorkspace
+  → ConversationWorkspace
 ```
 
 Each published bundle validates its lineage and stage checksums. Incomplete bundles are rejected.
@@ -80,7 +82,7 @@ Missing runtime assets are configuration errors. The engine does not replace the
 
 ## Session model
 
-`SessionWorkspace` is an immutable-snapshot model. Ingestion or clearing creates a new snapshot; previous snapshots remain readable. Session persistence validates source artifacts, bundles, hashes and path safety before loading.
+`EngineSession` contains independent immutable-snapshot `ConversationWorkspace` and `TranslationWorkspace` values plus answer-language configuration. Ingestion, translation, configuration or clearing creates a new global snapshot. Session persistence validates both workspace hashes, source artifacts, bundles and path safety before loading. Schema v1 sessions are rejected rather than silently migrated.
 
 The default storage layout is:
 

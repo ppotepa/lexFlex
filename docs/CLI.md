@@ -132,6 +132,20 @@ cargo run -- trace --session paris <turn-id>
 
 Traces are deterministic JSONL records of request, language detection, pipeline stages, query planning, execution and answer selection.
 
+## Engine facts inspection
+
+List evidence-backed facts involving an entity in an existing session:
+
+```bash
+cargo run -- engine facts Paris --session paris
+cargo run -- engine facts Paris --session paris --role subject --limit 10
+cargo run -- engine facts Paris --session paris --all --format pretty-json
+```
+
+The default `table` output includes claim and bundle IDs, confidence, source title, source sentence and exact source spans. JSON formats expose the complete typed `DebugResponse`.
+
+Matching is case-insensitive but exact against canonical entity names and aliases. The command searches subject and object roles by default; use `--role subject` or `--role object` to narrow it. It reads only the persisted session and never fetches or ingests a source.
+
 ## Interactive chat
 
 ```bash
@@ -154,14 +168,20 @@ Available commands:
 | `/ingest <title>` | Ingest a Wikipedia snapshot |
 | `/lang auto` | Detect PL/EN automatically |
 | `/lang pl`, `/lang en` | Force chat language |
-| `/translate <from> <to>` | Enter translation mode |
+| `/answer-lang auto\|source\|pl\|en` | Select Conversation answer language |
+| `/translate <auto\|from> <to>` | Enter contextual Translation mode |
 | `/query <json>` | Execute a structured query |
 | `/inspect [sources\|bundles]` | Inspect session state |
+| `/facts <entity> [--role any\|subject\|object] [--limit N\|--all]` | List evidence-backed engine facts; default limit is 50 |
 | `/trace` | Show the latest persisted engine trace |
-| `/clear` | Clear transcript state and reset the engine session |
+| `/clear [conversation\|translation\|all]` | Clear the selected workspace; defaults to the active mode |
 | `/quit` | Exit the TUI |
 
-Trace display follows `--trace off|brief|full`. The default is `full`; `Alt+V` cycles transcript verbosity between compact, normal, detailed and full-stack. Full-stack shows structured stage payloads as they arrive, while the busy indicator remains active until the final response.
+Trace display follows `--trace off|brief|full`. The default is `full`; `Alt+V` cycles transcript verbosity between compact, normal, detailed and full-stack. Full-stack updates one fixed activity panel with structured stage payloads until the final response; progress is not appended as separate chat messages.
+
+The TUI starts with native terminal text selection enabled by default: mouse capture is off, so drag-select and copy are handled by the terminal emulator. `Alt+M` toggles application mouse capture for scrolling, clicking and tree expansion. `Tab` switches focus between the composer and transcript; the focused widget has a white border and inactive widgets have gray borders. `Esc` returns to the composer. `Ctrl+Shift+C` copies the selected transcript entry and `Ctrl+Shift+B` copies the complete transcript.
+
+Translation and Conversation have separate snapshots. Translation does not resolve sources: each input is parsed directly, linked with prior translation turns, generated in the target language, and published from its original text into Conversation knowledge. `/clear translation` removes both that context and knowledge contributed by those turns without deleting unrelated ingested sources.
 
 On startup the chat header and system message show the resolved data root, the active source policy and whether the session is offline. If runtime assets cannot be validated, chat exits instead of starting with degraded language resources.
 

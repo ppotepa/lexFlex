@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 pub struct CommandPopupViewModel<'a> {
     pub suggestions: &'a [SlashSuggestion],
     pub selected_index: usize,
+    pub focused: bool,
 }
 
 pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &CommandPopupViewModel<'_>) {
@@ -35,7 +36,7 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Comm
             Block::default()
                 .borders(Borders::ALL)
                 .title("commands")
-                .border_style(Style::default().fg(Color::Gray)),
+                .border_style(Style::default().fg(if vm.focused { Color::White } else { Color::Gray })),
         )
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);

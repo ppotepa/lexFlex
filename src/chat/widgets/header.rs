@@ -10,10 +10,6 @@ pub struct HeaderViewModel {
     pub source_lang: String,
     pub target_lang: String,
     pub verbosity: Verbosity,
-    pub pending_label: Option<String>,
-    pub pending_stage: Option<String>,
-    pub pending_spinner: usize,
-    pub backend_ready: bool,
 }
 
 pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &HeaderViewModel) {
@@ -24,7 +20,7 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Head
         ),
         Span::raw("  "),
         Span::styled(
-            if vm.mode == "translate" {
+            if vm.mode == "translation" {
                 format!("translate {} -> {}", vm.source_lang, vm.target_lang)
             } else {
                 format!("chat language {}", vm.chat_language)
@@ -37,20 +33,10 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Head
             Style::default().fg(Color::Magenta),
         ),
     ]);
-    let bottom = if let Some(label) = vm.pending_label.as_deref() {
-        let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        Line::from(vec![
-            Span::styled(frames[vm.pending_spinner % frames.len()], Style::default().fg(Color::Yellow)),
-            Span::raw("  "),
-            Span::styled(label.to_string(), Style::default().fg(Color::White)),
-            Span::raw("  "),
-            Span::styled(vm.pending_stage.clone().unwrap_or_else(|| "queued".into()), Style::default().fg(Color::Gray)),
-        ])
-    } else if !vm.backend_ready {
-        Line::from(vec![Span::styled("backend starting", Style::default().fg(Color::Gray))])
-    } else {
-        Line::from(vec![Span::styled("ready", Style::default().fg(Color::Gray))])
-    };
+    let bottom = Line::from(vec![Span::styled(
+        "activity below · Tab switches focus · Alt+M toggles mouse mode",
+        Style::default().fg(Color::Gray),
+    )]);
     let paragraph = Paragraph::new(Text::from(vec![top, bottom]))
         .style(Style::default().fg(Color::White))
         .block(

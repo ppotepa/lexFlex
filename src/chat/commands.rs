@@ -11,13 +11,25 @@ pub enum SlashCommand {
     Chat,
     Lang(Option<String>),
     Translate { from: String, to: String },
+    AnswerLanguage(String),
     Settings,
     Ingest(String),
     Query(String),
     Inspect(String),
+    Facts(FactsCommand),
+    Evidence(String),
+    Debug(String),
     Trace,
-    Clear,
+    Clear(Option<String>),
     Quit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactsCommand {
+    pub selector: String,
+    pub role: crate::engine::DebugFactRole,
+    pub limit: Option<usize>,
+    pub page: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +69,7 @@ pub fn parse_input(input: &str) -> InputAction {
         "translate" => {
             let bits: Vec<&str> = args.split_whitespace().collect();
             match bits.as_slice() {
-                [from, to] if is_supported_lang(from) && is_supported_lang(to) => {
+                [from, to] if (*from == "auto" || is_supported_lang(from)) && is_supported_lang(to) => {
                     InputAction::Slash(SlashCommand::Translate {
                         from: (*from).to_string(),
                         to: (*to).to_string(),
@@ -66,12 +78,37 @@ pub fn parse_input(input: &str) -> InputAction {
                 _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
             }
         }
+        "answer-lang" => match args.to_lowercase().as_str() {
+            "auto" | "source" | "en" | "pl" => InputAction::Slash(SlashCommand::AnswerLanguage(args.to_lowercase())),
+            _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
+        },
         "settings" => InputAction::Slash(SlashCommand::Settings),
         "ingest" => InputAction::Slash(SlashCommand::Ingest(args)),
         "query" => InputAction::Slash(SlashCommand::Query(args)),
         "inspect" => InputAction::Slash(SlashCommand::Inspect(args)),
+        "facts" => match parse_facts(&args) {
+            Some(command) => InputAction::Slash(SlashCommand::Facts(command)),
+            None => InputAction::IncompleteSlash(SlashDraft { command, args }),
+        },
+        "evidence" => {
+            if args.trim().is_empty() {
+                InputAction::IncompleteSlash(SlashDraft { command, args })
+            } else {
+                InputAction::Slash(SlashCommand::Evidence(args))
+            }
+        }
+        "debug" => match args.to_lowercase().as_str() {
+            "interlingua" | "entities" | "query" | "pipeline" | "sources" | "snapshot" | "trace" => {
+                InputAction::Slash(SlashCommand::Debug(args.to_lowercase()))
+            }
+            _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
+        },
         "trace" => InputAction::Slash(SlashCommand::Trace),
-        "clear" => InputAction::Slash(SlashCommand::Clear),
+        "clear" => match args.to_lowercase().as_str() {
+            "" => InputAction::Slash(SlashCommand::Clear(None)),
+            "conversation" | "translation" | "all" => InputAction::Slash(SlashCommand::Clear(Some(args.to_lowercase()))),
+            _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
+        },
         "quit" => InputAction::Slash(SlashCommand::Quit),
         _ => InputAction::IncompleteSlash(SlashDraft { command, args }),
     }
@@ -136,7 +173,94 @@ fn visible_catalog() -> Vec<SlashSuggestion> {
             replacement: "/translate pl en".to_string(),
             description: "Set translation direction to Polish -> English".to_string(),
         },
+        SlashSuggestion {
+            label: "facts".to_string(),
+            replacement: "/facts ".to_string(),
+            description: "List evidence-backed facts from the current engine session".to_string(),
+        },
+        SlashSuggestion {
+            label: "evidence".to_string(),
+            replacement: "/evidence ".to_string(),
+            description: "Inspect evidence for a claim ID or the last fact number".to_string(),
+        },
+        SlashSuggestion {
+            label: "debug".to_string(),
+            replacement: "/debug interlingua".to_string(),
+            description: "Inspect the last turn's engine debug views".to_string(),
+        },
     ]
+}
+
+fn parse_facts(args: &str) -> Option<FactsCommand> {
+    let tokens = shell_tokens(args)?;
+    let mut selector = Vec::new();
+    let mut role = crate::engine::DebugFactRole::Any;
+    let mut limit = Some(12usize);
+    let mut page = 1usize;
+    let mut index = 0;
+    let mut explicit_limit = false;
+    let mut explicit_page = false;
+    let mut all = false;
+    while index < tokens.len() {
+        match tokens[index].as_str() {
+            "--role" => {
+                index += 1;
+                role = match tokens.get(index).map(String::as_str) {
+                    Some("any") => crate::engine::DebugFactRole::Any,
+                    Some("subject") => crate::engine::DebugFactRole::Subject,
+                    Some("object") => crate::engine::DebugFactRole::Object,
+                    _ => return None,
+                };
+            }
+            "--limit" => {
+                if all || explicit_limit { return None }
+                index += 1;
+                let value = tokens.get(index)?.parse::<usize>().ok()?;
+                if value == 0 { return None }
+                limit = Some(value);
+                explicit_limit = true;
+            }
+            "--page" => {
+                if explicit_page { return None }
+                index += 1;
+                let value = tokens.get(index)?.parse::<usize>().ok()?;
+                if value == 0 { return None }
+                page = value;
+                explicit_page = true;
+            }
+            "--all" => {
+                if all || explicit_limit { return None }
+                all = true;
+                limit = None;
+            }
+            value if value.starts_with("--") => return None,
+            value => selector.push(value.to_string()),
+        }
+        index += 1;
+    }
+    let selector = selector.join(" ").trim().to_string();
+    if selector.is_empty() { return None }
+    Some(FactsCommand { selector, role, limit, page })
+}
+
+fn shell_tokens(input: &str) -> Option<Vec<String>> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    for ch in input.chars() {
+        match (quote, ch) {
+            (Some(active), value) if value == active => quote = None,
+            (Some(_), value) => current.push(value),
+            (None, '\'' | '"') => quote = Some(ch),
+            (None, value) if value.is_whitespace() => {
+                if !current.is_empty() { tokens.push(std::mem::take(&mut current)); }
+            }
+            (None, value) => current.push(value),
+        }
+    }
+    if quote.is_some() { return None }
+    if !current.is_empty() { tokens.push(current); }
+    Some(tokens)
 }
 
 fn is_supported_lang(lang: &str) -> bool {
@@ -163,6 +287,10 @@ mod tests {
                 to: "en".to_string(),
             })
         );
+        assert!(matches!(
+            parse_input("/translate auto pl"),
+            InputAction::Slash(SlashCommand::Translate { from, to }) if from == "auto" && to == "pl"
+        ));
     }
 
     #[test]
@@ -193,17 +321,54 @@ mod tests {
             parse_input("/settings"),
             InputAction::Slash(SlashCommand::Settings)
         );
-        assert_eq!(parse_input("/clear"), InputAction::Slash(SlashCommand::Clear));
+        assert_eq!(parse_input("/clear"), InputAction::Slash(SlashCommand::Clear(None)));
+        assert_eq!(parse_input("/clear translation"), InputAction::Slash(SlashCommand::Clear(Some("translation".into()))));
+        assert_eq!(parse_input("/clear all"), InputAction::Slash(SlashCommand::Clear(Some("all".into()))));
+        assert_eq!(parse_input("/answer-lang source"), InputAction::Slash(SlashCommand::AnswerLanguage("source".into())));
         assert_eq!(parse_input("/quit"), InputAction::Slash(SlashCommand::Quit));
     }
 
     #[test]
-    fn suggestions_only_show_translation_actions() {
+    fn parses_facts_commands() {
+        assert_eq!(
+            parse_input("/facts New York --role subject --limit 10"),
+            InputAction::Slash(SlashCommand::Facts(super::FactsCommand {
+                selector: "New York".into(),
+                role: crate::engine::DebugFactRole::Subject,
+                limit: Some(10),
+                page: 1,
+            }))
+        );
+        assert_eq!(
+            parse_input("/facts \"New York\" --all"),
+            InputAction::Slash(SlashCommand::Facts(super::FactsCommand {
+                selector: "New York".into(),
+                role: crate::engine::DebugFactRole::Any,
+                limit: None,
+                page: 1,
+            }))
+        );
+        assert!(matches!(parse_input("/facts Poland --all --limit 2"), InputAction::IncompleteSlash(_)));
+        assert!(matches!(parse_input("/facts"), InputAction::IncompleteSlash(_)));
+        assert_eq!(
+            parse_input("/evidence 2"),
+            InputAction::Slash(SlashCommand::Evidence("2".into()))
+        );
+        assert_eq!(
+            parse_input("/debug trace"),
+            InputAction::Slash(SlashCommand::Debug("trace".into()))
+        );
+    }
+
+    #[test]
+    fn suggestions_show_supported_actions() {
         let translate = visible_suggestions("/tr");
         assert!(translate.iter().any(|item| item.replacement == "/translate en pl"));
         let settings = visible_suggestions("/set");
         assert!(settings.is_empty());
         let utility = visible_suggestions("/exp");
         assert!(utility.is_empty());
+        assert!(visible_suggestions("/fa").iter().any(|item| item.replacement == "/facts "));
+        assert!(visible_suggestions("/ev").iter().any(|item| item.replacement == "/evidence "));
     }
 }

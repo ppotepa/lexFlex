@@ -8,14 +8,11 @@ lexFlex has one runtime path for translation, ingestion and document question an
 └──────┬───────┘
        │ EngineRequest / EngineResponse
 ┌──────▼───────┐
-│ Conversation │  session lifecycle and orchestration
-│ Engine       │
+│ LexFlexEngine│  typed dispatch and session lifecycle
 └──────┬───────┘
-       ├── language detection and parser
-       ├── translation through Interlingua
-       ├── SourceProvider
-       ├── SessionWorkspace
-       └── QueryService
+       ├── ConversationWorkspace → SourceProvider / QueryService
+       ├── TranslationWorkspace  → contextual Interlingua / generation
+       └── Debug                  → read-only evidence views
               │
               ▼
        document compilation
@@ -33,7 +30,7 @@ lexFlex has one runtime path for translation, ingestion and document question an
 
 ### Engine
 
-`src/engine/` owns request dispatch, source resolution, session mutation, query execution, response metadata and trace persistence.
+`src/engine/` owns request dispatch, source resolution, the separate Conversation and Translation snapshots, query execution, response metadata and trace persistence. Translation may publish compiled original input into Conversation knowledge, but it never invokes a source provider. Clearing Translation removes exactly the knowledge owned by its turns.
 
 ### Language and Interlingua
 

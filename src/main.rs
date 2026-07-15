@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use lexflex::chat::{ChatOptions, TraceMode};
-use lexflex::engine::{ConversationEngine, EngineRequest, EngineResponse, EngineStatus, InspectTarget, LanguageMode, LocalSnapshotSourceProvider, SourceFetchPolicy, SourceKind, SourceProvider, SourceRequest, SourceSnapshot};
+use lexflex::engine::{ConversationRequest, DebugCommand, DebugFactRole, DebugInspectTarget, EngineRequest, EngineResponse, EngineStatus, EvidenceDebugQuery, FactsDebugQuery, InspectTarget, LanguageMode, LexFlexEngine, LocalSnapshotSourceProvider, SourceFetchPolicy, SourceKind, SourceProvider, SourceRequest, SourceSnapshot, TranslationRequest};
 use std::ffi::OsString;
 use std::path::Path;
 use std::process;
@@ -56,6 +56,9 @@ enum Commands {
         /// Output format: json, pretty-json, summary, answer
         #[arg(long, default_value = "answer")]
         format: String,
+        /// Persistent multilingual translation context
+        #[arg(long, default_value = "translation")]
+        session: String,
     },
     /// Fetch or inspect raw source snapshots
     Source {
@@ -79,6 +82,7 @@ enum Commands {
         #[arg(long, default_value = "default")] session: String,
         #[arg(long, default_value = "live")] source_policy: String,
         #[arg(long, default_value = "pretty-json")] format: String,
+        #[arg(long, default_value = "auto")] answer_lang: String,
     },
     /// Execute a serialized QueryInterlingua against a saved engine session
     Query {
@@ -93,6 +97,11 @@ enum Commands {
         #[arg(long, default_value = "default")] session: String,
         #[arg(long, default_value = "session")] target: String,
         #[arg(long, default_value = "pretty-json")] format: String,
+    },
+    /// Developer inspection commands executed by the conversation engine
+    Engine {
+        #[command(subcommand)]
+        command: EngineCommands,
     },
     /// Read a persisted deterministic engine trace
     Trace {
@@ -114,6 +123,36 @@ enum Commands {
     SessionLoad {
         #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum EngineCommands {
+    /// List evidence-backed facts involving an entity in a saved session
+    Facts {
+        entity: String,
+        #[arg(long, default_value = "any")] role: String,
+        #[arg(long)] limit: Option<usize>,
+        #[arg(long, conflicts_with = "limit")] all: bool,
+        #[arg(long, default_value_t = 1)] page: usize,
+        #[arg(short, long)] data: Option<String>,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "table")] format: String,
+    },
+    /// Show evidence for one claim in a saved session
+    Evidence {
+        claim: String,
+        #[arg(short, long)] data: Option<String>,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "table")] format: String,
+    },
+    /// Render a typed engine debug view
+    Debug {
+        target: String,
+        #[arg(short, long)] data: Option<String>,
+        #[arg(long, default_value = "default")] session: String,
+        #[arg(long)] run: Option<String>,
+        #[arg(long, default_value = "table")] format: String,
     },
 }
 
@@ -204,11 +243,14 @@ fn main() {
                 process::exit(1);
             }
         }
-        Commands::Translate { text, from, to, data, format } => {
+        Commands::Translate { text, from, to, data, format, session } => {
             let data = resolve_data_dir_or_exit(data.as_deref());
-            let mut engine = engine_or_exit(&data, "translate", true);
-            let response = engine.handle(EngineRequest::Translate { text: text.to_string_lossy().into_owned(), from: lexflex::core::interlingua::LanguageId::new(&from), to: lexflex::core::interlingua::LanguageId::new(&to) });
+            let mut engine = engine_or_exit(&data, &session, true);
+            let has_session = engine.store.as_ref().and_then(|store| store.path_for(&session).ok()).is_some_and(|path| path.exists());
+            if has_session { if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); } }
+            let response = engine.handle(EngineRequest::Translation(TranslationRequest::Turn { text: text.to_string_lossy().into_owned(), from: Some(LanguageMode::Explicit(from)), to: Some(lexflex::core::interlingua::LanguageId::new(&to)) }));
             print_engine_response(response, &format);
+            if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
         }
         Commands::Source { command } => match command {
             SourceCommands::Fetch { title, lang, data, live, format } => {
@@ -240,11 +282,11 @@ fn main() {
             let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, !live);
             let request = source_request(title, &lang, if live { SourceFetchPolicy::Live } else { SourceFetchPolicy::SnapshotOnly });
-            let response = engine.handle(EngineRequest::IngestSource { source: request });
+            let response = engine.handle(EngineRequest::Conversation(ConversationRequest::IngestSource { source: request }));
             print_engine_response(response, &format);
             if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
         }
-        Commands::Answer { text, lang, data, session, source_policy, format } => {
+        Commands::Answer { text, lang, data, session, source_policy, format, answer_lang } => {
             let data = resolve_data_dir_or_exit(data.as_deref());
             let policy = parse_source_policy(&source_policy);
             let mut engine = engine_or_exit(&data, &session, matches!(policy, SourceFetchPolicy::SnapshotOnly));
@@ -253,8 +295,14 @@ fn main() {
             if has_session {
                 if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
             }
+            let answer_language = match answer_lang.as_str() {
+                "auto" => lexflex::engine::AnswerLanguage::Auto,
+                "source" => lexflex::engine::AnswerLanguage::Source,
+                value => lexflex::engine::AnswerLanguage::Explicit(lexflex::core::interlingua::LanguageId::new(value)),
+            };
+            let _ = engine.handle(EngineRequest::Conversation(ConversationRequest::SetAnswerLanguage { language: answer_language }));
             let language = if lang == "auto" { LanguageMode::Auto } else { LanguageMode::Explicit(lang) };
-            let response = engine.handle(EngineRequest::UserTurn { text: text.to_string_lossy().into_owned(), language });
+            let response = engine.handle(EngineRequest::Conversation(ConversationRequest::Turn { text: text.to_string_lossy().into_owned(), language }));
             print_engine_response(response, &format);
             if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
         }
@@ -263,15 +311,63 @@ fn main() {
             let mut engine = engine_or_exit(&data, &session, true);
             if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
             let query = serde_json::from_str(&query.to_string_lossy()).unwrap_or_else(|error| { eprintln!("Query JSON error: {error}"); process::exit(1); });
-            print_engine_response(engine.handle(EngineRequest::Query { query }), &format);
+            print_engine_response(engine.handle(EngineRequest::Conversation(ConversationRequest::Query { query })), &format);
         }
         Commands::Inspect { data, session, target, format } => {
             let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, true);
             if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
             let target = match target.as_str() { "sources" => InspectTarget::Sources, "bundles" => InspectTarget::Bundles, _ => InspectTarget::Session };
-            print_engine_response(engine.handle(EngineRequest::Inspect { target }), &format);
+            print_engine_response(engine.handle(EngineRequest::Conversation(ConversationRequest::Inspect { target })), &format);
         }
+        Commands::Engine { command } => match command {
+            EngineCommands::Facts { entity, role, limit, all, page, data, session, format } => {
+                let data = resolve_data_dir_or_exit(data.as_deref());
+                let mut engine = engine_or_exit(&data, &session, true);
+                if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+                let role = match role.as_str() {
+                    "any" => DebugFactRole::Any,
+                    "subject" => DebugFactRole::Subject,
+                    "object" => DebugFactRole::Object,
+                    _ => { eprintln!("Facts role must be any, subject, or object"); process::exit(2); }
+                };
+                let limit = if all { None } else { Some(limit.unwrap_or(50)) };
+                if limit == Some(0) { eprintln!("Facts limit must be greater than zero"); process::exit(2); }
+                if page == 0 { eprintln!("Facts page must be greater than zero"); process::exit(2); }
+                let response = engine.handle(EngineRequest::Debug {
+                    command: DebugCommand::Facts(FactsDebugQuery { selector: entity, role, limit, page }),
+                });
+                print_engine_response(response, &format);
+            }
+            EngineCommands::Evidence { claim, data, session, format } => {
+                let data = resolve_data_dir_or_exit(data.as_deref());
+                let mut engine = engine_or_exit(&data, &session, true);
+                if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+                let response = engine.handle(EngineRequest::Debug {
+                    command: DebugCommand::Evidence(EvidenceDebugQuery { claim_id: claim }),
+                });
+                print_engine_response(response, &format);
+            }
+            EngineCommands::Debug { target, data, session, run, format } => {
+                let data = resolve_data_dir_or_exit(data.as_deref());
+                let mut engine = engine_or_exit(&data, &session, true);
+                if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+                let target = match target.as_str() {
+                    "interlingua" => DebugInspectTarget::Interlingua,
+                    "entities" => DebugInspectTarget::Entities,
+                    "query" => DebugInspectTarget::Query,
+                    "pipeline" => DebugInspectTarget::Pipeline,
+                    "sources" => DebugInspectTarget::Sources,
+                    "snapshot" => DebugInspectTarget::Snapshot,
+                    "trace" => DebugInspectTarget::Trace { run_id: run },
+                    other => { eprintln!("Unsupported debug target: {other}"); process::exit(2); }
+                };
+                let response = engine.handle(EngineRequest::Debug {
+                    command: DebugCommand::Inspect(target),
+                });
+                print_engine_response(response, &format);
+            }
+        },
         Commands::Trace { data, session, turn } => {
             let data = resolve_data_dir_or_exit(data.as_deref());
             let store = lexflex::engine::SessionStore::new(&data);
@@ -353,8 +449,8 @@ fn source_request(title: String, lang: &str, policy: SourceFetchPolicy) -> Sourc
     }
 }
 
-fn engine_or_exit(data: &str, session: &str, offline: bool) -> ConversationEngine {
-    ConversationEngine::new(data, session, offline).unwrap_or_else(|error| { eprintln!("Engine initialization error: {error:?}"); process::exit(1); })
+fn engine_or_exit(data: &str, session: &str, offline: bool) -> LexFlexEngine {
+    LexFlexEngine::new(data, session, offline).unwrap_or_else(|error| { eprintln!("Engine initialization error: {error:?}"); process::exit(1); })
 }
 
 fn resolve_data_dir_or_exit(explicit: Option<&str>) -> String {
@@ -366,6 +462,10 @@ fn resolve_data_dir_or_exit(explicit: Option<&str>) -> String {
 }
 
 fn print_engine_response(response: EngineResponse, format: &str) {
+    if format == "table" {
+        print_engine_table(&response);
+        return;
+    }
     if format == "summary" {
         match &response { EngineResponse::Ingest(value) => println!("status={:?} source={} bundle={} snapshot={}", value.meta.status, value.source_id, value.bundle_id, value.meta.session_snapshot_id), EngineResponse::Error { error, .. } => println!("status=Error error={error:?}"), _ => println!("status={:?}", engine_status(&response)) }
     } else {
@@ -375,7 +475,74 @@ fn print_engine_response(response: EngineResponse, format: &str) {
 }
 
 fn engine_status(response: &EngineResponse) -> EngineStatus {
-    match response { EngineResponse::Conversation(value) => value.meta.status, EngineResponse::Translation(value) => value.meta.status, EngineResponse::Ingest(value) => value.meta.status, EngineResponse::Answer { meta, .. } => meta.status, EngineResponse::Inspection(value) => value.meta.status, EngineResponse::Error { meta, .. } => meta.status }
+    match response { EngineResponse::Conversation(value) => value.meta.status, EngineResponse::Translation(value) => value.meta.status, EngineResponse::Ingest(value) => value.meta.status, EngineResponse::Answer { meta, .. } => meta.status, EngineResponse::Inspection(value) => value.meta.status, EngineResponse::Debug(value) => value.meta.status, EngineResponse::Error { meta, .. } => meta.status }
+}
+
+fn print_engine_table(response: &EngineResponse) {
+    let (meta, presentation) = match response {
+        EngineResponse::Conversation(value) => (&value.meta, &value.presentation),
+        EngineResponse::Translation(value) => (&value.meta, &value.presentation),
+        EngineResponse::Ingest(value) => (&value.meta, &value.presentation),
+        EngineResponse::Answer { meta, presentation, .. } => (meta, presentation),
+        EngineResponse::Inspection(value) => (&value.meta, &value.presentation),
+        EngineResponse::Debug(value) => (&value.meta, &value.ui),
+        EngineResponse::Error { meta, presentation, .. } => (meta, presentation),
+    };
+    println!(
+        "status={:?} {} snapshot={}",
+        meta.status,
+        presentation.status_line,
+        meta.session_snapshot_id
+    );
+    println!("{}", presentation.title);
+    println!("{}", presentation.summary);
+    for section in &presentation.sections {
+        println!("- {}", section.title);
+        for block in &section.blocks {
+            match block {
+                lexflex::engine::EnginePresentationBlock::Text(value) => println!("  {}", value),
+                lexflex::engine::EnginePresentationBlock::Fields(values) => {
+                    for (key, value) in values {
+                        let rendered = if key.contains("sha256") || key.ends_with("_id") {
+                            shorten_cli_value(value)
+                        } else {
+                            value.clone()
+                        };
+                        println!("  {}={}", key, rendered);
+                    }
+                }
+                lexflex::engine::EnginePresentationBlock::BulletList(values) => {
+                    for value in values {
+                        println!("  - {}", value);
+                    }
+                }
+                lexflex::engine::EnginePresentationBlock::Notice { tone, message } => {
+                    println!("  ! {:?}: {}", tone, message);
+                }
+                lexflex::engine::EnginePresentationBlock::Timeline(values) => {
+                    for value in values {
+                        println!("  > {}", value);
+                    }
+                }
+                lexflex::engine::EnginePresentationBlock::TechnicalRefs(values) => {
+                    for value in values {
+                        println!("  # {}", shorten_cli_value(value));
+                    }
+                }
+            }
+        }
+    }
+    for hint in &presentation.hints {
+        println!("hint={hint}");
+    }
+}
+
+fn shorten_cli_value(value: &str) -> String {
+    if value.len() <= 32 {
+        value.to_string()
+    } else {
+        format!("{}..{}", &value[..12], &value[value.len().saturating_sub(12)..])
+    }
 }
 
 fn print_source_snapshot(snapshot: SourceSnapshot, format: &str) {

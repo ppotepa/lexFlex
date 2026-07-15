@@ -1,12 +1,12 @@
 # Chat client architecture
 
-The terminal UI is a thin frontend for `ConversationEngine`.
+The terminal UI is a thin frontend for `LexFlexEngine`.
 
 ```text
 keyboard input
   → slash command parser
   → EngineRequest
-  → ChatWorker / ConversationEngine
+  → ChatWorker / LexFlexEngine
   → EngineResponse
   → transcript and widgets
 ```
@@ -24,4 +24,4 @@ The chat client does not parse facts, inspect `DocumentGraph`, resolve entities,
 
 ## Current commands
 
-The supported command set is documented in [CLI.md](CLI.md). Regular messages are always submitted as `EngineRequest::UserTurn`.
+The supported command set is documented in [CLI.md](CLI.md). Regular messages are submitted as `EngineRequest::Conversation(ConversationRequest::Turn)` or `EngineRequest::Translation(TranslationRequest::Turn)`, depending on the selected mode.

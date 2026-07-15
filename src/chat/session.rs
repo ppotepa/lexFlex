@@ -3,21 +3,22 @@ use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, Transcript
 use crate::chat::trace::ChatTraceEntry;
 use crate::chat::{ChatOptions, TraceMode};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChatMode {
-    Chat,
-    Translate,
+pub enum EngineMode {
+    Conversation,
+    Translation,
 }
 
-impl ChatMode {
+impl EngineMode {
     pub fn as_str(self) -> &'static str {
         match self {
-            ChatMode::Chat => "chat",
-            ChatMode::Translate => "translate",
+            EngineMode::Conversation => "conversation",
+            EngineMode::Translation => "translation",
         }
     }
 }
@@ -26,7 +27,7 @@ impl ChatMode {
 pub struct ChatContext {
     pub source_lang: String,
     pub target_lang: String,
-    pub mode: ChatMode,
+    pub mode: EngineMode,
     #[serde(default)]
     pub chat_language_override: Option<String>,
 }
@@ -57,7 +58,22 @@ pub enum OverlayKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusTarget {
     Composer,
+    Transcript,
     CommandPopup,
+}
+
+impl FocusTarget {
+    pub fn is_composer(self) -> bool {
+        matches!(self, Self::Composer)
+    }
+
+    pub fn is_transcript(self) -> bool {
+        matches!(self, Self::Transcript)
+    }
+
+    pub fn is_popup(self) -> bool {
+        matches!(self, Self::CommandPopup)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -134,7 +150,7 @@ impl TranscriptViewport {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChatOptions, ChatSession, PendingRequest, TranscriptViewport};
+    use super::{ChatOptions, ChatSession, FocusTarget, PendingRequest, TranscriptViewport};
     use crate::chat::TraceMode;
     use std::time::Instant;
 
@@ -162,16 +178,20 @@ mod tests {
             from: "pl".into(), to: "en".into(), data_dir: "data".into(), offline: true,
             trace_mode: TraceMode::Full, source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
         });
-        let stream_turn = session.start_stream("engine");
+        session.start_stream("engine");
         session.pending = Some(PendingRequest {
-            label: "engine".into(), started_at: Instant::now(), stream_turn,
-            current_stage: "queued".into(), progress_lines: Vec::new(), spinner_index: 0,
+            label: "engine".into(), started_at: Instant::now(),
+            current_stage: "queued".into(), current_stage_path: "queued".into(),
+            spinner_index: 0,
         });
-        session.append_stream_progress(&crate::engine::TraceEvent {
-            run_id: "run:00000001".into(), request_id: "request:test".into(), sequence: 1,
-            stage: "language.detected".into(), payload: Some(serde_json::json!({"language":"en"})),
+        session.append_stream_progress(&crate::chat::service::ChatProgressEvent {
+            run_id: "run:00000001".into(),
+            request_id: "request:test".into(),
+            sequence: 1,
+            stage: "language.detected".into(),
+            label: "Detected language".into(),
+            details: vec!["Language: en".into()],
         }, true);
-        assert!(matches!(session.transcript.messages[0].blocks[0], crate::chat::transcript::MessageBlock::Trace(_)));
         session.finish_stream(
             "conversation".into(),
             vec![crate::chat::transcript::MessageBlock::Paragraph("Paris".into())],
@@ -179,8 +199,39 @@ mod tests {
             true,
         );
         assert_eq!(session.transcript.messages[0].title, "conversation");
-        assert_eq!(session.transcript.messages[0].blocks.len(), 2);
+        assert!(matches!(session.transcript.messages[0].blocks[0], crate::chat::transcript::MessageBlock::Paragraph(_)));
         assert!(session.pending.is_none());
+    }
+
+    #[test]
+    fn toggling_selected_node_flips_expansion_state() {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(), to: "en".into(), data_dir: "data".into(), offline: true,
+            trace_mode: TraceMode::Full, source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
+        });
+        session.selected_turn = Some(7);
+        assert!(session.toggle_selected_node("facts.0"));
+        assert!(session.node_expanded(7, "facts.0", false));
+        assert!(session.toggle_selected_node("facts.0"));
+        assert!(!session.node_expanded(7, "facts.0", false));
+    }
+
+    #[test]
+    fn main_focus_toggles_between_composer_and_transcript() {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(),
+            to: "en".into(),
+            data_dir: "data".into(),
+            offline: true,
+            trace_mode: TraceMode::Full,
+            source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
+        });
+        assert!(matches!(session.overlays.focus, FocusTarget::Composer));
+        session.toggle_main_focus();
+        assert!(matches!(session.overlays.focus, FocusTarget::Transcript));
+        session.toggle_main_focus();
+        assert!(matches!(session.overlays.focus, FocusTarget::Composer));
+        assert!(!session.mouse_capture_enabled);
     }
 }
 
@@ -188,10 +239,19 @@ mod tests {
 pub struct PendingRequest {
     pub label: String,
     pub started_at: Instant,
-    pub stream_turn: usize,
     pub current_stage: String,
-    pub progress_lines: Vec<String>,
+    pub current_stage_path: String,
     pub spinner_index: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ActivityState {
+    pub label: String,
+    pub current_stage: String,
+    pub current_stage_path: String,
+    pub details: Vec<String>,
+    pub spinner_index: usize,
+    pub started_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -211,11 +271,15 @@ pub struct ChatSession {
     pub composer: ComposerState,
     pub overlays: OverlayState,
     pub pending: Option<PendingRequest>,
+    pub activity: ActivityState,
     pub last_trace_run_id: Option<String>,
-    pub backend_ready: bool,
+    pub last_debug_claim_ids: Vec<String>,
+    pub mouse_capture_enabled: bool,
     pub should_quit: bool,
     pub runtime: RuntimeConfig,
     pub viewport: TranscriptViewport,
+    pub selected_turn: Option<usize>,
+    pub expanded_nodes: BTreeSet<(usize, String)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,7 +300,7 @@ impl ChatSession {
             context: ChatContext {
                 source_lang: options.from,
                 target_lang: options.to,
-                mode: ChatMode::Chat,
+                mode: EngineMode::Conversation,
                 chat_language_override: None,
             },
             settings: ChatSettings { verbosity },
@@ -245,7 +309,8 @@ impl ChatSession {
             composer: ComposerState::default(),
             overlays: OverlayState::default(),
             pending: None,
-            backend_ready: true,
+            activity: ActivityState::default(),
+            mouse_capture_enabled: false,
             should_quit: false,
             runtime: RuntimeConfig {
                 data_dir: options.data_dir,
@@ -255,7 +320,10 @@ impl ChatSession {
                 engine_session_id: "chat-session".into(),
             },
             last_trace_run_id: None,
+            last_debug_claim_ids: Vec::new(),
             viewport: TranscriptViewport::new(),
+            selected_turn: None,
+            expanded_nodes: BTreeSet::new(),
         }
     }
 
@@ -267,6 +335,7 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text)],
             MessageMeta::default(),
         );
+        self.selected_turn = Some(turn);
         self.viewport.jump_to_bottom();
         turn
     }
@@ -278,6 +347,7 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text.into())],
             MessageMeta::default(),
         );
+        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
         self.viewport.jump_to_bottom();
     }
 
@@ -288,7 +358,23 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text.into())],
             MessageMeta::default(),
         );
+        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
         self.viewport.jump_to_bottom();
+    }
+
+    pub fn remember_debug_claim_ids(&mut self, claim_ids: Vec<String>) {
+        self.last_debug_claim_ids = claim_ids;
+    }
+
+    pub fn claim_id_for_debug_reference(&self, reference: &str) -> Option<String> {
+        let trimmed = reference.trim();
+        if let Ok(index) = trimmed.parse::<usize>() {
+            if index == 0 {
+                return None;
+            }
+            return self.last_debug_claim_ids.get(index - 1).cloned();
+        }
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
     }
 
     pub fn push_response(&mut self, response: ChatResponse, command: Option<String>) {
@@ -305,58 +391,72 @@ impl ChatSession {
                 command,
             },
         );
+        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
         self.viewport.jump_to_bottom();
     }
 
     pub fn start_stream(&mut self, label: &str) -> usize {
-        let turn = self.transcript.next_turn;
-        self.transcript.push(
-            MessageRole::Assistant,
-            label,
-            vec![MessageBlock::Trace(vec![format!("⠋ queued: {label}")])],
-            MessageMeta::default(),
-        );
-        self.viewport.jump_to_bottom();
-        turn
+        let started_at = Instant::now();
+        self.activity = ActivityState {
+            label: label.to_string(),
+            current_stage: "queued".into(),
+            current_stage_path: "queued".into(),
+            details: Vec::new(),
+            spinner_index: 0,
+            started_at: Some(started_at),
+        };
+        self.pending = Some(PendingRequest {
+            label: label.into(),
+            started_at,
+            current_stage: "queued".into(),
+            current_stage_path: "queued".into(),
+            spinner_index: 0,
+        });
+        0
     }
 
-    pub fn append_stream_progress(&mut self, event: &crate::engine::TraceEvent, full: bool) {
+    pub fn append_stream_progress(&mut self, event: &crate::chat::service::ChatProgressEvent, full: bool) {
         let Some(pending) = self.pending.as_mut() else { return; };
-        pending.current_stage = event.stage.clone();
+        pending.current_stage = event.label.clone();
+        pending.current_stage_path = event.stage.clone();
         pending.spinner_index = pending.spinner_index.wrapping_add(1);
-        let line = if full {
-            match &event.payload {
-                Some(payload) => format!("{} {} {}", spinner(pending.spinner_index), event.stage, payload),
-                None => format!("{} {}", spinner(pending.spinner_index), event.stage),
-            }
-        } else {
-            format!("{} {}", spinner(pending.spinner_index), event.stage)
-        };
-        pending.progress_lines.push(line.clone());
-        self.transcript.append_trace(pending.stream_turn, line);
+        self.activity.label = pending.label.clone();
+        self.activity.current_stage = event.label.clone();
+        self.activity.current_stage_path = event.stage.clone();
+        self.activity.spinner_index = pending.spinner_index;
+        self.activity.details = if full { event.details.clone() } else { Vec::new() };
+        self.activity.started_at = Some(pending.started_at);
         if self.viewport.stick_to_bottom { self.viewport.jump_to_bottom(); }
     }
 
     pub fn tick_pending(&mut self) {
         if let Some(pending) = self.pending.as_mut() {
             pending.spinner_index = pending.spinner_index.wrapping_add(1);
+            self.activity.spinner_index = pending.spinner_index;
         }
     }
 
     pub fn finish_stream(&mut self, title: String, blocks: Vec<MessageBlock>, meta: MessageMeta, include_trace: bool) {
+        self.finish_stream_as(MessageRole::Assistant, title, blocks, meta, include_trace);
+    }
+
+    pub fn finish_stream_as(&mut self, role: MessageRole, title: String, blocks: Vec<MessageBlock>, meta: MessageMeta, include_trace: bool) {
         let was_stick_to_bottom = self.viewport.stick_to_bottom;
         let Some(pending) = self.pending.take() else {
-            self.transcript.push(MessageRole::Assistant, title, blocks, meta);
+            self.transcript.push(role, title, blocks, meta);
             self.viewport.jump_to_bottom();
             return;
         };
+        self.activity = ActivityState::default();
         let mut blocks = blocks;
-        if include_trace && !pending.progress_lines.is_empty() {
-            blocks.push(MessageBlock::Trace(pending.progress_lines));
+        if include_trace {
+            blocks.push(MessageBlock::Trace(vec![format!(
+                "trace: {} -> {}",
+                pending.current_stage_path, pending.current_stage
+            )]));
         }
-        if !self.transcript.replace(pending.stream_turn, title, blocks, meta) {
-            self.transcript.push(MessageRole::Assistant, "engine", vec![MessageBlock::Trace(vec!["stream replacement failed".into()])], MessageMeta::default());
-        }
+        self.transcript.push(role, title, blocks, meta);
+        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
         if was_stick_to_bottom { self.viewport.jump_to_bottom(); }
     }
 
@@ -395,8 +495,18 @@ impl ChatSession {
         self.trace_log.clear();
         self.composer = ComposerState::default();
         self.pending = None;
+        self.activity = ActivityState::default();
         self.last_trace_run_id = None;
         self.viewport = TranscriptViewport::new();
+        self.selected_turn = None;
+        self.expanded_nodes.clear();
+    }
+
+    pub fn toggle_main_focus(&mut self) {
+        self.overlays.focus = match self.overlays.focus {
+            FocusTarget::Composer | FocusTarget::CommandPopup => FocusTarget::Transcript,
+            FocusTarget::Transcript => FocusTarget::Composer,
+        };
     }
 
     pub fn set_translation_direction(&mut self, from: String, to: String) {
@@ -427,7 +537,7 @@ impl ChatSession {
         }
     }
 
-    pub fn set_mode(&mut self, mode: ChatMode) {
+    pub fn set_mode(&mut self, mode: EngineMode) {
         self.context.mode = mode;
     }
 
@@ -446,7 +556,13 @@ impl ChatSession {
                 pending.started_at.elapsed().as_millis()
             ),
             None => format!(
-                "{} | chat:{} | translate:{} -> {} | {}",
+                "focus:{} | mouse:{} | {} | chat:{} | translate:{} -> {} | {}",
+                match self.overlays.focus {
+                    FocusTarget::Composer => "composer",
+                    FocusTarget::Transcript => "transcript",
+                    FocusTarget::CommandPopup => "commands",
+                },
+                if self.mouse_capture_enabled { "application" } else { "native" },
                 self.context.mode.as_str(),
                 self.chat_language_label(),
                 self.context.source_lang,
@@ -467,6 +583,60 @@ impl ChatSession {
         };
         fs::write(path, serde_json::to_string_pretty(&snapshot)?)?;
         Ok(())
+    }
+
+    pub fn select_previous_message(&mut self) {
+        if self.transcript.messages.is_empty() {
+            self.selected_turn = None;
+            return;
+        }
+        let turns = self.transcript.messages.iter().map(|message| message.turn).collect::<Vec<_>>();
+        let current = self.selected_turn.unwrap_or_else(|| *turns.last().unwrap_or(&1));
+        let next = turns
+            .iter()
+            .rev()
+            .find(|turn| **turn < current)
+            .copied()
+            .or_else(|| turns.first().copied());
+        self.selected_turn = next;
+        self.viewport.stick_to_bottom = false;
+    }
+
+    pub fn select_next_message(&mut self) {
+        if self.transcript.messages.is_empty() {
+            self.selected_turn = None;
+            return;
+        }
+        let turns = self.transcript.messages.iter().map(|message| message.turn).collect::<Vec<_>>();
+        let current = self.selected_turn.unwrap_or_else(|| turns[0]);
+        let next = turns
+            .iter()
+            .find(|turn| **turn > current)
+            .copied()
+            .or_else(|| turns.last().copied());
+        self.selected_turn = next;
+    }
+
+    pub fn collapse_selected(&mut self, collapsed: bool) -> bool {
+        let Some(turn) = self.selected_turn else { return false; };
+        self.transcript.set_collapsed(turn, collapsed)
+    }
+
+    pub fn toggle_selected_node(&mut self, node_key: &str) -> bool {
+        let Some(turn) = self.selected_turn else { return false; };
+        let key = (turn, node_key.to_string());
+        if !self.expanded_nodes.insert(key.clone()) {
+            self.expanded_nodes.remove(&key);
+        }
+        true
+    }
+
+    pub fn node_expanded(&self, turn: usize, node_key: &str, default: bool) -> bool {
+        self.expanded_nodes.contains(&(turn, node_key.to_string())) || default
+    }
+
+    pub fn export_transcript_text(&self) -> String {
+        self.transcript.export_plain_text()
     }
 }
 

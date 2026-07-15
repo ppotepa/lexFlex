@@ -9,6 +9,7 @@ pub struct FooterViewModel<'a> {
     /// Byte offset into `input`, always on a UTF-8 character boundary.
     pub cursor: usize,
     pub status_line: String,
+    pub focused: bool,
 }
 
 pub fn render(frame: &mut ratatui::Frame, area: Rect, vm: &FooterViewModel<'_>) {
@@ -31,19 +32,31 @@ pub fn render(frame: &mut ratatui::Frame, area: Rect, vm: &FooterViewModel<'_>) 
         Span::raw(" send  "),
         Span::styled("Shift+Enter", Style::default().fg(Color::Green)),
         Span::raw(" newline  "),
+        Span::styled("Alt+↑/↓", Style::default().fg(Color::Green)),
+        Span::raw(" select  "),
+        Span::styled("Tab", Style::default().fg(Color::Green)),
+        Span::raw(" focus  "),
+        Span::styled("+/-", Style::default().fg(Color::Green)),
+        Span::raw(" collapse  "),
+        Span::styled("Ctrl+Shift+C", Style::default().fg(Color::Green)),
+        Span::raw(" copy selection  "),
+        Span::styled("Ctrl+Shift+B", Style::default().fg(Color::Green)),
+        Span::raw(" copy all  "),
         Span::styled("/", Style::default().fg(Color::Green)),
         Span::raw(" commands  "),
         Span::styled("Alt+V", Style::default().fg(Color::Green)),
         Span::raw(" verbosity  "),
+        Span::styled("Alt+M", Style::default().fg(Color::Green)),
+        Span::raw(" mouse  "),
         Span::styled("Ctrl+C", Style::default().fg(Color::Green)),
         Span::raw(" quit"),
     ]);
     frame.render_widget(Paragraph::new(hints), chunks[1]);
 
-    render_input(frame, chunks[2], vm.input, vm.cursor);
+    render_input(frame, chunks[2], vm.input, vm.cursor, vm.focused);
 }
 
-fn render_input(frame: &mut ratatui::Frame, area: Rect, input: &str, cursor: usize) {
+fn render_input(frame: &mut ratatui::Frame, area: Rect, input: &str, cursor: usize, focused: bool) {
     let inner_width = area.width.saturating_sub(2) as usize;
     let text_width = inner_width.saturating_sub(2).max(1);
     let inner_height = area.height.saturating_sub(2).max(1) as usize;
@@ -74,7 +87,7 @@ fn render_input(frame: &mut ratatui::Frame, area: Rect, input: &str, cursor: usi
             Block::default()
                 .borders(Borders::ALL)
                 .title("input")
-                .border_style(Style::default().fg(Color::Gray)),
+                .border_style(Style::default().fg(if focused { Color::White } else { Color::Gray })),
         ),
         area,
     );
@@ -188,6 +201,7 @@ mod tests {
                         input: "hello",
                         cursor: 5,
                         status_line: "ready".to_string(),
+                        focused: true,
                     },
                 )
             })

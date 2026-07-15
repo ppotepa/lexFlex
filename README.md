@@ -29,6 +29,8 @@ Translate text:
 cargo run -- translate "Tomek dał jabłko Izie" --from pl --to en --format answer
 ```
 
+Translation has its own persistent context and snapshot. Its original input is also compiled into evidence-backed Conversation knowledge; it never asks Wikipedia to translate text. Reuse `--session` to continue that context.
+
 Ask a factual question directly. The engine resolves Wikipedia automatically:
 
 ```bash
@@ -50,9 +52,20 @@ In the TUI, ordinary factual questions automatically discover and ingest a Wikip
 What is Paris?
 ```
 
-Useful commands are `/lang auto`, `/lang en`, `/lang pl`, `/translate en pl`, `/query <json>`, `/inspect`, `/trace`, `/clear` and `/quit`.
+Useful commands are `/facts <entity>`, `/ingest <title>`, `/lang auto`, `/answer-lang auto`, `/translate auto pl`, `/inspect`, `/trace`, `/clear translation` and `/quit`.
 
-Progress is rendered live in the transcript with a Braille spinner and automatic bottom scrolling. Startup shows the resolved data root and source policy. `/trace` shows the latest persisted run; `Alt+V` cycles `compact`, `normal`, `detailed` and `full-stack` verbosity.
+Inspect the knowledge currently held by the session:
+
+```text
+/ingest Poland
+/facts Poland
+/facts Poland --role subject --limit 10
+/facts Poland --all
+```
+
+`/facts` is a read-only engine debug command. It never fetches a source and only returns claims with source evidence. Its responses use a separate magenta transcript style.
+
+Progress is rendered live in one fixed activity panel with a Braille spinner and automatic bottom scrolling. Startup shows the resolved data root and source policy. `Tab` switches focus between the composer and transcript; the active widget has a white border. Mouse capture is off by default so the terminal can select text natively; `Alt+M` enables application mouse interactions. `/trace` shows the latest persisted run; `Alt+V` cycles `compact`, `normal`, `detailed` and `full-stack` verbosity.
 
 If startup cannot validate the runtime assets, chat exits immediately with a configuration error. It does not start with empty lexicons or synthetic fallbacks.
 
@@ -61,13 +74,12 @@ If startup cannot validate the runtime assets, chat exits immediately with a con
 ```text
 CLI / TUI
   → EngineRequest
-  → ConversationEngine
-  → source snapshot
-  → document compilation and graph
-  → entity resolution
-  → knowledge extraction
-  → QueryInterlingua and planner
-  → evidence-backed EngineResponse
+  → LexFlexEngine
+      ├── Conversation → sources, knowledge, queries, answers
+      ├── Translation  → multilingual context and generation
+      └── Debug        → read-only evidence inspection
+  → shared Interlingua and document pipeline
+  → typed EngineResponse with area, snapshot and trace
 ```
 
 The chat layer is a client and renderer. Semantic processing belongs to the engine.

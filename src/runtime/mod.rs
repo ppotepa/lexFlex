@@ -91,6 +91,14 @@ impl LexFlexDocumentEngine {
         self.api.translate(input, source_language, target_language)
     }
 
+    pub fn generate(
+        &self,
+        interlingua: &crate::core::interlingua::Interlingua,
+        target_language: &str,
+    ) -> Result<String, crate::error::LexFlexError> {
+        self.api.generate(interlingua, target_language)
+    }
+
     pub fn data_dir(&self) -> &str { &self.config.data_dir }
     pub fn config(&self) -> &LexFlexRuntimeConfig { &self.config }
     pub fn new(api: LexFlexAPI) -> Self {
