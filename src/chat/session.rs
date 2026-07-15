@@ -55,6 +55,32 @@ pub enum OverlayKind {
     CommandPalette,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MouseMode {
+    Application,
+    NativeSelection,
+}
+
+impl MouseMode {
+    pub fn is_application(self) -> bool {
+        matches!(self, Self::Application)
+    }
+
+    pub fn toggle(self) -> Self {
+        match self {
+            Self::Application => Self::NativeSelection,
+            Self::NativeSelection => Self::Application,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Application => "application",
+            Self::NativeSelection => "native",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusTarget {
     Composer,
@@ -73,6 +99,27 @@ impl FocusTarget {
 
     pub fn is_popup(self) -> bool {
         matches!(self, Self::CommandPopup)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TranscriptSelection {
+    Message { turn: usize },
+    Node { turn: usize, key: String },
+}
+
+impl TranscriptSelection {
+    pub fn turn(&self) -> usize {
+        match self {
+            Self::Message { turn } | Self::Node { turn, .. } => *turn,
+        }
+    }
+
+    pub fn node_key(&self) -> Option<&str> {
+        match self {
+            Self::Node { key, .. } => Some(key),
+            Self::Message { .. } => None,
+        }
     }
 }
 
@@ -202,6 +249,7 @@ mod tests {
         assert_eq!(session.transcript.messages[0].title, "conversation");
         assert!(matches!(session.transcript.messages[0].blocks[0], crate::chat::transcript::MessageBlock::Paragraph(_)));
         assert!(session.pending.is_none());
+        assert!(matches!(session.selected_selection(), Some(super::TranscriptSelection::Message { turn: 1 })));
     }
 
     #[test]
@@ -210,7 +258,7 @@ mod tests {
             from: "pl".into(), to: "en".into(), data_dir: "data".into(), offline: true,
             trace_mode: TraceMode::Full, source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
         });
-        session.selected_turn = Some(7);
+        session.select_message(7);
         assert!(session.toggle_selected_node("facts.0"));
         assert!(session.node_expanded(7, "facts.0", false));
         assert!(session.toggle_selected_node("facts.0"));
@@ -249,7 +297,7 @@ mod tests {
             }])],
             MessageMeta::default(),
         );
-        session.selected_turn = Some(1);
+        session.select_message(1);
         assert!(session.node_expanded(1, "facts", true));
         assert!(session.toggle_selected_node("facts"));
         assert!(!session.node_expanded(1, "facts", true));
@@ -274,7 +322,22 @@ mod tests {
         assert!(matches!(session.overlays.focus, FocusTarget::Transcript));
         session.toggle_main_focus();
         assert!(matches!(session.overlays.focus, FocusTarget::Composer));
-        assert!(!session.mouse_capture_enabled);
+        assert!(matches!(session.mouse_mode, super::MouseMode::Application));
+    }
+
+    #[test]
+    fn mouse_mode_toggle_flips_between_application_and_native_selection() {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(),
+            to: "en".into(),
+            data_dir: "data".into(),
+            offline: true,
+            trace_mode: TraceMode::Full,
+            source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
+        });
+        assert!(matches!(session.mouse_mode, super::MouseMode::Application));
+        assert!(matches!(session.toggle_mouse_mode(), super::MouseMode::NativeSelection));
+        assert!(matches!(session.toggle_mouse_mode(), super::MouseMode::Application));
     }
 }
 
@@ -317,10 +380,11 @@ pub struct ChatSession {
     pub activity: ActivityState,
     pub last_trace_run_id: Option<String>,
     pub last_debug_claim_ids: Vec<String>,
-    pub mouse_capture_enabled: bool,
+    pub mouse_mode: MouseMode,
     pub should_quit: bool,
     pub runtime: RuntimeConfig,
     pub viewport: TranscriptViewport,
+    pub selection: Option<TranscriptSelection>,
     pub selected_turn: Option<usize>,
     pub expanded_nodes: BTreeMap<(usize, String), bool>,
 }
@@ -353,7 +417,7 @@ impl ChatSession {
             overlays: OverlayState::default(),
             pending: None,
             activity: ActivityState::default(),
-            mouse_capture_enabled: false,
+            mouse_mode: MouseMode::Application,
             should_quit: false,
             runtime: RuntimeConfig {
                 data_dir: options.data_dir,
@@ -365,6 +429,7 @@ impl ChatSession {
             last_trace_run_id: None,
             last_debug_claim_ids: Vec::new(),
             viewport: TranscriptViewport::new(),
+            selection: None,
             selected_turn: None,
             expanded_nodes: BTreeMap::new(),
         }
@@ -378,7 +443,7 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text)],
             MessageMeta::default(),
         );
-        self.selected_turn = Some(turn);
+        self.select_message(turn);
         self.viewport.jump_to_bottom();
         turn
     }
@@ -390,7 +455,9 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text.into())],
             MessageMeta::default(),
         );
-        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
+        if let Some(turn) = self.transcript.messages.last().map(|message| message.turn) {
+            self.select_message(turn);
+        }
         self.viewport.jump_to_bottom();
     }
 
@@ -401,7 +468,9 @@ impl ChatSession {
             vec![MessageBlock::Paragraph(text.into())],
             MessageMeta::default(),
         );
-        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
+        if let Some(turn) = self.transcript.messages.last().map(|message| message.turn) {
+            self.select_message(turn);
+        }
         self.viewport.jump_to_bottom();
     }
 
@@ -434,7 +503,9 @@ impl ChatSession {
                 command,
             },
         );
-        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
+        if let Some(turn) = self.transcript.messages.last().map(|message| message.turn) {
+            self.select_message(turn);
+        }
         self.viewport.jump_to_bottom();
     }
 
@@ -499,7 +570,9 @@ impl ChatSession {
             )]));
         }
         self.transcript.push(role, title, blocks, meta);
-        self.selected_turn = self.transcript.messages.last().map(|message| message.turn);
+        if let Some(turn) = self.transcript.messages.last().map(|message| message.turn) {
+            self.select_message(turn);
+        }
         if was_stick_to_bottom { self.viewport.jump_to_bottom(); }
     }
 
@@ -541,6 +614,7 @@ impl ChatSession {
         self.activity = ActivityState::default();
         self.last_trace_run_id = None;
         self.viewport = TranscriptViewport::new();
+        self.selection = None;
         self.selected_turn = None;
         self.expanded_nodes.clear();
     }
@@ -597,7 +671,7 @@ impl ChatSession {
                 FocusTarget::Transcript => "transcript",
                 FocusTarget::CommandPopup => "commands",
             },
-            if self.mouse_capture_enabled { "application" } else { "native" },
+            self.mouse_mode.as_str(),
             self.context.mode.as_str(),
             self.chat_language_label(),
             self.context.source_lang,
@@ -620,35 +694,20 @@ impl ChatSession {
     }
 
     pub fn select_previous_message(&mut self) {
-        if self.transcript.messages.is_empty() {
-            self.selected_turn = None;
+        let Some(selection) = self.previous_visible_selection() else {
+            self.clear_selection();
             return;
-        }
-        let turns = self.transcript.messages.iter().map(|message| message.turn).collect::<Vec<_>>();
-        let current = self.selected_turn.unwrap_or_else(|| *turns.last().unwrap_or(&1));
-        let next = turns
-            .iter()
-            .rev()
-            .find(|turn| **turn < current)
-            .copied()
-            .or_else(|| turns.first().copied());
-        self.selected_turn = next;
+        };
+        self.set_selection(selection);
         self.viewport.stick_to_bottom = false;
     }
 
     pub fn select_next_message(&mut self) {
-        if self.transcript.messages.is_empty() {
-            self.selected_turn = None;
+        let Some(selection) = self.next_visible_selection() else {
+            self.clear_selection();
             return;
-        }
-        let turns = self.transcript.messages.iter().map(|message| message.turn).collect::<Vec<_>>();
-        let current = self.selected_turn.unwrap_or_else(|| turns[0]);
-        let next = turns
-            .iter()
-            .find(|turn| **turn > current)
-            .copied()
-            .or_else(|| turns.last().copied());
-        self.selected_turn = next;
+        };
+        self.set_selection(selection);
     }
 
     pub fn collapse_selected(&mut self, collapsed: bool) -> bool {
@@ -704,6 +763,102 @@ impl ChatSession {
 
     pub fn export_transcript_text(&self) -> String {
         self.transcript.export_plain_text()
+    }
+
+    pub fn toggle_mouse_mode(&mut self) -> MouseMode {
+        self.mouse_mode = self.mouse_mode.toggle();
+        self.mouse_mode
+    }
+
+    pub fn select_message(&mut self, turn: usize) {
+        self.selection = Some(TranscriptSelection::Message { turn });
+        self.selected_turn = Some(turn);
+    }
+
+    pub fn select_node(&mut self, turn: usize, key: impl Into<String>) {
+        let key = key.into();
+        self.selection = Some(TranscriptSelection::Node { turn, key: key.clone() });
+        self.selected_turn = Some(turn);
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selected_turn = None;
+    }
+
+    pub fn selected_selection(&self) -> Option<&TranscriptSelection> {
+        self.selection.as_ref()
+    }
+
+    pub fn selection_turn(&self) -> Option<usize> {
+        self.selection.as_ref().map(TranscriptSelection::turn)
+    }
+
+    pub fn selection_node_key(&self) -> Option<&str> {
+        self.selection.as_ref().and_then(TranscriptSelection::node_key)
+    }
+
+    pub fn select_first_visible(&mut self) {
+        if let Some(selection) = self.visible_selections().into_iter().next() {
+            self.set_selection(selection);
+        }
+    }
+
+    pub fn select_last_visible(&mut self) {
+        if let Some(selection) = self.visible_selections().into_iter().last() {
+            self.set_selection(selection);
+        }
+    }
+
+    fn set_selection(&mut self, selection: TranscriptSelection) {
+        let turn = selection.turn();
+        self.selection = Some(selection);
+        self.selected_turn = Some(turn);
+    }
+
+    fn visible_selections(&self) -> Vec<TranscriptSelection> {
+        let mut selections = Vec::new();
+        for message in &self.transcript.messages {
+            selections.push(TranscriptSelection::Message { turn: message.turn });
+            if message.collapsed {
+                continue;
+            }
+            collect_visible_node_selections(&message.blocks, message.turn, &self.expanded_nodes, &mut selections);
+        }
+        selections
+    }
+
+    fn previous_visible_selection(&self) -> Option<TranscriptSelection> {
+        let selections = self.visible_selections();
+        if selections.is_empty() {
+            return None;
+        }
+        match self.selection.as_ref() {
+            Some(current) => {
+                let current_index = selections.iter().position(|selection| selection == current);
+                current_index
+                    .and_then(|index| index.checked_sub(1))
+                    .and_then(|index| selections.get(index).cloned())
+                    .or_else(|| selections.first().cloned())
+            }
+            None => selections.last().cloned(),
+        }
+    }
+
+    fn next_visible_selection(&self) -> Option<TranscriptSelection> {
+        let selections = self.visible_selections();
+        if selections.is_empty() {
+            return None;
+        }
+        match self.selection.as_ref() {
+            Some(current) => {
+                let current_index = selections.iter().position(|selection| selection == current);
+                current_index
+                    .and_then(|index| selections.get(index + 1).cloned())
+                    .or_else(|| selections.last().cloned())
+            }
+            None => selections.first().cloned(),
+        }
     }
 }
 
@@ -771,4 +926,39 @@ where
         }
     }
     None
+}
+
+fn collect_visible_node_selections(
+    blocks: &[MessageBlock],
+    turn: usize,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
+    selections: &mut Vec<TranscriptSelection>,
+) {
+    for block in blocks {
+        if let MessageBlock::Tree(nodes) = block {
+            collect_visible_node_selections_in_nodes(nodes, turn, expanded_nodes, selections);
+        }
+    }
+}
+
+fn collect_visible_node_selections_in_nodes(
+    nodes: &[TranscriptNode],
+    turn: usize,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
+    selections: &mut Vec<TranscriptSelection>,
+) {
+    for node in nodes {
+        selections.push(TranscriptSelection::Node {
+            turn,
+            key: node.key.clone(),
+        });
+        let expanded = expanded_nodes
+            .get(&(turn, node.key.clone()))
+            .copied()
+            .unwrap_or(node.expanded);
+        if expanded {
+            collect_visible_node_selections(&node.blocks, turn, expanded_nodes, selections);
+            collect_visible_node_selections_in_nodes(&node.children, turn, expanded_nodes, selections);
+        }
+    }
 }

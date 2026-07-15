@@ -34,7 +34,7 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Head
         ),
     ]);
     let bottom = Line::from(vec![Span::styled(
-        "activity below · Tab switches focus · Alt+M toggles mouse mode",
+        "Tab switches focus · Alt+M toggles mouse mode · Ctrl+Shift+C copies selection",
         Style::default().fg(Color::Gray),
     )]);
     let paragraph = Paragraph::new(Text::from(vec![top, bottom]))

@@ -12,9 +12,8 @@ use std::io::{self, Stdout};
 pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    // Keep mouse capture disabled initially so the terminal emulator can select
-    // and copy text natively. The chat can opt into application mouse events via
-    // Alt+M after the UI has started.
+    // Leave mouse capture disabled in the raw terminal setup. The chat shell
+    // decides whether to enable application mouse events at runtime.
     execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Hide)?;
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)

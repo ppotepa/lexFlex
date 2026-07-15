@@ -34,7 +34,7 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, activity:
         )]));
     }
     let paragraph = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title("activity").border_style(Style::default().fg(if active { Color::Yellow } else { Color::Gray })));
+        .block(Block::default().borders(Borders::ALL).title("activity").border_style(Style::default().fg(Color::Gray)));
     frame.render_widget(paragraph, area);
 }
 

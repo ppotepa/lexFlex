@@ -34,7 +34,7 @@ pub fn draw(frame: &mut ratatui::Frame, session: &ChatSession) {
         &ChatWindowViewModel {
             messages: &session.transcript.messages,
             scroll: session.viewport.scroll_offset,
-            selected_turn: session.selected_turn,
+            selection: session.selected_selection(),
             expanded_nodes: &session.expanded_nodes,
             focused: session.overlays.focus.is_transcript(),
         },

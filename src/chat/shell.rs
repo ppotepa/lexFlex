@@ -1,13 +1,13 @@
 use crate::chat::commands::{parse_input, visible_suggestions, InputAction, SlashCommand};
 use crate::chat::navigation;
 use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatProgressEvent, ChatWorker, ChatWorkerEvent};
-use crate::chat::session::{EngineMode, ChatSession, FocusTarget, OverlayKind};
+use crate::chat::session::{EngineMode, ChatSession, FocusTarget, OverlayKind, TranscriptSelection};
 use crate::chat::tui::input::{
     backspace, delete_forward, insert_char, insert_newline, insert_text, move_down, move_left,
     move_right, move_up, recall_next_input, recall_previous_input,
 };
-use crate::chat::tui::render::{draw, layout_for, ChatLayout};
-use crate::chat::widgets::chat_window::{max_scroll_for_height, turn_at_row_offset};
+use crate::chat::tui::render::{command_popup_rect, draw, layout_for, ChatLayout};
+use crate::chat::widgets::chat_window::{max_scroll_for_height, selection_at_row_offset, turn_at_row_offset};
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use crossterm::execute;
 use ratatui::backend::CrosstermBackend;
@@ -21,6 +21,9 @@ pub fn run(
     session: &mut ChatSession,
     service: crate::chat::service::ChatService,
 ) -> Result<(), Box<dyn Error>> {
+    if session.mouse_mode.is_application() {
+        execute!(terminal.backend_mut(), EnableMouseCapture)?;
+    }
     let worker = ChatWorker::spawn(service);
     let tick_rate = Duration::from_millis(50);
     loop {
@@ -108,13 +111,13 @@ fn handle_key_event(
         return Ok(false);
     }
     if key.modifiers.contains(KeyModifiers::ALT) && matches!(key.code, KeyCode::Char('m')) {
-        session.mouse_capture_enabled = !session.mouse_capture_enabled;
-        if session.mouse_capture_enabled {
+        session.mouse_mode = session.mouse_mode.toggle();
+        if session.mouse_mode.is_application() {
             execute!(terminal.backend_mut(), EnableMouseCapture)?;
-            session.push_system_message("mouse capture enabled.");
+            session.push_system_message("mouse mode set to application.");
         } else {
             execute!(terminal.backend_mut(), DisableMouseCapture)?;
-            session.push_system_message("mouse capture disabled; native terminal selection is available.");
+            session.push_system_message("mouse mode set to native selection.");
         }
         return Ok(false);
     }
@@ -154,8 +157,48 @@ fn handle_transcript_key(session: &mut ChatSession, key: KeyEvent) {
         KeyCode::Esc | KeyCode::F(6) => session.overlays.focus = FocusTarget::Composer,
         KeyCode::Up => session.select_previous_message(),
         KeyCode::Down => session.select_next_message(),
+        KeyCode::Left => {
+            if let Some(selection) = session.selected_selection().cloned() {
+                match selection {
+                    TranscriptSelection::Node { turn, key } => {
+                        session.select_node(turn, key.clone());
+                        let _ = session.toggle_selected_node(&key);
+                    }
+                    TranscriptSelection::Message { turn } => {
+                        let _ = session.transcript.set_collapsed(turn, true);
+                    }
+                }
+            }
+        }
+        KeyCode::Right => {
+            if let Some(selection) = session.selected_selection().cloned() {
+                match selection {
+                    TranscriptSelection::Node { turn, key } => {
+                        session.select_node(turn, key.clone());
+                        let _ = session.toggle_selected_node(&key);
+                    }
+                    TranscriptSelection::Message { turn } => {
+                        let _ = session.transcript.set_collapsed(turn, false);
+                    }
+                }
+            }
+        }
         KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') => {
-            if !session.toggle_first_collapsed_node() {
+            if let Some(selection) = session.selected_selection().cloned() {
+                match selection {
+                    TranscriptSelection::Node { turn, key } => {
+                        session.select_node(turn, key.clone());
+                        let _ = session.toggle_selected_node(&key);
+                    }
+                    TranscriptSelection::Message { turn } => {
+                        if !session.toggle_first_collapsed_node() {
+                            if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
+                                let _ = session.transcript.set_collapsed(turn, !message.collapsed);
+                            }
+                        }
+                    }
+                }
+            } else if !session.toggle_first_collapsed_node() {
                 if let Some(turn) = session.selected_turn {
                     if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
                         let _ = session.collapse_selected(!message.collapsed);
@@ -164,7 +207,19 @@ fn handle_transcript_key(session: &mut ChatSession, key: KeyEvent) {
             }
         }
         KeyCode::Char('-') => {
-            if !session.collapse_first_expanded_node() {
+            if let Some(selection) = session.selected_selection().cloned() {
+                match selection {
+                    TranscriptSelection::Node { turn, key } => {
+                        session.select_node(turn, key.clone());
+                        let _ = session.toggle_selected_node(&key);
+                    }
+                    TranscriptSelection::Message { turn } => {
+                        if !session.collapse_first_expanded_node() {
+                            let _ = session.transcript.set_collapsed(turn, true);
+                        }
+                    }
+                }
+            } else if !session.collapse_first_expanded_node() {
                 let _ = session.collapse_selected(true);
             }
         }
@@ -285,7 +340,39 @@ fn handle_mouse_event(
 ) {
     let chat_area = layout.chat;
     let max_scroll = max_scroll_for_height(&session.transcript.messages, chat_area, &session.expanded_nodes);
+    let popup_area = if matches!(session.overlays.active, Some(OverlayKind::CommandPalette)) {
+        Some(command_popup_rect(
+            layout.chat,
+            layout.footer,
+            session.overlays.command_popup.suggestions.len() as u16,
+        ))
+    } else {
+        None
+    };
     match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) if popup_area.is_some_and(|area| in_rect(mouse.column, mouse.row, area)) => {
+            session.overlays.focus = FocusTarget::CommandPopup;
+            if let Some(area) = popup_area {
+                let row_offset = mouse.row.saturating_sub(area.y.saturating_add(1));
+                let index = row_offset as usize;
+                if index < session.overlays.command_popup.suggestions.len() {
+                    session.overlays.command_popup.selected_index = index;
+                }
+                if mouse.column >= area.x && mouse.column < area.x.saturating_add(area.width) {
+                    if let Some(item) = session
+                        .overlays
+                        .command_popup
+                        .suggestions
+                        .get(session.overlays.command_popup.selected_index)
+                    {
+                        session.composer.input = item.replacement.clone();
+                        session.composer.cursor = session.composer.input.len();
+                        close_overlay(session);
+                        sync_command_popup(session);
+                    }
+                }
+            }
+        }
         MouseEventKind::ScrollUp if in_rect(mouse.column, mouse.row, layout.chat) => {
             session.overlays.focus = FocusTarget::Transcript;
             navigation::page_up(session, 3, max_scroll)
@@ -305,39 +392,38 @@ fn handle_mouse_event(
             if !in_rect(mouse.column, mouse.row, layout.chat) {
                 return;
             }
-            if mouse.column > chat_area.x
-                && mouse.column < chat_area.x.saturating_add(chat_area.width.saturating_sub(1))
-                && mouse.row > chat_area.y
-                && mouse.row < chat_area.y.saturating_add(chat_area.height.saturating_sub(1))
-            {
-                let row_offset = mouse.row.saturating_sub(chat_area.y.saturating_add(1));
-                let scroll = if session.viewport.stick_to_bottom {
-                    max_scroll
-                } else {
-                    session.viewport.scroll_offset.min(max_scroll)
-                };
-                if let Some(target) = crate::chat::widgets::chat_window::hit_target_at_row_offset(
-                    &session.transcript.messages,
-                    chat_area,
-                    scroll,
-                    row_offset,
-                    mouse.column.saturating_sub(chat_area.x + 1),
-                    &session.expanded_nodes,
-                ) {
-                    match target {
-                        crate::chat::widgets::chat_window::ChatHitTarget::Message { turn } => {
-                            session.selected_turn = Some(turn);
-                            session.overlays.focus = FocusTarget::Transcript;
-                        }
-                        crate::chat::widgets::chat_window::ChatHitTarget::Node { turn, key } => {
-                            session.selected_turn = Some(turn);
-                            let _ = session.toggle_selected_node(&key);
-                            session.overlays.focus = FocusTarget::Transcript;
-                        }
+            let row_offset = mouse.row.saturating_sub(chat_area.y.saturating_add(1));
+            let scroll = if session.viewport.stick_to_bottom {
+                max_scroll
+            } else {
+                session.viewport.scroll_offset.min(max_scroll)
+            };
+            if let Some(target) = selection_at_row_offset(
+                &session.transcript.messages,
+                chat_area,
+                scroll,
+                row_offset,
+                &session.expanded_nodes,
+            ) {
+                match target {
+                    TranscriptSelection::Message { turn } => {
+                        session.select_message(turn);
                     }
-                } else if let Some(turn) = turn_at_row_offset(&session.transcript.messages, chat_area, scroll, row_offset, &session.expanded_nodes) {
-                    session.selected_turn = Some(turn);
+                    TranscriptSelection::Node { turn, key } => {
+                        session.select_node(turn, key.clone());
+                        let _ = session.toggle_selected_node(&key);
+                    }
                 }
+                session.overlays.focus = FocusTarget::Transcript;
+            } else if let Some(turn) = turn_at_row_offset(
+                &session.transcript.messages,
+                chat_area,
+                scroll,
+                row_offset,
+                &session.expanded_nodes,
+            ) {
+                session.select_message(turn);
+                session.overlays.focus = FocusTarget::Transcript;
             }
         }
         MouseEventKind::Down(MouseButton::Right) => {
@@ -798,14 +884,26 @@ fn copy_transcript_to_clipboard(session: &ChatSession) -> Result<(), String> {
 }
 
 fn copy_selected_to_clipboard(session: &ChatSession) -> Result<(), String> {
-    let Some(turn) = session.selected_turn else {
+    let Some(selection) = session.selected_selection() else {
         return Err("no transcript entry selected".into());
     };
+    let turn = selection.turn();
     let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) else {
         return Err("selected transcript entry no longer exists".into());
     };
     let mut text = vec![format!("[{} #{}]", message.title, message.turn)];
-    text.extend(message.blocks.iter().map(render_block_for_copy));
+    match selection {
+        TranscriptSelection::Message { .. } => {
+            text.extend(message.blocks.iter().map(render_block_for_copy));
+        }
+        TranscriptSelection::Node { key, .. } => {
+            if let Some(node_text) = render_selected_node_for_copy(&message.blocks, key) {
+                text.push(node_text);
+            } else {
+                text.extend(message.blocks.iter().map(render_block_for_copy));
+            }
+        }
+    }
     copy_text_to_clipboard(&text.join("\n"))
 }
 
@@ -831,6 +929,32 @@ fn render_node_for_copy(node: &crate::chat::transcript::TranscriptNode) -> Strin
     lines.extend(node.blocks.iter().map(render_block_for_copy));
     lines.extend(node.children.iter().map(render_node_for_copy));
     lines.join("\n")
+}
+
+fn render_selected_node_for_copy(blocks: &[crate::chat::transcript::MessageBlock], key: &str) -> Option<String> {
+    for block in blocks {
+        if let crate::chat::transcript::MessageBlock::Tree(nodes) = block {
+            if let Some(node) = find_node_for_copy(nodes, key) {
+                return Some(render_node_for_copy(node));
+            }
+        }
+    }
+    None
+}
+
+fn find_node_for_copy<'a>(
+    nodes: &'a [crate::chat::transcript::TranscriptNode],
+    key: &str,
+) -> Option<&'a crate::chat::transcript::TranscriptNode> {
+    for node in nodes {
+        if node.key == key {
+            return Some(node);
+        }
+        if let Some(found) = find_node_for_copy(&node.children, key) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn copy_text_to_clipboard(text: &str) -> Result<(), String> {
@@ -996,7 +1120,7 @@ mod tests {
             }])],
             MessageMeta::default(),
         );
-        session.selected_turn = Some(1);
+        session.select_message(1);
         session.overlays.focus = FocusTarget::Transcript;
         session
     }
