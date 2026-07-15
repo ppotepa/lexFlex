@@ -23,6 +23,9 @@ impl EnglishParser {
                     .is_some_and(|token| token.form.eq_ignore_ascii_case("is"))
                     .then_some(QuestionKind::YesNo)
             })?;
+        if matches!(kind, QuestionKind::Where | QuestionKind::When | QuestionKind::HowMany | QuestionKind::Why | QuestionKind::How) {
+            return None;
+        }
         Some(QuestionSemantics::definition(kind, entities[0].clone()))
     }
 
@@ -61,7 +64,9 @@ impl EnglishParser {
                 QueryProjection::Subject,
             ));
         }
-        if matches!(verb_concept, "LOCATED_IN") && !entities.is_empty() {
+        if (matches!(verb_concept, "LOCATED_IN") || matches!(kind, QuestionKind::Where))
+            && !entities.is_empty()
+        {
             return Some(QuestionSemantics::relation_from_subject(
                 kind,
                 ConceptId::new("LOCATED_IN"),

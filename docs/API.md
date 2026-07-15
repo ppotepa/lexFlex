@@ -41,7 +41,7 @@ match response {
 }
 ```
 
-`ResponseMeta` contains status, deterministic request and snapshot IDs, diagnostics, a trace reference and artifact hashes. `DocumentAnswer` additionally contains answer status, kind, rows, evidence, conflicts and an answer hash.
+`ResponseMeta` contains status, deterministic request ID, monotonic run ID, snapshot ID, diagnostics, a trace reference and artifact hashes. `DocumentAnswer` additionally contains answer status, kind, rows, evidence, conflicts and an answer hash.
 
 ## Source providers
 
@@ -68,3 +68,5 @@ The session store validates immutable snapshots and all referenced source and bu
 ## Lower-level document API
 
 `LexFlexAPI` remains available for direct parsing, translation and document-stage operations. Runtime clients should prefer `ConversationEngine` when they need source ingestion, session state, query execution, evidence or trace metadata.
+
+`LexFlexAPI::builder()` now validates the runtime data root before engine construction. If `.data_dir(...)` is omitted, the builder auto-discovers a valid project `data/` root. If `.data_dir(...)` is provided, that path is treated strictly and must already contain the full runtime asset layout.

@@ -22,10 +22,13 @@ pub struct SessionWorkspace {
     pub indexes: SessionIndexes,
     pub snapshot_id: SnapshotId,
     pub snapshot_sha256: String,
+    #[serde(default)]
+    pub next_run_ordinal: u64,
 }
 
 impl SessionWorkspace {
-    pub fn new(session_id: impl Into<String>) -> Self { let mut s = Self { session_id: session_id.into(), parent_snapshot_id: None, active_source_ids: vec![], sources: BTreeMap::new(), bundles: BTreeMap::new(), claims: BTreeMap::new(), entities: BTreeMap::new(), indexes: SessionIndexes::default(), snapshot_id: "snapshot:0".into(), snapshot_sha256: String::new() }; s.refresh_hash(); s }
+    pub fn new(session_id: impl Into<String>) -> Self { let mut s = Self { session_id: session_id.into(), parent_snapshot_id: None, active_source_ids: vec![], sources: BTreeMap::new(), bundles: BTreeMap::new(), claims: BTreeMap::new(), entities: BTreeMap::new(), indexes: SessionIndexes::default(), snapshot_id: "snapshot:0".into(), snapshot_sha256: String::new(), next_run_ordinal: 0 }; s.refresh_hash(); s }
+    pub fn next_run_id(&mut self) -> String { self.next_run_ordinal = self.next_run_ordinal.saturating_add(1); format!("run:{:08}", self.next_run_ordinal) }
     pub fn clear(&mut self) { let parent = self.snapshot_id.clone(); self.active_source_ids.clear(); self.sources.clear(); self.bundles.clear(); self.claims.clear(); self.entities.clear(); self.indexes = SessionIndexes::default(); self.parent_snapshot_id = Some(parent.clone()); self.snapshot_id = format!("snapshot:clear:{}", stable_hash(&parent)); self.refresh_hash(); }
     pub fn add_bundle(&mut self, source: &SourceSnapshot, bundle: DocumentArtifactBundle) -> BundleId {
         let id = format!("bundle:{}:{}", source.source_id, source.content_sha256);

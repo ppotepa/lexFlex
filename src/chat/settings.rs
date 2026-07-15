@@ -5,6 +5,7 @@ pub enum Verbosity {
     Compact,
     Normal,
     Detailed,
+    FullStack,
 }
 
 impl Verbosity {
@@ -13,6 +14,7 @@ impl Verbosity {
             Verbosity::Compact => "compact",
             Verbosity::Normal => "normal",
             Verbosity::Detailed => "detailed",
+            Verbosity::FullStack => "full-stack",
         }
     }
 
@@ -20,7 +22,8 @@ impl Verbosity {
         match self {
             Verbosity::Compact => Verbosity::Normal,
             Verbosity::Normal => Verbosity::Detailed,
-            Verbosity::Detailed => Verbosity::Compact,
+            Verbosity::Detailed => Verbosity::FullStack,
+            Verbosity::FullStack => Verbosity::Compact,
         }
     }
 }
@@ -33,7 +36,7 @@ pub struct ChatSettings {
 impl Default for ChatSettings {
     fn default() -> Self {
         Self {
-            verbosity: Verbosity::Normal,
+            verbosity: Verbosity::FullStack,
         }
     }
 }
@@ -46,6 +49,7 @@ mod tests {
     fn verbosity_cycles() {
         assert_eq!(Verbosity::Compact.next(), Verbosity::Normal);
         assert_eq!(Verbosity::Normal.next(), Verbosity::Detailed);
-        assert_eq!(Verbosity::Detailed.next(), Verbosity::Compact);
+        assert_eq!(Verbosity::Detailed.next(), Verbosity::FullStack);
+        assert_eq!(Verbosity::FullStack.next(), Verbosity::Compact);
     }
 }

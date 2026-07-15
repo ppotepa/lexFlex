@@ -21,36 +21,40 @@ cargo check --workspace --all-targets
 cargo test --workspace
 ```
 
+The binary needs a valid runtime `data/` root with lexicons, morphology, descriptors and ontology. By default it auto-discovers the nearest valid project `data/` directory, so running from `.` or `src/` works. If you pass `--data`, that path is treated strictly and must already be valid.
+
 Translate text:
 
 ```bash
 cargo run -- translate "Tomek dał jabłko Izie" --from pl --to en --format answer
 ```
 
-Ingest a local Wikipedia snapshot and ask a question:
+Ask a factual question directly. The engine resolves Wikipedia automatically:
 
 ```bash
-cargo run -- ingest Paris --lang en --session paris --format summary
 cargo run -- answer "What is the capital of France?" \
-  --lang en --session paris --format pretty-json
+  --lang en --session paris --source-policy snapshot-only --format pretty-json
 ```
 
-The default source policy is snapshot-only. Add `--live` to `ingest` when a network fetch is explicitly required.
+The default source policy is live-first with a local snapshot fallback. Use `--source-policy snapshot-only` or `--offline` for reproducible offline runs.
 
 ## Interactive chat
 
 ```bash
-cargo run -- chat --offline
+cargo run -- chat --source-policy live
 ```
 
-In the TUI, ingest a source before asking factual questions:
+In the TUI, ordinary factual questions automatically discover and ingest a Wikipedia source:
 
 ```text
-/ingest Paris
-What is the capital of France?
+What is Paris?
 ```
 
 Useful commands are `/lang auto`, `/lang en`, `/lang pl`, `/translate en pl`, `/query <json>`, `/inspect`, `/trace`, `/clear` and `/quit`.
+
+Progress is rendered live in the transcript with a Braille spinner and automatic bottom scrolling. Startup shows the resolved data root and source policy. `/trace` shows the latest persisted run; `Alt+V` cycles `compact`, `normal`, `detailed` and `full-stack` verbosity.
+
+If startup cannot validate the runtime assets, chat exits immediately with a configuration error. It does not start with empty lexicons or synthetic fallbacks.
 
 ## Runtime model
 
@@ -80,4 +84,4 @@ The chat layer is a client and renderer. Semantic processing belongs to the engi
 
 ## Repository status
 
-The current implementation is an offline-first MVP for PL/EN document knowledge QA and translation. Benchmark corpora and integration tests live under `benchmarks/` and `tests/`.
+The current implementation is a PL/EN document knowledge QA and translation MVP. Chat defaults to live Wikipedia resolution with cache fallback; offline reproducibility is available through `--offline` or `snapshot-only`. Benchmark corpora and integration tests live under `benchmarks/` and `tests/`.

@@ -1,4 +1,5 @@
 use super::types::*;
+use crate::core::interlingua::LanguageId;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,8 +24,52 @@ impl LocalSnapshotSourceProvider {
         title.trim().chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect()
     }
     fn hash(text: &str) -> String { let mut h = Sha256::new(); h.update(text.as_bytes()); format!("{:x}", h.finalize()) }
-    fn candidate(&self, request: &SourceRequest) -> PathBuf {
-        self.root.join("sources").join(match request.source_kind { SourceKind::Wikipedia => "wikipedia", SourceKind::File | SourceKind::Inline => "files" }).join(&request.language.0).join(Self::slug(&request.title))
+    fn candidate(&self, request: &SourceRequest, language: &str) -> PathBuf {
+        self.root.join("sources").join(match request.source_kind { SourceKind::Wikipedia => "wikipedia", SourceKind::File | SourceKind::Inline => "files" }).join(language).join(Self::slug(&request.title))
+    }
+
+    fn candidate_languages(&self, request: &SourceRequest) -> Vec<String> {
+        match request.source_kind {
+            SourceKind::Wikipedia => match request.language.0.as_str() {
+                "en" | "pl" => vec![request.language.0.clone()],
+                "auto" => vec!["en".into(), "pl".into()],
+                value => vec![value.to_string(), "en".into(), "pl".into()],
+            },
+            SourceKind::File | SourceKind::Inline => vec![request.language.0.clone()],
+        }
+    }
+
+    fn load_snapshot(
+        &self,
+        request: &SourceRequest,
+        language: &str,
+    ) -> Result<Option<SourceSnapshot>, EngineError> {
+        let dir = self.candidate(request, language);
+        let Ok(entries) = fs::read_dir(&dir) else {
+            return Ok(None);
+        };
+        let mut files = entries
+            .map(|entry| entry.map(|value| value.path()).map_err(|error| EngineError::Source(error.to_string())))
+            .collect::<Result<Vec<_>, _>>()?;
+        files.retain(|path| path.extension().and_then(|x| x.to_str()) == Some("json"));
+        files.sort();
+        let Some(path) = files.pop() else {
+            return Ok(None);
+        };
+        let raw = fs::read(&path).map_err(|e| EngineError::Source(e.to_string()))?;
+        let mut snapshot: SourceSnapshot = serde_json::from_slice(&raw).map_err(|e| EngineError::Source(e.to_string()))?;
+        let actual = Self::hash(&snapshot.text);
+        if actual != snapshot.content_sha256 {
+            return Err(EngineError::Source("snapshot content hash mismatch".into()));
+        }
+        let resolved_language = snapshot.language.0.clone();
+        snapshot.source_id = format!(
+            "source:{}:{}:{}",
+            Self::kind_name(request.source_kind),
+            resolved_language,
+            Self::slug(&request.title)
+        );
+        Ok(Some(snapshot))
     }
 }
 
@@ -33,40 +78,47 @@ impl SourceProvider for LocalSnapshotSourceProvider {
         if matches!(request.policy, SourceFetchPolicy::Live) && self.offline {
             return Err(EngineError::SourceUnavailable("live source access disabled in offline mode".into()));
         }
-        let dir = self.candidate(request);
-        let entries = fs::read_dir(&dir);
-        if entries.is_err() {
-            if matches!(request.policy, SourceFetchPolicy::Live | SourceFetchPolicy::CacheFirst) && !self.offline && request.source_kind == SourceKind::Wikipedia {
-                let snapshot = self.fetch_wikipedia(request)?;
-                self.cache_snapshot(request, &snapshot)?;
-                return Ok(snapshot);
+        if matches!(request.policy, SourceFetchPolicy::Live)
+            && !self.offline
+            && request.source_kind == SourceKind::Wikipedia
+        {
+            for language in self.candidate_languages(request) {
+                let mut candidate = request.clone();
+                candidate.language = LanguageId::new(&language);
+                if let Ok(snapshot) = self.fetch_wikipedia(&candidate) {
+                    self.cache_snapshot(&candidate, &snapshot)?;
+                    return Ok(snapshot);
+                }
             }
-            return Err(EngineError::SourceUnavailable(format!("no local snapshot for {}", request.title)));
         }
-        let entries = entries.map_err(|e| EngineError::Source(e.to_string()))?;
-        let mut files = entries.map(|entry| entry.map(|value| value.path()).map_err(|error| EngineError::Source(error.to_string()))).collect::<Result<Vec<_>, _>>()?;
-        files.retain(|path| path.extension().and_then(|x| x.to_str()) == Some("json"));
-        files.sort();
-        let Some(path) = files.pop() else {
-            if matches!(request.policy, SourceFetchPolicy::Live | SourceFetchPolicy::CacheFirst) && !self.offline && request.source_kind == SourceKind::Wikipedia {
-                let snapshot = self.fetch_wikipedia(request)?;
-                self.cache_snapshot(request, &snapshot)?;
+        for language in self.candidate_languages(request) {
+            if let Some(snapshot) = self.load_snapshot(request, &language)? {
                 return Ok(snapshot);
             }
-            return Err(EngineError::SourceUnavailable(format!("no snapshot for {}", request.title)));
-        };
-        let raw = fs::read(&path).map_err(|e| EngineError::Source(e.to_string()))?;
-        let mut snapshot: SourceSnapshot = serde_json::from_slice(&raw).map_err(|e| EngineError::Source(e.to_string()))?;
-        let actual = Self::hash(&snapshot.text);
-        if actual != snapshot.content_sha256 { return Err(EngineError::Source("snapshot content hash mismatch".into())); }
-        snapshot.source_id = format!("source:{}:{}:{}", Self::kind_name(request.source_kind), request.language, Self::slug(&request.title));
-        Ok(snapshot)
+        }
+        if matches!(request.policy, SourceFetchPolicy::CacheFirst)
+            && !self.offline
+            && request.source_kind == SourceKind::Wikipedia
+        {
+            for language in self.candidate_languages(request) {
+                let mut candidate = request.clone();
+                candidate.language = LanguageId::new(&language);
+                if let Ok(snapshot) = self.fetch_wikipedia(&candidate) {
+                    self.cache_snapshot(&candidate, &snapshot)?;
+                    return Ok(snapshot);
+                }
+            }
+        }
+        Err(EngineError::SourceUnavailable(format!(
+            "no local snapshot for {}",
+            request.title
+        )))
     }
 }
 
 impl LocalSnapshotSourceProvider {
     fn cache_snapshot(&self, request: &SourceRequest, snapshot: &SourceSnapshot) -> Result<(), EngineError> {
-        let dir = self.candidate(request);
+        let dir = self.candidate(request, &snapshot.language.0);
         fs::create_dir_all(&dir).map_err(|e| EngineError::Source(e.to_string()))?;
         let revision = snapshot.revision.as_deref().unwrap_or(&snapshot.content_sha256);
         let path = dir.join(format!("{revision}.json"));

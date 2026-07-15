@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 pub use commands::{SlashCommand, SlashSuggestion};
-pub use service::{ChatJob, ChatJobResult, ChatService, ChatWorker};
+pub use service::{ChatJob, ChatJobResult, ChatService, ChatWorker, ChatWorkerEvent};
 pub use session::ChatSession;
 pub use settings::Verbosity;
 
@@ -25,6 +25,7 @@ pub struct ChatOptions {
     pub data_dir: String,
     pub offline: bool,
     pub trace_mode: TraceMode,
+    pub source_policy: crate::engine::SourceFetchPolicy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

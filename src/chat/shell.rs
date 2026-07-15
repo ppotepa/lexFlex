@@ -1,6 +1,6 @@
 use crate::chat::commands::{parse_input, visible_suggestions, InputAction, SlashCommand};
 use crate::chat::navigation;
-use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatWorker};
+use crate::chat::service::{ChatJob, ChatJobOutput, ChatJobResult, ChatWorker, ChatWorkerEvent};
 use crate::chat::session::{ChatMode, ChatSession, FocusTarget, OverlayKind, PendingRequest};
 use crate::chat::tui::input::{
     backspace, delete_forward, insert_char, insert_newline, insert_text, move_down, move_left,
@@ -23,9 +23,13 @@ pub fn run(
     let worker = ChatWorker::spawn(service);
     let tick_rate = Duration::from_millis(50);
     loop {
-        while let Some(result) = worker.try_receive() {
-            apply_job_result(session, result);
+        while let Some(event) = worker.try_receive() {
+            match event {
+                ChatWorkerEvent::Progress(progress) => apply_progress(session, progress),
+                ChatWorkerEvent::Result(result) => apply_job_result(session, result),
+            }
         }
+        session.tick_pending();
         terminal.draw(|frame| draw(frame, session))?;
         if session.should_quit {
             break;
@@ -218,14 +222,7 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
                     handle_chat_message(session, worker, text, turn);
                 }
                 ChatMode::Translate => {
-                    session.pending = Some(PendingRequest {
-                        label: "translate".to_string(),
-                        started_at: Instant::now(),
-                    });
-                    if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Translate { text, from: crate::core::interlingua::LanguageId::new(&session.context.source_lang), to: crate::core::interlingua::LanguageId::new(&session.context.target_lang) } }) {
-                        session.pending = None;
-                        session.push_error_message(err.to_string());
-                    }
+                    submit_translate(session, worker, text);
                 }
             }
         }
@@ -252,30 +249,22 @@ fn submit_input(session: &mut ChatSession, worker: &ChatWorker) -> Result<(), Bo
             }
             SlashCommand::Ingest(text) => {
                 session.push_user_message(input.clone());
-                let language = session.chat_language_for(&text);
-                let request = crate::engine::SourceRequest::wikipedia_snapshot(text, crate::core::interlingua::LanguageId::new(&language));
-                session.pending = Some(PendingRequest { label: "ingest".into(), started_at: Instant::now() });
-                if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::IngestSource { source: request } }) { session.pending = None; session.push_error_message(err.to_string()); }
+                submit_ingest(session, worker, text);
             }
             SlashCommand::Query(text) => {
                 match serde_json::from_str::<crate::query::QueryInterlingua>(&text) {
                     Ok(query) => {
-                        session.pending = Some(PendingRequest { label: "query".into(), started_at: Instant::now() });
-                        if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Query { query } }) {
-                            session.pending = None;
-                            session.push_error_message(err.to_string());
-                        }
+                        submit_query(session, worker, query);
                     }
                     Err(err) => session.push_error_message(format!("/query expects QueryInterlingua JSON: {err}")),
                 }
             }
             SlashCommand::Inspect(target) => {
-                session.pending = Some(PendingRequest { label: "inspect".into(), started_at: Instant::now() });
                 let target = match target.as_str() { "sources" => crate::engine::InspectTarget::Sources, "bundles" => crate::engine::InspectTarget::Bundles, _ => crate::engine::InspectTarget::Session };
-                if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::Inspect { target } }) { session.pending = None; session.push_error_message(err.to_string()); }
+                submit_inspect(session, worker, target);
             }
-            SlashCommand::Trace => session.push_system_message("engine trace visibility follows the configured trace mode."),
-            SlashCommand::Clear => { session.clear_session(); session.push_system_message("session cleared."); }
+            SlashCommand::Trace => push_trace_message(session),
+            SlashCommand::Clear => submit_clear(session, worker),
             SlashCommand::Quit => session.should_quit = true,
         },
         InputAction::IncompleteSlash(draft) => {
@@ -299,41 +288,215 @@ fn handle_chat_message(
     text: String,
     _turn: usize,
 ) {
-    let _language = session.chat_language_for(&text);
+    submit_user_turn(session, worker, text);
+}
+
+fn apply_job_result(session: &mut ChatSession, result: ChatJobResult) {
+    let latency_ms = session
+        .pending
+        .as_ref()
+        .map(|pending| pending.started_at.elapsed().as_millis())
+        .unwrap_or(0);
+    match result.result {
+        Ok(ChatJobOutput::Engine(response)) => apply_engine_response(session, response, latency_ms),
+        Err(error) => {
+            session.pending = None;
+            session.push_error_message(error);
+        }
+    }
+}
+
+fn apply_progress(session: &mut ChatSession, event: crate::engine::TraceEvent) {
+    let full = matches!(session.settings.verbosity, crate::chat::Verbosity::FullStack)
+        || matches!(session.runtime.trace_mode, crate::chat::TraceMode::Full);
+    session.append_stream_progress(&event, full);
+}
+
+fn apply_engine_response(session: &mut ChatSession, response: crate::engine::EngineResponse, latency_ms: u128) {
+    use crate::engine::EngineResponse;
+    let (title, text, mut notes, meta) = match response {
+        EngineResponse::Conversation(value) => {
+            let notes = value.answer.as_ref().map(|answer| answer.evidence.clone()).unwrap_or_default();
+            ("conversation", value.text.unwrap_or_else(|| format!("status: {:?}", value.meta.status)), notes, value.meta)
+        }
+        EngineResponse::Translation(value) => ("translation", value.text, Vec::new(), value.meta),
+        EngineResponse::Ingest(value) => ("ingest", format!("ingested {}", value.source_id), vec![format!("bundle: {}", value.bundle_id)], value.meta),
+        EngineResponse::Answer { meta, answer } => ("answer", answer.text.unwrap_or_else(|| format!("status: {:?}", answer.status)), answer.evidence, meta),
+        EngineResponse::Inspection(value) => ("inspection", serde_json::to_string_pretty(&value.values).unwrap_or_default(), vec![], value.meta),
+        EngineResponse::Error { meta, error } => ("engine error", format!("{error:?}"), vec![], meta),
+    };
+    session.last_trace_run_id = Some(meta.run_id.clone());
+    notes.extend(response_meta_notes(session, &meta));
+    let mut blocks = vec![crate::chat::transcript::MessageBlock::Paragraph(text)];
+    if !notes.is_empty() {
+        blocks.push(crate::chat::transcript::MessageBlock::BulletList(notes));
+    }
+    let include_trace = matches!(session.settings.verbosity, crate::chat::Verbosity::FullStack)
+        || matches!(session.runtime.trace_mode, crate::chat::TraceMode::Full);
+    session.finish_stream(
+        title.into(),
+        blocks,
+        crate::chat::transcript::MessageMeta { latency_ms: Some(latency_ms), command: None },
+        include_trace,
+    );
+}
+
+fn response_meta_notes(session: &ChatSession, meta: &crate::engine::ResponseMeta) -> Vec<String> {
+    let mut notes = vec![
+        format!("status: {:?}", meta.status),
+        format!("snapshot: {}", meta.session_snapshot_id),
+        format!("request: {}", meta.request_id),
+    ];
+    if !meta.diagnostics.is_empty() {
+        notes.push(format!("diagnostics: {}", meta.diagnostics.join(", ")));
+    }
+    if !matches!(session.settings.verbosity, crate::chat::Verbosity::Compact) {
+        notes.extend(meta.artifact_hashes.iter().map(|(key, value)| format!("{key}: {value}")));
+    }
+    if !matches!(session.runtime.trace_mode, crate::chat::TraceMode::Off) {
+        notes.push(format!("trace: {}", meta.run_id));
+    }
+    notes
+}
+
+fn load_trace_notes(session: &ChatSession, run_id: &str) -> Vec<String> {
+    let store = crate::engine::SessionStore::new(&session.runtime.data_dir);
+    let Ok(trace) = store.load_trace(&session.runtime.engine_session_id, run_id) else {
+        return vec![format!("trace: unavailable for {run_id}")];
+    };
+    let mut errors = Vec::new();
+    let mut events = Vec::new();
+    for (index, line) in trace.lines().enumerate() {
+        match serde_json::from_str::<crate::engine::TraceEvent>(line) {
+            Ok(event) => events.push(event),
+            Err(error) => errors.push(format!("trace: corrupt line {}: {}", index + 1, error)),
+        }
+    }
+    if events.is_empty() {
+        if errors.is_empty() {
+            return vec![format!("trace: empty for {run_id}")];
+        }
+        return errors;
+    }
+    if matches!(session.runtime.trace_mode, crate::chat::TraceMode::Brief) {
+        events.sort_by(|left, right| left.stage.cmp(&right.stage));
+        let mut stages = events.into_iter().map(|event| event.stage).collect::<Vec<_>>();
+        stages.dedup();
+        let mut notes = vec![format!("trace: {}", stages.join(" -> "))];
+        notes.extend(errors);
+        return notes;
+    }
+    let mut notes = events
+        .into_iter()
+        .map(|event| match event.payload {
+            Some(payload) => format!("trace {} {}", event.stage, payload),
+            None => format!("trace {}", event.stage),
+        })
+        .collect::<Vec<_>>();
+    notes.extend(errors);
+    notes
+}
+
+fn push_trace_message(session: &mut ChatSession) {
+    let store = crate::engine::SessionStore::new(&session.runtime.data_dir);
+    let run_id = session.last_trace_run_id.clone().or_else(|| store.latest_trace(&session.runtime.engine_session_id).ok().map(|value| value.0));
+    let Some(run_id) = run_id else {
+        session.push_system_message("no trace available yet.");
+        return;
+    };
+    let notes = load_trace_notes(session, &run_id);
+    session.push_response(crate::chat::session::ChatResponse {
+        title: "trace".into(),
+        blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(format!("trace for {run_id}"))],
+        notes,
+        latency_ms: 0,
+    }, None);
+}
+
+fn submit_engine_request(
+    session: &mut ChatSession,
+    worker: &ChatWorker,
+    label: &str,
+    request: crate::engine::EngineRequest,
+) {
     session.pending = Some(PendingRequest {
-        label: "engine".to_string(),
+        label: label.into(),
         started_at: Instant::now(),
+        stream_turn: session.start_stream(label),
+        current_stage: "queued".into(),
+        progress_lines: Vec::new(),
+        spinner_index: 0,
     });
-    let language = session.context.chat_language_override.clone().map(crate::engine::LanguageMode::Explicit).unwrap_or(crate::engine::LanguageMode::Auto);
-    if let Err(err) = worker.submit(ChatJob::Engine { request: crate::engine::EngineRequest::UserTurn { text, language } }) {
+    if let Err(err) = worker.submit(ChatJob::Engine { request }) {
         session.pending = None;
         session.push_error_message(err.to_string());
     }
 }
 
-fn apply_job_result(session: &mut ChatSession, result: ChatJobResult) {
-    session.pending = None;
-    match result.result {
-        Ok(ChatJobOutput::Engine(response)) => apply_engine_response(session, response),
-        Err(error) => session.push_error_message(error),
-    }
+fn submit_clear(session: &mut ChatSession, worker: &ChatWorker) {
+    session.clear_session();
+    submit_engine_request(session, worker, "clear", crate::engine::EngineRequest::ClearSession);
 }
 
-fn apply_engine_response(session: &mut ChatSession, response: crate::engine::EngineResponse) {
-    use crate::engine::EngineResponse;
-    let (title, text, notes) = match response {
-        EngineResponse::Conversation(value) => (
-            "conversation",
-            value.text.unwrap_or_else(|| format!("status: {:?}", value.meta.status)),
-            value.answer.map(|answer| answer.evidence).unwrap_or_default(),
-        ),
-        EngineResponse::Translation(value) => ("translation", value.text, vec![format!("{} -> {}", value.meta.session_snapshot_id, value.meta.request_id)]),
-        EngineResponse::Ingest(value) => ("ingest", format!("ingested {}", value.source_id), vec![format!("snapshot: {}", value.meta.session_snapshot_id), format!("bundle: {}", value.bundle_id)]),
-        EngineResponse::Answer { answer, .. } => ("answer", answer.text.unwrap_or_else(|| format!("status: {:?}", answer.status)), answer.evidence),
-        EngineResponse::Inspection(value) => ("inspection", serde_json::to_string_pretty(&value.values).unwrap_or_default(), vec![]),
-        EngineResponse::Error { error, .. } => ("engine error", format!("{error:?}"), vec![]),
-    };
-    session.push_response(crate::chat::session::ChatResponse { title: title.into(), blocks: vec![crate::chat::transcript::MessageBlock::Paragraph(text)], notes, latency_ms: 0 }, None);
+fn submit_ingest(session: &mut ChatSession, worker: &ChatWorker, title: String) {
+    let language = session.chat_language_for(&title);
+    let request = crate::engine::SourceRequest::wikipedia_snapshot(title, crate::core::interlingua::LanguageId::new(&language));
+    submit_engine_request(
+        session,
+        worker,
+        "ingest",
+        crate::engine::EngineRequest::IngestSource { source: request },
+    );
+}
+
+fn submit_query(session: &mut ChatSession, worker: &ChatWorker, query: crate::query::QueryInterlingua) {
+    submit_engine_request(
+        session,
+        worker,
+        "query",
+        crate::engine::EngineRequest::Query { query },
+    );
+}
+
+fn submit_inspect(session: &mut ChatSession, worker: &ChatWorker, target: crate::engine::InspectTarget) {
+    submit_engine_request(
+        session,
+        worker,
+        "inspect",
+        crate::engine::EngineRequest::Inspect { target },
+    );
+}
+
+fn submit_translate(
+    session: &mut ChatSession,
+    worker: &ChatWorker,
+    text: String,
+) {
+    submit_engine_request(
+        session,
+        worker,
+        "translate",
+        crate::engine::EngineRequest::Translate {
+            text,
+            from: crate::core::interlingua::LanguageId::new(&session.context.source_lang),
+            to: crate::core::interlingua::LanguageId::new(&session.context.target_lang),
+        },
+    );
+}
+
+fn submit_user_turn(session: &mut ChatSession, worker: &ChatWorker, text: String) {
+    let language = session
+        .context
+        .chat_language_override
+        .clone()
+        .map(crate::engine::LanguageMode::Explicit)
+        .unwrap_or(crate::engine::LanguageMode::Auto);
+    submit_engine_request(
+        session,
+        worker,
+        "engine",
+        crate::engine::EngineRequest::UserTurn { text, language },
+    );
 }
 
 fn sync_command_popup(session: &mut ChatSession) {

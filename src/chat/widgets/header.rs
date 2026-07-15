@@ -11,6 +11,8 @@ pub struct HeaderViewModel {
     pub target_lang: String,
     pub verbosity: Verbosity,
     pub pending_label: Option<String>,
+    pub pending_stage: Option<String>,
+    pub pending_spinner: usize,
     pub backend_ready: bool,
 }
 
@@ -36,10 +38,13 @@ pub fn render(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, vm: &Head
         ),
     ]);
     let bottom = if let Some(label) = vm.pending_label.as_deref() {
+        let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         Line::from(vec![
-            Span::styled("working", Style::default().fg(Color::Gray)),
+            Span::styled(frames[vm.pending_spinner % frames.len()], Style::default().fg(Color::Yellow)),
             Span::raw("  "),
             Span::styled(label.to_string(), Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled(vm.pending_stage.clone().unwrap_or_else(|| "queued".into()), Style::default().fg(Color::Gray)),
         ])
     } else if !vm.backend_ready {
         Line::from(vec![Span::styled("backend starting", Style::default().fg(Color::Gray))])

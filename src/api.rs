@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::graph::DialogueGraph;
 use crate::core::interlingua::{Interlingua, LanguageId, Utterance};
@@ -123,7 +123,7 @@ impl LexFlexAPI {
 }
 
 pub struct LexFlexBuilder {
-    data_dir: Option<String>,
+    data_dir: Option<PathBuf>,
     enable_pl: bool,
     enable_en: bool,
 }
@@ -138,7 +138,7 @@ impl LexFlexBuilder {
     }
 
     pub fn data_dir(mut self, dir: &str) -> Self {
-        self.data_dir = Some(dir.to_string());
+        self.data_dir = Some(PathBuf::from(dir));
         self
     }
 
@@ -153,34 +153,36 @@ impl LexFlexBuilder {
     }
 
     pub fn build(self) -> Result<LexFlexAPI, LexFlexError> {
-        let data_dir = self.data_dir.clone().unwrap_or_else(|| "data".to_string());
-        let data_path = Path::new(&data_dir);
+        let data_path = if let Some(path) = self.data_dir.clone() {
+            let canonical = std::fs::canonicalize(&path).map_err(|error| {
+                LexFlexError::Data(crate::error::DataError::InvalidDataRoot {
+                    path: path.display().to_string(),
+                    message: error.to_string(),
+                })
+            })?;
+            crate::data::layout::validate_data_root(&canonical)?;
+            canonical
+        } else {
+            crate::data::layout::resolve_data_root(None)?.path
+        };
 
         let mut translator = UniversalTranslator::new();
 
         let concepts_path = data_path.join("concepts/concepts.ron");
-        let concepts = if concepts_path.exists() {
-            loader::load_concepts(&concepts_path)?
-        } else {
-            Vec::new()
-        };
+        let concepts = loader::load_concepts(&concepts_path)?;
         let ontology_path = data_path.join("ontology/ontology.ron");
-        let ontology = if ontology_path.exists() {
-            loader::load_ontology(&ontology_path)?
-        } else {
-            loader::build_ontology_from_concepts(&concepts)
-        };
+        let ontology = loader::load_ontology(&ontology_path)?;
         let mut concept_ids = concepts.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
         concept_ids.extend(ontology.concept_ids());
         concept_ids.sort();
         concept_ids.dedup();
 
         if self.enable_pl {
-            let pl_lexicon = self.load_lexicon(data_path, "pl")?;
-            let pl_descriptor = self.load_descriptor(data_path, "pl")?;
-            let pl_noun_paradigms = self.load_morphology(data_path, "pl", "noun_paradigms")?;
-            let pl_verb_paradigms = self.load_morphology(data_path, "pl", "verb_paradigms")?;
-            let pl_adj_paradigms = self.load_morphology(data_path, "pl", "adj_paradigms")?;
+            let pl_lexicon = self.load_lexicon(&data_path, "pl")?;
+            let pl_descriptor = self.load_descriptor(&data_path, "pl")?;
+            let pl_noun_paradigms = self.load_morphology(&data_path, "pl", "noun_paradigms")?;
+            let pl_verb_paradigms = self.load_morphology(&data_path, "pl", "verb_paradigms")?;
+            let pl_adj_paradigms = self.load_morphology(&data_path, "pl", "adj_paradigms")?;
 
             let pl_morphology = PolishMorphology::new(
                 pl_noun_paradigms,
@@ -200,10 +202,10 @@ impl LexFlexBuilder {
         }
 
         if self.enable_en {
-            let en_lexicon = self.load_lexicon(data_path, "en")?;
-            let en_descriptor = self.load_descriptor(data_path, "en")?;
-            let en_verb_paradigms = self.load_morphology(data_path, "en", "verb_paradigms")?;
-            let en_noun_paradigms = self.load_morphology(data_path, "en", "noun_paradigms")?;
+            let en_lexicon = self.load_lexicon(&data_path, "en")?;
+            let en_descriptor = self.load_descriptor(&data_path, "en")?;
+            let en_verb_paradigms = self.load_morphology(&data_path, "en", "verb_paradigms")?;
+            let en_noun_paradigms = self.load_morphology(&data_path, "en", "noun_paradigms")?;
 
             let en_morphology = EnglishMorphology::new(
                 en_verb_paradigms,
@@ -226,51 +228,12 @@ impl LexFlexBuilder {
 
     fn load_lexicon(&self, data_path: &Path, lang: &str) -> Result<crate::data::lexicon::Lexicon, LexFlexError> {
         let path = data_path.join(format!("lexicons/{}/lexicon.ron", lang));
-        if path.exists() {
-            Ok(loader::load_lexicon(&path)?)
-        } else {
-            Ok(crate::data::lexicon::Lexicon::new())
-        }
+        Ok(loader::load_lexicon(&path)?)
     }
 
     fn load_descriptor(&self, data_path: &Path, lang: &str) -> Result<crate::data::descriptor::LanguageDescriptor, LexFlexError> {
         let path = data_path.join(format!("descriptors/{}.ron", lang));
-        if path.exists() {
-            Ok(loader::load_descriptor(&path)?)
-        } else {
-            Ok(crate::data::descriptor::LanguageDescriptor {
-                language: lang.to_string(),
-                name: lang.to_string(),
-                morphology: crate::data::descriptor::MorphologyDescriptor {
-                    has_cases: lang == "pl",
-                    cases: if lang == "pl" {
-                        vec![
-                            crate::core::interlingua::Case::Nominative,
-                            crate::core::interlingua::Case::Genitive,
-                            crate::core::interlingua::Case::Dative,
-                            crate::core::interlingua::Case::Accusative,
-                            crate::core::interlingua::Case::Instrumental,
-                            crate::core::interlingua::Case::Locative,
-                            crate::core::interlingua::Case::Vocative,
-                        ]
-                    } else {
-                        vec![]
-                    },
-                    has_articles: lang == "en",
-                    aspect_type: if lang == "pl" {
-                        crate::data::descriptor::AspectType::Morphological
-                    } else {
-                        crate::data::descriptor::AspectType::Periphrastic
-                    },
-                },
-                syntax: crate::data::descriptor::SyntaxDescriptor {
-                    word_order: crate::data::descriptor::WordOrder::SVO,
-                    pro_drop: lang == "pl",
-                    negation_particle: if lang == "pl" { "nie" } else { "not" }.to_string(),
-                    preposition_roles: std::collections::HashMap::new(),
-                },
-            })
-        }
+        Ok(loader::load_descriptor(&path)?)
     }
 
     fn load_morphology(
@@ -280,11 +243,7 @@ impl LexFlexBuilder {
         name: &str,
     ) -> Result<Vec<crate::data::morphology::MorphParadigm>, LexFlexError> {
         let path = data_path.join(format!("morphology/{}/{}.ron", lang, name));
-        if path.exists() {
-            Ok(loader::load_paradigms(&path)?)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(loader::load_paradigms(&path)?)
     }
 
 }

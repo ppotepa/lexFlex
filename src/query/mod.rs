@@ -208,16 +208,19 @@ impl QueryInterlingua {
 
 fn subject_constraints<F>(entity: &Entity, resolve: &F) -> Vec<QueryConstraint>
 where F: Fn(&Entity) -> Option<EntityClusterId> {
-    let mut constraints = vec![QueryConstraint::Subject(KnowledgeSubjectRef::Unresolved)];
     if let Some(cluster) = resolve(entity) {
-        constraints.push(QueryConstraint::Subject(KnowledgeSubjectRef::EntityCluster(cluster)));
+        vec![QueryConstraint::Subject(KnowledgeSubjectRef::EntityCluster(cluster))]
+    } else {
+        vec![QueryConstraint::Subject(KnowledgeSubjectRef::Unresolved)]
     }
-    constraints
 }
 
 fn object_constraints<F>(entity: &Entity, resolve: &F) -> Vec<QueryConstraint>
 where F: Fn(&Entity) -> Option<EntityClusterId> {
-    let mut constraints = entity.name.clone().map(|name| vec![QueryConstraint::Object(KnowledgeObjectRef::TextLiteral(name))]).unwrap_or_default();
+    let mut constraints = Vec::new();
+    if let Some(name) = entity.name.clone() {
+        constraints.push(QueryConstraint::Object(KnowledgeObjectRef::TextLiteral(name)));
+    }
     if let Some(cluster) = resolve(entity) {
         constraints.push(QueryConstraint::Object(KnowledgeObjectRef::EntityCluster(cluster)));
     }
@@ -231,7 +234,7 @@ fn constraint_from(mut constraints: Vec<QueryConstraint>) -> QueryConstraint {
 
 fn predicate_from_concept(concept: &str) -> KnowledgePredicateRef {
     match concept {
-        "IS_A" => KnowledgePredicateRef::Relation(crate::document::knowledge::KnowledgeRelationKind::IsA),
+        "IS_A" => KnowledgePredicateRef::Relation(crate::document::knowledge::KnowledgeRelationKind::HasProperty),
         "LOCATED_IN" => KnowledgePredicateRef::Relation(crate::document::knowledge::KnowledgeRelationKind::LocatedAt),
         value => KnowledgePredicateRef::Custom(value.to_string()),
     }

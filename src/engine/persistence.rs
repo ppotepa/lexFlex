@@ -77,6 +77,39 @@ impl SessionStore {
         fs::rename(&tmp, &path).map_err(|e| EngineError::Persistence(e.to_string()))?;
         Ok(path)
     }
+
+    pub fn latest_trace(&self, session_id: &str) -> Result<(String, String), EngineError> {
+        if session_id.is_empty() || session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") {
+            return Err(EngineError::Persistence("invalid trace path".into()));
+        }
+        let dir = self.root.join("sessions").join(session_id).join("traces");
+        let mut entries = fs::read_dir(&dir)
+            .map_err(|e| EngineError::Persistence(e.to_string()))?
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("jsonl"))
+            .collect::<Vec<_>>();
+        let has_run_entries = entries.iter().any(|entry| {
+            entry
+                .path()
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .is_some_and(|name| name.starts_with("run:"))
+        });
+        if has_run_entries {
+            entries.retain(|entry| {
+                entry
+                    .path()
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|name| name.starts_with("run:"))
+            });
+        }
+        entries.sort_by_key(|entry| entry.file_name());
+        let entry = entries.pop().ok_or_else(|| EngineError::Persistence("no trace available".into()))?;
+        let run_id = entry.path().file_stem().and_then(|value| value.to_str()).unwrap_or_default().to_string();
+        let trace = fs::read_to_string(entry.path()).map_err(|e| EngineError::Persistence(e.to_string()))?;
+        Ok((run_id, trace))
+    }
     pub fn load_trace(&self, session_id: &str, turn: &str) -> Result<String, EngineError> {
         if session_id.is_empty() || session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") || turn.is_empty() || turn.contains('/') || turn.contains('\\') || turn.contains("..") { return Err(EngineError::Persistence("invalid trace path".into())); }
         let path = self.root.join("sessions").join(session_id).join("traces").join(format!("{turn}.jsonl"));

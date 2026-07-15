@@ -13,6 +13,7 @@ pub enum MessageBlock {
     Paragraph(String),
     KeyValue { key: String, value: String },
     BulletList(Vec<String>),
+    Trace(Vec<String>),
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -64,6 +65,24 @@ impl Transcript {
             meta,
         });
         self.next_turn += 1;
+    }
+
+    pub fn replace(&mut self, turn: usize, title: impl Into<String>, blocks: Vec<MessageBlock>, meta: MessageMeta) -> bool {
+        let Some(message) = self.messages.iter_mut().find(|message| message.turn == turn) else { return false; };
+        message.title = title.into();
+        message.blocks = blocks;
+        message.meta = meta;
+        true
+    }
+
+    pub fn append_trace(&mut self, turn: usize, line: String) -> bool {
+        let Some(message) = self.messages.iter_mut().find(|message| message.turn == turn) else { return false; };
+        if let Some(MessageBlock::Trace(lines)) = message.blocks.iter_mut().find(|block| matches!(block, MessageBlock::Trace(_))) {
+            lines.push(line);
+        } else {
+            message.blocks.push(MessageBlock::Trace(vec![line]));
+        }
+        true
     }
 }
 

@@ -39,6 +39,8 @@ UserTurn
   → status, answer and evidence
 ```
 
+Every request trace also records the resolved runtime data root and offline/source policy, so runtime configuration is visible alongside semantic stages.
+
 Source ingestion uses one document pipeline:
 
 ```text
@@ -56,13 +58,25 @@ Each published bundle validates its lineage and stage checksums. Incomplete bund
 
 ## Source policy
 
-The engine uses a `SourceProvider` abstraction. The built-in provider supports Wikipedia snapshots, local files and live Wikipedia resolution through an explicit fetch policy.
+The engine uses a `SourceProvider` abstraction. The built-in provider supports Wikipedia snapshots, local files and live Wikipedia resolution. A natural-language `UserTurn` can discover a Wikipedia source automatically from its question entities.
 
 - `SnapshotOnly` reads local data and never uses the network.
-- `CacheFirst` uses a local snapshot and may fetch when live access is enabled.
-- `Live` requires network access and updates the local cache.
+- `CacheFirst` uses a local snapshot and fetches only when it is missing.
+- `Live` tries the network first and falls back to the local cache.
 
 Source text is hashed before processing. All downstream artifacts retain the source hash.
+
+## Runtime asset contract
+
+The engine requires a complete runtime `data/` root. A valid root contains:
+
+- `concepts/concepts.ron`
+- `ontology/ontology.ron`
+- `descriptors/en.ron` and `descriptors/pl.ron`
+- `lexicons/en/lexicon.ron` and `lexicons/pl/lexicon.ron`
+- `morphology/en/*.ron` and `morphology/pl/*.ron`
+
+Missing runtime assets are configuration errors. The engine does not replace them with empty lexicons, synthetic descriptors or empty morphology tables.
 
 ## Session model
 
@@ -88,4 +102,6 @@ The engine is open-world:
 - no closed-world `No` is inferred from absence;
 - the renderer cannot create values that are not present in result rows or evidence.
 
-The runtime path is deterministic and does not require an LLM.
+Parser failures inside a valid runtime return `Unknown` for `UserTurn`; they are not reported as translation errors. Configuration and startup failures remain hard `Error` responses or CLI startup errors.
+
+The runtime path is deterministic and does not require an LLM. Every execution receives a monotonic `run_id`; repeated identical requests retain the same deterministic request identity but produce separate trace files.

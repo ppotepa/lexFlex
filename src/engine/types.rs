@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub type RequestId = String;
+pub type RunId = String;
 pub type SessionId = String;
 pub type SnapshotId = String;
 pub type SourceId = String;
@@ -21,6 +22,16 @@ pub enum SourceKind { Wikipedia, File, Inline }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SourceFetchPolicy { SnapshotOnly, CacheFirst, Live }
+
+impl SourceFetchPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SourceFetchPolicy::SnapshotOnly => "snapshot-only",
+            SourceFetchPolicy::CacheFirst => "cache-first",
+            SourceFetchPolicy::Live => "live",
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceRequest {
@@ -65,6 +76,7 @@ pub enum EngineRequest {
 pub struct ResponseMeta {
     pub status: EngineStatus,
     pub request_id: RequestId,
+    pub run_id: RunId,
     pub session_snapshot_id: SnapshotId,
     pub diagnostics: Vec<String>,
     pub trace_ref: Option<String>,

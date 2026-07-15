@@ -92,6 +92,7 @@ impl LexFlexDocumentEngine {
     }
 
     pub fn data_dir(&self) -> &str { &self.config.data_dir }
+    pub fn config(&self) -> &LexFlexRuntimeConfig { &self.config }
     pub fn new(api: LexFlexAPI) -> Self {
         Self::with_config(api, LexFlexRuntimeConfig::default())
     }

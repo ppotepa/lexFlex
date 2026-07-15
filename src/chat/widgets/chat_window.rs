@@ -169,6 +169,10 @@ fn render_block_lines(
             .iter()
             .flat_map(|item| wrap_prefixed(item, "  - ", role, content_width))
             .collect(),
+        MessageBlock::Trace(lines) => lines
+            .iter()
+            .flat_map(|line| wrap_prefixed(line, "  ", role, content_width))
+            .collect(),
     }
 }
 

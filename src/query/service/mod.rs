@@ -11,6 +11,14 @@ use super::{
     QueryOperator, QueryPlanId, QueryStep,
 };
 
+#[derive(Debug, Clone)]
+pub struct QueryTraceArtifacts {
+    pub query: QueryInterlingua,
+    pub plan: QueryExecutionPlan,
+    pub execution: QueryExecutionResult,
+    pub answer: DocumentAnswer,
+}
+
 pub struct QueryService;
 
 impl QueryService {
@@ -76,11 +84,34 @@ impl QueryService {
         query: QueryInterlingua,
         knowledge: &DocumentKnowledgeExtraction,
     ) -> Result<DocumentAnswer, QueryError> {
+        Ok(Self::trace_document_query(query, knowledge)?.answer)
+    }
+
+    pub fn trace_document_query(
+        query: QueryInterlingua,
+        knowledge: &DocumentKnowledgeExtraction,
+    ) -> Result<QueryTraceArtifacts, QueryError> {
         let query = Self::compile_query(query)?;
         let plan = Self::plan_query(&query)?;
         let execution = Self::execute_query(&plan, &query, knowledge)?;
-        let status = rendering::answer_status(&query, &execution);
-        let kind = match query.intent {
+        let answer = build_answer(&query, &plan, execution.clone(), knowledge)?;
+        Ok(QueryTraceArtifacts {
+            query,
+            plan,
+            execution,
+            answer,
+        })
+    }
+}
+
+fn build_answer(
+    query: &QueryInterlingua,
+    plan: &QueryExecutionPlan,
+    execution: QueryExecutionResult,
+    knowledge: &DocumentKnowledgeExtraction,
+) -> Result<DocumentAnswer, QueryError> {
+    let status = rendering::answer_status(query, &execution);
+    let kind = match query.intent {
             QueryIntent::Count => AnswerKind::Count,
             QueryIntent::Boolean => AnswerKind::Boolean,
             QueryIntent::LookupEntity | QueryIntent::LookupRelation => AnswerKind::EntityList,
@@ -89,39 +120,38 @@ impl QueryService {
             QueryIntent::Contradiction => AnswerKind::ConflictReport,
             QueryIntent::Provenance => AnswerKind::EvidenceReport,
             _ => AnswerKind::NoAnswer,
-        };
-        let evidence = execution
+    };
+    let evidence = execution
+        .rows
+        .iter()
+        .flat_map(|row| row.evidence.clone())
+        .collect::<Vec<_>>();
+    let text = rendering::answer_text(query, &execution, status, knowledge);
+    let conflicts = if matches!(status, AnswerStatus::Conflicting) {
+        execution
             .rows
             .iter()
-            .flat_map(|row| row.evidence.clone())
-            .collect::<Vec<_>>();
-        let text = rendering::answer_text(&query, &execution, status, knowledge);
-        let conflicts = if matches!(status, AnswerStatus::Conflicting) {
-            execution
-                .rows
-                .iter()
-                .filter_map(|row| row.columns.get("claim").cloned())
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let answer = DocumentAnswer {
-            id: AnswerId(format!("{}:answer", query.id.0)),
-            query_id: query.id.clone(),
-            plan_id: plan.id.clone(),
-            status,
-            kind,
-            text,
-            rows: execution.rows,
-            evidence,
-            conflicts,
-            answer_sha256: String::new(),
-        };
-        Ok(DocumentAnswer {
-            answer_sha256: hash_without_field(&answer, "answer_sha256")?,
-            ..answer
-        })
-    }
+            .filter_map(|row| row.columns.get("claim").cloned())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let answer = DocumentAnswer {
+        id: AnswerId(format!("{}:answer", query.id.0)),
+        query_id: query.id.clone(),
+        plan_id: plan.id.clone(),
+        status,
+        kind,
+        text,
+        rows: execution.rows,
+        evidence,
+        conflicts,
+        answer_sha256: String::new(),
+    };
+    Ok(DocumentAnswer {
+        answer_sha256: hash_without_field(&answer, "answer_sha256")?,
+        ..answer
+    })
 }
 
 fn validate_constraints(constraint: &QueryConstraint) -> Result<(), QueryError> {

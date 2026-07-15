@@ -105,7 +105,7 @@ fn render_lookup_text(
         .rows
         .iter()
         .map(|row| render_row_value(row, knowledge))
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.is_empty() && value != "unknown" && value != "unresolved")
         .collect::<Vec<_>>();
     values.sort();
     values.dedup();
@@ -131,6 +131,9 @@ fn render_row_value(row: &QueryExecutionResultRow, knowledge: &DocumentKnowledge
     if let Some(object) = row.columns.get("object") {
         if let Some(value) = object.strip_prefix("value:") {
             return render_value_by_id(value, knowledge).unwrap_or_else(|| object.clone());
+        }
+        if let Some(value) = object.strip_prefix("text:") {
+            return value.to_string();
         }
         if !object.starts_with("unknown") {
             return object.clone();

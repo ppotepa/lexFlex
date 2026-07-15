@@ -36,6 +36,8 @@ pub struct RuntimeConfig {
     pub data_dir: String,
     pub trace_mode: TraceMode,
     pub offline: bool,
+    pub source_policy: crate::engine::SourceFetchPolicy,
+    pub engine_session_id: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -132,7 +134,9 @@ impl TranscriptViewport {
 
 #[cfg(test)]
 mod tests {
-    use super::TranscriptViewport;
+    use super::{ChatOptions, ChatSession, PendingRequest, TranscriptViewport};
+    use crate::chat::TraceMode;
+    use std::time::Instant;
 
     #[test]
     fn viewport_page_up_disables_stick_to_bottom() {
@@ -151,12 +155,43 @@ mod tests {
         assert_eq!(viewport.scroll_offset, u16::MAX);
         assert!(viewport.stick_to_bottom);
     }
+
+    #[test]
+    fn streaming_message_receives_live_trace_and_final_answer() {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(), to: "en".into(), data_dir: "data".into(), offline: true,
+            trace_mode: TraceMode::Full, source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
+        });
+        let stream_turn = session.start_stream("engine");
+        session.pending = Some(PendingRequest {
+            label: "engine".into(), started_at: Instant::now(), stream_turn,
+            current_stage: "queued".into(), progress_lines: Vec::new(), spinner_index: 0,
+        });
+        session.append_stream_progress(&crate::engine::TraceEvent {
+            run_id: "run:00000001".into(), request_id: "request:test".into(), sequence: 1,
+            stage: "language.detected".into(), payload: Some(serde_json::json!({"language":"en"})),
+        }, true);
+        assert!(matches!(session.transcript.messages[0].blocks[0], crate::chat::transcript::MessageBlock::Trace(_)));
+        session.finish_stream(
+            "conversation".into(),
+            vec![crate::chat::transcript::MessageBlock::Paragraph("Paris".into())],
+            crate::chat::transcript::MessageMeta { latency_ms: Some(1), command: None },
+            true,
+        );
+        assert_eq!(session.transcript.messages[0].title, "conversation");
+        assert_eq!(session.transcript.messages[0].blocks.len(), 2);
+        assert!(session.pending.is_none());
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct PendingRequest {
     pub label: String,
     pub started_at: Instant,
+    pub stream_turn: usize,
+    pub current_stage: String,
+    pub progress_lines: Vec<String>,
+    pub spinner_index: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -176,6 +211,7 @@ pub struct ChatSession {
     pub composer: ComposerState,
     pub overlays: OverlayState,
     pub pending: Option<PendingRequest>,
+    pub last_trace_run_id: Option<String>,
     pub backend_ready: bool,
     pub should_quit: bool,
     pub runtime: RuntimeConfig,
@@ -191,6 +227,11 @@ pub struct SessionSnapshot {
 
 impl ChatSession {
     pub fn new(options: ChatOptions) -> Self {
+        let verbosity = match options.trace_mode {
+            TraceMode::Off => Verbosity::Compact,
+            TraceMode::Brief => Verbosity::Detailed,
+            TraceMode::Full => Verbosity::FullStack,
+        };
         Self {
             context: ChatContext {
                 source_lang: options.from,
@@ -198,7 +239,7 @@ impl ChatSession {
                 mode: ChatMode::Chat,
                 chat_language_override: None,
             },
-            settings: ChatSettings::default(),
+            settings: ChatSettings { verbosity },
             transcript: Transcript::new(),
             trace_log: Vec::new(),
             composer: ComposerState::default(),
@@ -210,7 +251,10 @@ impl ChatSession {
                 data_dir: options.data_dir,
                 trace_mode: options.trace_mode,
                 offline: options.offline,
+                source_policy: options.source_policy,
+                engine_session_id: "chat-session".into(),
             },
+            last_trace_run_id: None,
             viewport: TranscriptViewport::new(),
         }
     }
@@ -264,6 +308,58 @@ impl ChatSession {
         self.viewport.jump_to_bottom();
     }
 
+    pub fn start_stream(&mut self, label: &str) -> usize {
+        let turn = self.transcript.next_turn;
+        self.transcript.push(
+            MessageRole::Assistant,
+            label,
+            vec![MessageBlock::Trace(vec![format!("⠋ queued: {label}")])],
+            MessageMeta::default(),
+        );
+        self.viewport.jump_to_bottom();
+        turn
+    }
+
+    pub fn append_stream_progress(&mut self, event: &crate::engine::TraceEvent, full: bool) {
+        let Some(pending) = self.pending.as_mut() else { return; };
+        pending.current_stage = event.stage.clone();
+        pending.spinner_index = pending.spinner_index.wrapping_add(1);
+        let line = if full {
+            match &event.payload {
+                Some(payload) => format!("{} {} {}", spinner(pending.spinner_index), event.stage, payload),
+                None => format!("{} {}", spinner(pending.spinner_index), event.stage),
+            }
+        } else {
+            format!("{} {}", spinner(pending.spinner_index), event.stage)
+        };
+        pending.progress_lines.push(line.clone());
+        self.transcript.append_trace(pending.stream_turn, line);
+        if self.viewport.stick_to_bottom { self.viewport.jump_to_bottom(); }
+    }
+
+    pub fn tick_pending(&mut self) {
+        if let Some(pending) = self.pending.as_mut() {
+            pending.spinner_index = pending.spinner_index.wrapping_add(1);
+        }
+    }
+
+    pub fn finish_stream(&mut self, title: String, blocks: Vec<MessageBlock>, meta: MessageMeta, include_trace: bool) {
+        let was_stick_to_bottom = self.viewport.stick_to_bottom;
+        let Some(pending) = self.pending.take() else {
+            self.transcript.push(MessageRole::Assistant, title, blocks, meta);
+            self.viewport.jump_to_bottom();
+            return;
+        };
+        let mut blocks = blocks;
+        if include_trace && !pending.progress_lines.is_empty() {
+            blocks.push(MessageBlock::Trace(pending.progress_lines));
+        }
+        if !self.transcript.replace(pending.stream_turn, title, blocks, meta) {
+            self.transcript.push(MessageRole::Assistant, "engine", vec![MessageBlock::Trace(vec!["stream replacement failed".into()])], MessageMeta::default());
+        }
+        if was_stick_to_bottom { self.viewport.jump_to_bottom(); }
+    }
+
     pub fn record_trace(&mut self, entry: ChatTraceEntry) {
         self.trace_log.push(entry);
     }
@@ -299,6 +395,7 @@ impl ChatSession {
         self.trace_log.clear();
         self.composer = ComposerState::default();
         self.pending = None;
+        self.last_trace_run_id = None;
         self.viewport = TranscriptViewport::new();
     }
 
@@ -342,8 +439,10 @@ impl ChatSession {
     pub fn status_line(&self) -> String {
         match &self.pending {
             Some(pending) => format!(
-                "working on {} for {} ms",
+                "{} {} | {} | {} ms",
+                spinner(pending.spinner_index),
                 pending.label,
+                if pending.current_stage.is_empty() { "queued" } else { pending.current_stage.as_str() },
                 pending.started_at.elapsed().as_millis()
             ),
             None => format!(
@@ -369,4 +468,8 @@ impl ChatSession {
         fs::write(path, serde_json::to_string_pretty(&snapshot)?)?;
         Ok(())
     }
+}
+
+fn spinner(index: usize) -> &'static str {
+    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][index % 10]
 }

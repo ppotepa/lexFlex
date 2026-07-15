@@ -109,4 +109,10 @@ pub enum DataError {
 
     #[error("File not found: '{path}'")]
     FileNotFound { path: String },
+
+    #[error("Missing required runtime asset '{asset}' at '{path}'")]
+    MissingRequiredAsset { asset: String, path: String },
+
+    #[error("Invalid runtime data root '{path}': {message}")]
+    InvalidDataRoot { path: String, message: String },
 }

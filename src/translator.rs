@@ -5,6 +5,7 @@ use crate::core::graph::DialogueGraph;
 use crate::core::interlingua::{Interlingua, LanguageId};
 use crate::core::summary::trace_digest;
 use crate::core::traits::IMeaningRepresentation;
+use crate::error::LexFlexError;
 use crate::error::TranslateError;
 
 pub struct UniversalTranslator {
@@ -86,19 +87,16 @@ impl UniversalTranslator {
         &self,
         input: &str,
         from: &LanguageId,
-    ) -> Result<Interlingua, TranslateError> {
+    ) -> Result<Interlingua, LexFlexError> {
         let source = self.engines.get(&from.0).ok_or_else(|| {
-            TranslateError::UnsupportedSourceLanguage {
+            LexFlexError::Translate(TranslateError::UnsupportedSourceLanguage {
                 language: from.0.clone(),
-            }
+            })
         })?;
 
-        source.to_interlingua(input).map_err(|e| {
-            TranslateError::InexpressibleInTarget {
-                target: from.0.clone(),
-                features: vec![format!("Parse error: {}", e)],
-            }
-        })
+        source
+            .to_interlingua(input)
+            .map_err(LexFlexError::Parse)
     }
 
     pub fn generate_from_interlingua(

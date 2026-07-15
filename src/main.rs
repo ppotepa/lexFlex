@@ -27,14 +27,17 @@ enum Commands {
         #[arg(short, long, default_value = "en")]
         to: String,
         /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
+        #[arg(short, long)]
+        data: Option<String>,
         /// Disable all live source access
         #[arg(long)]
         offline: bool,
         /// Default trace mode shown in the transcript
-        #[arg(long, default_value = "brief")]
+        #[arg(long, default_value = "full")]
         trace: String,
+        /// Automatic source policy: live, cache-first or snapshot-only
+        #[arg(long, default_value = "live")]
+        source_policy: String,
     },
 
     /// Translate text between languages
@@ -48,8 +51,8 @@ enum Commands {
         #[arg(short, long, default_value = "en")]
         to: String,
         /// Data directory
-        #[arg(short, long, default_value = "data")]
-        data: String,
+        #[arg(short, long)]
+        data: Option<String>,
         /// Output format: json, pretty-json, summary, answer
         #[arg(long, default_value = "answer")]
         format: String,
@@ -63,7 +66,7 @@ enum Commands {
     Ingest {
         title: String,
         #[arg(short, long, default_value = "en")] lang: String,
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
         #[arg(long)] live: bool,
         #[arg(long, default_value = "pretty-json")] format: String,
@@ -72,27 +75,28 @@ enum Commands {
     Answer {
         text: OsString,
         #[arg(short, long, default_value = "auto")] lang: String,
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
+        #[arg(long, default_value = "live")] source_policy: String,
         #[arg(long, default_value = "pretty-json")] format: String,
     },
     /// Execute a serialized QueryInterlingua against a saved engine session
     Query {
         query: OsString,
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
         #[arg(long, default_value = "pretty-json")] format: String,
     },
     /// Inspect a persisted engine session
     Inspect {
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
         #[arg(long, default_value = "session")] target: String,
         #[arg(long, default_value = "pretty-json")] format: String,
     },
     /// Read a persisted deterministic engine trace
     Trace {
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
         turn: String,
     },
@@ -103,12 +107,12 @@ enum Commands {
     },
     /// Save a deterministic session snapshot
     SessionSave {
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
     },
     /// Load and validate a deterministic session snapshot
     SessionLoad {
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "default")] session: String,
     },
 }
@@ -135,7 +139,7 @@ enum SourceCommands {
     Fetch {
         title: String,
         #[arg(short, long, default_value = "en")] lang: String,
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long)] live: bool,
         #[arg(long, default_value = "pretty-json")] format: String,
     },
@@ -143,7 +147,7 @@ enum SourceCommands {
     Inspect {
         title: String,
         #[arg(short, long, default_value = "en")] lang: String,
-        #[arg(short, long, default_value = "data")] data: String,
+        #[arg(short, long)] data: Option<String>,
         #[arg(long, default_value = "pretty-json")] format: String,
     },
 }
@@ -176,19 +180,23 @@ fn main() {
             data,
             offline,
             trace,
+            source_policy,
         } => {
             let trace_mode = match trace.as_str() {
                 "off" => TraceMode::Off,
                 "full" => TraceMode::Full,
                 _ => TraceMode::Brief,
             };
+            let source_policy = parse_source_policy(&source_policy);
+            let data_dir = resolve_data_dir_or_exit(data.as_deref());
 
             let options = ChatOptions {
                 from,
                 to,
-                data_dir: data,
+                data_dir,
                 offline,
                 trace_mode,
+                source_policy,
             };
 
             if let Err(e) = lexflex::chat::run(options) {
@@ -197,12 +205,14 @@ fn main() {
             }
         }
         Commands::Translate { text, from, to, data, format } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, "translate", true);
             let response = engine.handle(EngineRequest::Translate { text: text.to_string_lossy().into_owned(), from: lexflex::core::interlingua::LanguageId::new(&from), to: lexflex::core::interlingua::LanguageId::new(&to) });
             print_engine_response(response, &format);
         }
         Commands::Source { command } => match command {
             SourceCommands::Fetch { title, lang, data, live, format } => {
+                let data = resolve_data_dir_or_exit(data.as_deref());
                 let request = source_request(title, &lang, if live { SourceFetchPolicy::Live } else { SourceFetchPolicy::CacheFirst });
                 let provider = LocalSnapshotSourceProvider::new(&data, !live);
                 match provider.resolve(&request) {
@@ -214,6 +224,7 @@ fn main() {
                 }
             }
             SourceCommands::Inspect { title, lang, data, format } => {
+                let data = resolve_data_dir_or_exit(data.as_deref());
                 let request = source_request(title, &lang, SourceFetchPolicy::SnapshotOnly);
                 let provider = LocalSnapshotSourceProvider::new(&data, true);
                 match provider.resolve(&request) {
@@ -226,31 +237,43 @@ fn main() {
             }
         },
         Commands::Ingest { title, lang, data, session, live, format } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, !live);
             let request = source_request(title, &lang, if live { SourceFetchPolicy::Live } else { SourceFetchPolicy::SnapshotOnly });
             let response = engine.handle(EngineRequest::IngestSource { source: request });
             print_engine_response(response, &format);
             if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
         }
-        Commands::Answer { text, lang, data, session, format } => {
-            let mut engine = engine_or_exit(&data, &session, true);
-            if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+        Commands::Answer { text, lang, data, session, source_policy, format } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
+            let policy = parse_source_policy(&source_policy);
+            let mut engine = engine_or_exit(&data, &session, matches!(policy, SourceFetchPolicy::SnapshotOnly));
+            engine = engine.with_auto_source_policy(policy);
+            let has_session = engine.store.as_ref().and_then(|store| store.path_for(&session).ok()).is_some_and(|path| path.exists());
+            if has_session {
+                if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
+            }
             let language = if lang == "auto" { LanguageMode::Auto } else { LanguageMode::Explicit(lang) };
-            print_engine_response(engine.handle(EngineRequest::UserTurn { text: text.to_string_lossy().into_owned(), language }), &format);
+            let response = engine.handle(EngineRequest::UserTurn { text: text.to_string_lossy().into_owned(), language });
+            print_engine_response(response, &format);
+            if let Err(error) = engine.save_session() { eprintln!("Session save error: {error:?}"); process::exit(1); }
         }
         Commands::Query { query, data, session, format } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, true);
             if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
             let query = serde_json::from_str(&query.to_string_lossy()).unwrap_or_else(|error| { eprintln!("Query JSON error: {error}"); process::exit(1); });
             print_engine_response(engine.handle(EngineRequest::Query { query }), &format);
         }
         Commands::Inspect { data, session, target, format } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, true);
             if let Err(error) = engine.load_session() { eprintln!("Session load error: {error:?}"); process::exit(1); }
             let target = match target.as_str() { "sources" => InspectTarget::Sources, "bundles" => InspectTarget::Bundles, _ => InspectTarget::Session };
             print_engine_response(engine.handle(EngineRequest::Inspect { target }), &format);
         }
         Commands::Trace { data, session, turn } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let store = lexflex::engine::SessionStore::new(&data);
             match store.load_trace(&session, &turn) {
                 Ok(trace) => println!("{trace}"),
@@ -275,6 +298,7 @@ fn main() {
             },
         },
         Commands::SessionSave { data, session } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, true);
             let existing = engine
                 .store
@@ -290,9 +314,18 @@ fn main() {
             match engine.save_session() { Ok(path) => println!("{}", path.display()), Err(error) => { eprintln!("Session save error: {error:?}"); process::exit(1); } }
         }
         Commands::SessionLoad { data, session } => {
+            let data = resolve_data_dir_or_exit(data.as_deref());
             let mut engine = engine_or_exit(&data, &session, true);
             match engine.load_session() { Ok(()) => println!("{}", engine.session.snapshot_id), Err(error) => { eprintln!("Session load error: {error:?}"); process::exit(1); } }
         }
+    }
+}
+
+fn parse_source_policy(value: &str) -> SourceFetchPolicy {
+    match value {
+        "snapshot-only" | "snapshot" => SourceFetchPolicy::SnapshotOnly,
+        "cache-first" | "cache" => SourceFetchPolicy::CacheFirst,
+        _ => SourceFetchPolicy::Live,
     }
 }
 
@@ -322,6 +355,14 @@ fn source_request(title: String, lang: &str, policy: SourceFetchPolicy) -> Sourc
 
 fn engine_or_exit(data: &str, session: &str, offline: bool) -> ConversationEngine {
     ConversationEngine::new(data, session, offline).unwrap_or_else(|error| { eprintln!("Engine initialization error: {error:?}"); process::exit(1); })
+}
+
+fn resolve_data_dir_or_exit(explicit: Option<&str>) -> String {
+    let resolved = lexflex::data::layout::resolve_data_root(explicit).unwrap_or_else(|error| {
+        eprintln!("Runtime data root error: {error}");
+        process::exit(1);
+    });
+    resolved.path.display().to_string()
 }
 
 fn print_engine_response(response: EngineResponse, format: &str) {

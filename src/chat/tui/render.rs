@@ -25,6 +25,8 @@ pub fn draw(frame: &mut ratatui::Frame, session: &ChatSession) {
             target_lang: session.context.target_lang.clone(),
             verbosity: session.settings.verbosity,
             pending_label: session.pending.as_ref().map(|item| item.label.clone()),
+            pending_stage: session.pending.as_ref().map(|item| item.current_stage.clone()),
+            pending_spinner: session.pending.as_ref().map(|item| item.spinner_index).unwrap_or(0),
             backend_ready: session.backend_ready,
         },
     );
