@@ -1,9 +1,9 @@
 use crate::chat::settings::{ChatSettings, Verbosity};
-use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, Transcript};
+use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, Transcript, TranscriptNode};
 use crate::chat::trace::ChatTraceEntry;
 use crate::chat::{ChatOptions, TraceMode};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -152,6 +152,7 @@ impl TranscriptViewport {
 mod tests {
     use super::{ChatOptions, ChatSession, FocusTarget, PendingRequest, TranscriptViewport};
     use crate::chat::TraceMode;
+    use crate::chat::transcript::{MessageBlock, MessageMeta, TranscriptNode};
     use std::time::Instant;
 
     #[test]
@@ -217,6 +218,48 @@ mod tests {
     }
 
     #[test]
+    fn explicit_tree_state_can_close_default_open_nodes() {
+        let mut session = ChatSession::new(ChatOptions {
+            from: "pl".into(),
+            to: "en".into(),
+            data_dir: "data".into(),
+            offline: true,
+            trace_mode: TraceMode::Full,
+            source_policy: crate::engine::SourceFetchPolicy::SnapshotOnly,
+        });
+        session.transcript.push(
+            crate::chat::transcript::MessageRole::EngineFacts,
+            "facts",
+            vec![MessageBlock::Tree(vec![TranscriptNode {
+                key: "facts".into(),
+                label: "Facts".into(),
+                summary: None,
+                tone: None,
+                expanded: true,
+                blocks: vec![],
+                children: vec![TranscriptNode {
+                    key: "facts.0".into(),
+                    label: "First fact".into(),
+                    summary: None,
+                    tone: None,
+                    expanded: false,
+                    blocks: vec![],
+                    children: vec![],
+                }],
+            }])],
+            MessageMeta::default(),
+        );
+        session.selected_turn = Some(1);
+        assert!(session.node_expanded(1, "facts", true));
+        assert!(session.toggle_selected_node("facts"));
+        assert!(!session.node_expanded(1, "facts", true));
+        assert!(session.toggle_selected_node("facts"));
+        assert!(session.node_expanded(1, "facts", false));
+        assert!(session.toggle_first_collapsed_node());
+        assert!(session.node_expanded(1, "facts.0", false));
+    }
+
+    #[test]
     fn main_focus_toggles_between_composer_and_transcript() {
         let mut session = ChatSession::new(ChatOptions {
             from: "pl".into(),
@@ -279,7 +322,7 @@ pub struct ChatSession {
     pub runtime: RuntimeConfig,
     pub viewport: TranscriptViewport,
     pub selected_turn: Option<usize>,
-    pub expanded_nodes: BTreeSet<(usize, String)>,
+    pub expanded_nodes: BTreeMap<(usize, String), bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -323,7 +366,7 @@ impl ChatSession {
             last_debug_claim_ids: Vec::new(),
             viewport: TranscriptViewport::new(),
             selected_turn: None,
-            expanded_nodes: BTreeSet::new(),
+            expanded_nodes: BTreeMap::new(),
         }
     }
 
@@ -625,14 +668,47 @@ impl ChatSession {
     pub fn toggle_selected_node(&mut self, node_key: &str) -> bool {
         let Some(turn) = self.selected_turn else { return false; };
         let key = (turn, node_key.to_string());
-        if !self.expanded_nodes.insert(key.clone()) {
-            self.expanded_nodes.remove(&key);
-        }
+        let default = self.node_default_expanded(turn, node_key);
+        let current = self.expanded_nodes.get(&key).copied().unwrap_or(default);
+        self.expanded_nodes.insert(key, !current);
         true
     }
 
     pub fn node_expanded(&self, turn: usize, node_key: &str, default: bool) -> bool {
-        self.expanded_nodes.contains(&(turn, node_key.to_string())) || default
+        self.expanded_nodes
+            .get(&(turn, node_key.to_string()))
+            .copied()
+            .unwrap_or(default)
+    }
+
+    pub fn toggle_first_collapsed_node(&mut self) -> bool {
+        let Some(turn) = self.selected_turn else { return false; };
+        let Some(key) = self.find_node(turn, |expanded| !expanded) else { return false; };
+        self.toggle_selected_node(&key)
+    }
+
+    pub fn collapse_first_expanded_node(&mut self) -> bool {
+        let Some(turn) = self.selected_turn else { return false; };
+        let Some(key) = self.find_node(turn, |expanded| expanded) else { return false; };
+        self.toggle_selected_node(&key)
+    }
+
+    fn node_default_expanded(&self, turn: usize, node_key: &str) -> bool {
+        self.transcript
+            .messages
+            .iter()
+            .find(|message| message.turn == turn)
+            .and_then(|message| find_node(&message.blocks, node_key))
+            .map(|node| node.expanded)
+            .unwrap_or(false)
+    }
+
+    fn find_node<F>(&self, turn: usize, predicate: F) -> Option<String>
+    where
+        F: Fn(bool) -> bool,
+    {
+        let message = self.transcript.messages.iter().find(|message| message.turn == turn)?;
+        find_node_matching(&message.blocks, turn, &self.expanded_nodes, &predicate)
     }
 
     pub fn export_transcript_text(&self) -> String {
@@ -642,4 +718,70 @@ impl ChatSession {
 
 fn spinner(index: usize) -> &'static str {
     ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][index % 10]
+}
+
+fn find_node<'a>(blocks: &'a [MessageBlock], key: &str) -> Option<&'a TranscriptNode> {
+    for block in blocks {
+        if let MessageBlock::Tree(nodes) = block {
+            if let Some(node) = find_node_in_nodes(nodes, key) {
+                return Some(node);
+            }
+        }
+    }
+    None
+}
+
+fn find_node_in_nodes<'a>(nodes: &'a [TranscriptNode], key: &str) -> Option<&'a TranscriptNode> {
+    for node in nodes {
+        if node.key == key {
+            return Some(node);
+        }
+        if let Some(found) = find_node_in_nodes(&node.children, key) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn find_node_matching<F>(
+    blocks: &[MessageBlock],
+    turn: usize,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
+    predicate: &F,
+) -> Option<String>
+where
+    F: Fn(bool) -> bool,
+{
+    for block in blocks {
+        if let MessageBlock::Tree(nodes) = block {
+            if let Some(found) = find_node_matching_in_nodes(nodes, turn, expanded_nodes, predicate) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn find_node_matching_in_nodes<F>(
+    nodes: &[TranscriptNode],
+    turn: usize,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
+    predicate: &F,
+) -> Option<String>
+where
+    F: Fn(bool) -> bool,
+{
+    for node in nodes {
+        let expanded = expanded_nodes
+            .get(&(turn, node.key.clone()))
+            .copied()
+            .unwrap_or(node.expanded);
+        if predicate(expanded) {
+            return Some(node.key.clone());
+        }
+        if let Some(found) = find_node_matching_in_nodes(&node.children, turn, expanded_nodes, predicate) {
+            return Some(found);
+        }
+    }
+    None
 }

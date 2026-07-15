@@ -65,7 +65,7 @@ Inspect the knowledge currently held by the session:
 
 `/facts` is a read-only engine debug command. It never fetches a source and only returns claims with source evidence. Its responses use a separate magenta transcript style.
 
-Progress is rendered live in one fixed activity panel with a Braille spinner and automatic bottom scrolling. Startup shows the resolved data root and source policy. `Tab` switches focus between the composer and transcript; the active widget has a white border. Mouse capture is off by default so the terminal can select text natively; `Alt+M` enables application mouse interactions. `/trace` shows the latest persisted run; `Alt+V` cycles `compact`, `normal`, `detailed` and `full-stack` verbosity.
+Progress is rendered live in one fixed activity panel with a Braille spinner and automatic bottom scrolling. Startup shows the resolved data root and source policy. `Tab` switches focus between the composer and transcript; the active widget has a white border. With transcript focus, `Enter`/`+` expands the next tree node and `-` collapses one. Mouse capture is off by default so the terminal can select text natively; `Alt+M` enables application mouse interactions. `/trace` shows the latest persisted run; `Alt+V` cycles `compact`, `normal`, `detailed` and `full-stack` verbosity.
 
 If startup cannot validate the runtime assets, chat exits immediately with a configuration error. It does not start with empty lexicons or synthetic fallbacks.
 

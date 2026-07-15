@@ -164,14 +164,18 @@ fn handle_transcript_key(session: &mut ChatSession, key: KeyEvent) {
         KeyCode::Up => session.select_previous_message(),
         KeyCode::Down => session.select_next_message(),
         KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') => {
-            if let Some(turn) = session.selected_turn {
-                if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
-                    let _ = session.collapse_selected(!message.collapsed);
+            if !session.toggle_first_collapsed_node() {
+                if let Some(turn) = session.selected_turn {
+                    if let Some(message) = session.transcript.messages.iter().find(|message| message.turn == turn) {
+                        let _ = session.collapse_selected(!message.collapsed);
+                    }
                 }
             }
         }
         KeyCode::Char('-') => {
-            let _ = session.collapse_selected(true);
+            if !session.collapse_first_expanded_node() {
+                let _ = session.collapse_selected(true);
+            }
         }
         _ => {}
     }

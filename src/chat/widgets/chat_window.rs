@@ -2,14 +2,14 @@ use crate::chat::transcript::{MessageBlock, MessageRole, TranscriptMessage, Tran
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 pub struct ChatWindowViewModel<'a> {
     pub messages: &'a [TranscriptMessage],
     pub scroll: u16,
     pub selected_turn: Option<usize>,
-    pub expanded_nodes: &'a BTreeSet<(usize, String)>,
+    pub expanded_nodes: &'a BTreeMap<(usize, String), bool>,
     pub focused: bool,
 }
 
@@ -134,7 +134,7 @@ fn rendered_transcript_rows(
     messages: &[TranscriptMessage],
     content_width: usize,
     selected_turn: Option<usize>,
-    expanded_nodes: &BTreeSet<(usize, String)>,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
 ) -> Vec<RenderedRow> {
     let mut lines = vec![];
     if messages.is_empty() {
@@ -191,7 +191,7 @@ fn fit_width(text: &str, width: usize) -> String {
     result
 }
 
-pub fn max_scroll_for_height(messages: &[TranscriptMessage], area: ratatui::layout::Rect, expanded_nodes: &BTreeSet<(usize, String)>) -> u16 {
+pub fn max_scroll_for_height(messages: &[TranscriptMessage], area: ratatui::layout::Rect, expanded_nodes: &BTreeMap<(usize, String), bool>) -> u16 {
     let viewport_height = area.height.saturating_sub(2) as usize;
     rendered_transcript_rows(messages, area.width.saturating_sub(2) as usize, None, expanded_nodes)
         .len()
@@ -203,7 +203,7 @@ pub fn turn_at_row_offset(
     area: ratatui::layout::Rect,
     scroll: u16,
     row_offset: u16,
-    expanded_nodes: &BTreeSet<(usize, String)>,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
 ) -> Option<usize> {
     let content_width = area.width.saturating_sub(2) as usize;
     let absolute_row = scroll as usize + row_offset as usize;
@@ -219,7 +219,7 @@ pub fn hit_target_at_row_offset(
     scroll: u16,
     row_offset: u16,
     column_offset: u16,
-    expanded_nodes: &BTreeSet<(usize, String)>,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
 ) -> Option<ChatHitTarget> {
     let rendered = rendered_transcript_rows(messages, area.width.saturating_sub(2) as usize, None, expanded_nodes);
     let absolute_row = scroll as usize + row_offset as usize;
@@ -237,7 +237,7 @@ fn render_block_lines(
     role: MessageRole,
     turn: usize,
     content_width: usize,
-    expanded_nodes: &BTreeSet<(usize, String)>,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
     depth: usize,
 ) -> Vec<RenderedRow> {
     match block {
@@ -258,10 +258,13 @@ fn render_node(
     role: MessageRole,
     turn: usize,
     content_width: usize,
-    expanded_nodes: &BTreeSet<(usize, String)>,
+    expanded_nodes: &BTreeMap<(usize, String), bool>,
     depth: usize,
 ) -> Vec<RenderedRow> {
-    let expanded = expanded_nodes.contains(&(turn, node.key.clone())) || node.expanded;
+    let expanded = expanded_nodes
+        .get(&(turn, node.key.clone()))
+        .copied()
+        .unwrap_or(node.expanded);
     let indent = "  ".repeat(depth);
     let prefix = if expanded { "[-]" } else { "[+]" };
     let summary = node.summary.as_ref().map(|summary| format!(": {summary}")).unwrap_or_default();
@@ -289,7 +292,7 @@ fn render_node(
     rows
 }
 
-fn message_row_spans(messages: &[TranscriptMessage], content_width: usize, expanded_nodes: &BTreeSet<(usize, String)>) -> Vec<MessageRowSpan> {
+fn message_row_spans(messages: &[TranscriptMessage], content_width: usize, expanded_nodes: &BTreeMap<(usize, String), bool>) -> Vec<MessageRowSpan> {
     let mut spans = Vec::new();
     let mut row = 0usize;
     for msg in messages {
@@ -338,7 +341,7 @@ fn wrap_prefixed(text: &str, prefix: &str, role: MessageRole, content_width: usi
 mod tests {
     use super::{hit_target_at_row_offset, max_scroll_for_height, rendered_transcript_rows, turn_at_row_offset, ChatHitTarget, RowKind};
     use crate::chat::transcript::{MessageBlock, MessageMeta, MessageRole, Transcript, TranscriptMessage, TranscriptNode};
-    use std::collections::BTreeSet;
+    use std::collections::BTreeMap;
 
     #[test]
     fn transcript_projection_is_compact() {
@@ -353,7 +356,7 @@ mod tests {
             ],
             meta: MessageMeta { latency_ms: Some(42), command: None },
         };
-        let lines = rendered_transcript_rows(&[message], 40, None, &BTreeSet::new());
+        let lines = rendered_transcript_rows(&[message], 40, None, &BTreeMap::new());
         assert_eq!(lines[0].text, "- [assistant #1]  42ms");
         assert!(matches!(lines[0].kind, RowKind::Header(MessageRole::Assistant, _)));
         assert_eq!(lines[1].text, "  hello");
@@ -370,7 +373,7 @@ mod tests {
             blocks: vec![MessageBlock::Paragraph("one fact".into())],
             meta: MessageMeta::default(),
         };
-        let lines = rendered_transcript_rows(&[message], 80, None, &BTreeSet::new());
+        let lines = rendered_transcript_rows(&[message], 80, None, &BTreeMap::new());
         assert!(matches!(lines[0].kind, RowKind::Header(MessageRole::EngineFacts, _)));
         assert!(lines.iter().any(|line| matches!(line.kind, RowKind::Body(MessageRole::EngineFacts))));
     }
@@ -379,7 +382,7 @@ mod tests {
     fn max_scroll_matches_line_count() {
         let mut transcript = Transcript::new();
         transcript.push(MessageRole::User, "you", vec![MessageBlock::Paragraph("hello".to_string())], MessageMeta::default());
-        assert_eq!(max_scroll_for_height(&transcript.messages, ratatui::layout::Rect::new(20, 0, 20, 4), &BTreeSet::new()), 1);
+        assert_eq!(max_scroll_for_height(&transcript.messages, ratatui::layout::Rect::new(20, 0, 20, 4), &BTreeMap::new()), 1);
     }
 
     #[test]
@@ -401,12 +404,12 @@ mod tests {
             blocks: vec![MessageBlock::Tree(vec![node])],
             meta: MessageMeta::default(),
         };
-        let mut expanded = BTreeSet::new();
+        let mut expanded = BTreeMap::new();
         assert!(matches!(
             hit_target_at_row_offset(&[message.clone()], ratatui::layout::Rect::new(0, 0, 40, 10), 0, 1, 1, &expanded),
             Some(ChatHitTarget::Node { turn: 1, .. })
         ));
-        expanded.insert((1, "facts.0".into()));
+        expanded.insert((1, "facts.0".into()), true);
         let lines = rendered_transcript_rows(&[message], 40, None, &expanded);
         assert!(lines.iter().any(|line| line.text.contains("Capital of France")));
     }
@@ -417,7 +420,7 @@ mod tests {
         transcript.push(MessageRole::User, "you", vec![MessageBlock::Paragraph("first".to_string())], MessageMeta::default());
         transcript.push(MessageRole::Assistant, "assistant", vec![MessageBlock::Paragraph("second".to_string())], MessageMeta::default());
         let area = ratatui::layout::Rect::new(0, 0, 40, 8);
-        assert_eq!(turn_at_row_offset(&transcript.messages, area, 0, 0, &BTreeSet::new()), Some(1));
-        assert_eq!(turn_at_row_offset(&transcript.messages, area, 0, 3, &BTreeSet::new()), Some(2));
+        assert_eq!(turn_at_row_offset(&transcript.messages, area, 0, 0, &BTreeMap::new()), Some(1));
+        assert_eq!(turn_at_row_offset(&transcript.messages, area, 0, 3, &BTreeMap::new()), Some(2));
     }
 }

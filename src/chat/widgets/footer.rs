@@ -37,7 +37,7 @@ pub fn render(frame: &mut ratatui::Frame, area: Rect, vm: &FooterViewModel<'_>) 
         Span::styled("Tab", Style::default().fg(Color::Green)),
         Span::raw(" focus  "),
         Span::styled("+/-", Style::default().fg(Color::Green)),
-        Span::raw(" collapse  "),
+        Span::raw(" tree  "),
         Span::styled("Ctrl+Shift+C", Style::default().fg(Color::Green)),
         Span::raw(" copy selection  "),
         Span::styled("Ctrl+Shift+B", Style::default().fg(Color::Green)),
