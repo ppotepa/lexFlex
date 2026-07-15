@@ -590,29 +590,20 @@ impl ChatSession {
     }
 
     pub fn status_line(&self) -> String {
-        match &self.pending {
-            Some(pending) => format!(
-                "{} {} | {} | {} ms",
-                spinner(pending.spinner_index),
-                pending.label,
-                if pending.current_stage.is_empty() { "queued" } else { pending.current_stage.as_str() },
-                pending.started_at.elapsed().as_millis()
-            ),
-            None => format!(
-                "focus:{} | mouse:{} | {} | chat:{} | translate:{} -> {} | {}",
-                match self.overlays.focus {
-                    FocusTarget::Composer => "composer",
-                    FocusTarget::Transcript => "transcript",
-                    FocusTarget::CommandPopup => "commands",
-                },
-                if self.mouse_capture_enabled { "application" } else { "native" },
-                self.context.mode.as_str(),
-                self.chat_language_label(),
-                self.context.source_lang,
-                self.context.target_lang,
-                self.settings.verbosity.as_str(),
-            ),
-        }
+        format!(
+            "focus:{} | mouse:{} | {} | chat:{} | translate:{} -> {} | {}",
+            match self.overlays.focus {
+                FocusTarget::Composer => "composer",
+                FocusTarget::Transcript => "transcript",
+                FocusTarget::CommandPopup => "commands",
+            },
+            if self.mouse_capture_enabled { "application" } else { "native" },
+            self.context.mode.as_str(),
+            self.chat_language_label(),
+            self.context.source_lang,
+            self.context.target_lang,
+            self.settings.verbosity.as_str(),
+        )
     }
 
     pub fn save_snapshot(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -714,10 +705,6 @@ impl ChatSession {
     pub fn export_transcript_text(&self) -> String {
         self.transcript.export_plain_text()
     }
-}
-
-fn spinner(index: usize) -> &'static str {
-    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][index % 10]
 }
 
 fn find_node<'a>(blocks: &'a [MessageBlock], key: &str) -> Option<&'a TranscriptNode> {
