@@ -2,6 +2,27 @@
 
 This project uses a focused set of tools and workflows to minimize token consumption when working with Grok on lexFlex development.
 
+## Repository workflow
+
+- `.codegraph/` is already initialized in this repo; keep it synchronized with `codegraph sync`.
+- Use `codegraph status` before and after meaningful changes.
+- Prefer `rtk` for longer or noisier commands such as `cargo test`, `cargo clippy`, `cargo check`, and repository-wide searches.
+- If you change repository conventions, update this file first.
+
+## Initialized Tooling
+
+This repository already has both of the core local assistants initialized:
+
+- `.codegraph/` exists and is the local code index for structural queries.
+- `.rtk/` exists and provides the command wrapper/filtering setup for shell work.
+
+If you are starting a new session here:
+
+1. Prefer CodeGraph first for structural questions.
+2. Use `rtk` for verbose shell commands unless you need raw output for parsing.
+3. If CodeGraph reports pending changes after a cleanup, run `codegraph sync`.
+4. If the RTK hook/config changes, run `rtk verify`.
+
 ## Tools Overview
 
 ### RTK — Shell Output Compression (CLI)

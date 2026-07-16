@@ -1,0 +1,21 @@
+[package]
+name = "lexflex-app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Lingua application entrypoint for lexFlex"
+default-run = "lexflex-app"
+
+[[bin]]
+name = "lexflex-app"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ron.workspace = true
+lexflex-model = { path = "../../crates/lexflex-model" }
+lexflex-engine = { path = "../../crates/lexflex-engine" }
+lexflex-lingua = { path = "../../crates/lexflex-lingua" }

@@ -1,0 +1,13 @@
+[package]
+name = "lexflex-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Immutable artifact store for the lexFlex rebuild"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true

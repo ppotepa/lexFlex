@@ -1,5 +1,0 @@
-This is a longer sample document. It contains several sentences. It requires context preservation.
-
-The second paragraph develops the topic and adds further details.
-
-The third paragraph closes the description.

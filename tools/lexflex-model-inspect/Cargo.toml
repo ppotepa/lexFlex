@@ -1,0 +1,16 @@
+[package]
+name = "lexflex-model-inspect"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Inspect canonical semantic expressions"
+
+[[bin]]
+name = "lexflex-model-inspect"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+lexflex-model = { path = "../../crates/lexflex-model" }
+serde_json.workspace = true

@@ -1,8 +1,0 @@
-(
-    expected_paragraph_count: Some(1),
-    expected_min_sentence_count: Some(2),
-    invariants: [
-    RequireFrame(frame_type: "Possession", verb_concept: Some("HAVE"), minimum_occurrences: 1),
-    ],
-    allowed_failures: [],
-)

@@ -1,0 +1,19 @@
+[package]
+name = "lexflex-benchmark"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Semantic benchmark runner for the lexFlex rebuild"
+
+[[bin]]
+name = "lexflex-benchmark"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+lexflex-engine = { path = "../../crates/lexflex-engine" }
+lexflex-lingua = { path = "../../crates/lexflex-lingua" }
+lexflex-model = { path = "../../crates/lexflex-model" }
+serde.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "lexflex-provider-llm"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Optional LLM-backed learner provider for the lexFlex rebuild"
+
+[dependencies]
+serde.workspace = true

@@ -1,0 +1,34 @@
+(
+    entities: {
+        "PARIS": (
+            id: "PARIS",
+            primary_type: "CITY",
+            additional_types: [],
+        ),
+        "FRANCE": (
+            id: "FRANCE",
+            primary_type: "COUNTRY",
+            additional_types: [],
+        ),
+        "WARSAW": (
+            id: "WARSAW",
+            primary_type: "CITY",
+            additional_types: [],
+        ),
+        "POLAND": (
+            id: "POLAND",
+            primary_type: "COUNTRY",
+            additional_types: [],
+        ),
+        "TOM": (
+            id: "TOM",
+            primary_type: "PERSON",
+            additional_types: [],
+        ),
+        "IZA": (
+            id: "IZA",
+            primary_type: "PERSON",
+            additional_types: [],
+        ),
+    },
+)

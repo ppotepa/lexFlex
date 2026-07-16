@@ -1,1 +1,0 @@
-Silnik renderujący obsługuje scenę. Silnik renderujący zapisuje wynik. Silnik renderujący jest stabilny.
