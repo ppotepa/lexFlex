@@ -167,15 +167,15 @@ pub fn kernel_catalog() -> ConceptCatalog {
 pub fn capital_declaration() -> ConceptDeclaration {
     let scope = ParameterId::new_unchecked("scope");
     ConceptDeclaration {
-        declaration_id: DeclarationId::new("concept:CAPITAL"),
+        declaration_id: DeclarationId::new_unchecked("concept:CAPITAL"),
         concept_id: ConceptId::new_unchecked("CAPITAL"),
         self_parameter: Some(LambdaParameter {
-            name: SymbolName::new("self"),
+            name: SymbolName::new_unchecked("self"),
             parameter_id: ParameterId::new_unchecked("self"),
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         }),
         parameters: vec![LambdaParameter {
-            name: SymbolName::new("scope"),
+            name: SymbolName::new_unchecked("scope"),
             parameter_id: scope,
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("POLITY")),
         }],
@@ -186,10 +186,10 @@ pub fn capital_declaration() -> ConceptDeclaration {
 
 pub fn city_declaration() -> ConceptDeclaration {
     ConceptDeclaration {
-        declaration_id: DeclarationId::new("concept:CITY"),
+        declaration_id: DeclarationId::new_unchecked("concept:CITY"),
         concept_id: ConceptId::new_unchecked("CITY"),
         self_parameter: Some(LambdaParameter {
-            name: SymbolName::new("self"),
+            name: SymbolName::new_unchecked("self"),
             parameter_id: ParameterId::new_unchecked("self"),
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         }),
@@ -203,17 +203,17 @@ pub fn population_declaration() -> ConceptDeclaration {
     let subject = ParameterId::new_unchecked("subject");
     let time = ParameterId::new_unchecked("time");
     ConceptDeclaration {
-        declaration_id: DeclarationId::new("concept:POPULATION"),
+        declaration_id: DeclarationId::new_unchecked("concept:POPULATION"),
         concept_id: ConceptId::new_unchecked("POPULATION"),
         self_parameter: None,
         parameters: vec![
             LambdaParameter {
-                name: SymbolName::new("subject"),
+                name: SymbolName::new_unchecked("subject"),
                 parameter_id: subject,
                 value_type: SemanticType::Entity,
             },
             LambdaParameter {
-                name: SymbolName::new("time"),
+                name: SymbolName::new_unchecked("time"),
                 parameter_id: time,
                 value_type: SemanticType::Value(ValueType::Date),
             },
@@ -242,7 +242,7 @@ pub fn capital_program() -> lexflex_lingua::LinguaProgram {
 
     let scope = ParameterId::new_unchecked("scope");
     lexflex_lingua::LinguaProgram {
-        id: ProgramId::new("test:capital"),
+        id: ProgramId::new_unchecked("test:capital"),
         declarations: vec![LinguaDeclaration::Concept(capital_declaration())],
         entry: LinguaExpression::Satisfies {
             subject: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
@@ -260,9 +260,9 @@ pub fn capital_program() -> lexflex_lingua::LinguaProgram {
 pub fn identity_program() -> lexflex_lingua::LinguaProgram {
     use lexflex_lingua::{LambdaParameter, LinguaExpression};
     let parameter = ParameterId::new_unchecked("value");
-    let name = lexflex_lingua::SymbolName::new("value");
+    let name = lexflex_lingua::SymbolName::new_unchecked("value");
     lexflex_lingua::LinguaProgram {
-        id: ProgramId::new("test:identity"),
+        id: ProgramId::new_unchecked("test:identity"),
         declarations: Vec::new(),
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Lambda {
@@ -271,9 +271,9 @@ pub fn identity_program() -> lexflex_lingua::LinguaProgram {
                     parameter_id: parameter.clone(),
                     value_type: SemanticType::Entity,
                 }],
-                body: Box::new(LinguaExpression::Variable(lexflex_lingua::SymbolName::new(
-                    "value",
-                ))),
+                body: Box::new(LinguaExpression::Variable(
+                    lexflex_lingua::SymbolName::new_unchecked("value"),
+                )),
             }),
             arguments: BTreeMap::from([(
                 parameter,
@@ -286,14 +286,14 @@ pub fn identity_program() -> lexflex_lingua::LinguaProgram {
 pub fn let_program() -> lexflex_lingua::LinguaProgram {
     use lexflex_lingua::LinguaExpression;
     lexflex_lingua::LinguaProgram {
-        id: ProgramId::new("test:let"),
+        id: ProgramId::new_unchecked("test:let"),
         declarations: Vec::new(),
         entry: LinguaExpression::Let {
-            name: lexflex_lingua::SymbolName::new("x"),
+            name: lexflex_lingua::SymbolName::new_unchecked("x"),
             value: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
-            body: Box::new(LinguaExpression::Variable(lexflex_lingua::SymbolName::new(
-                "x",
-            ))),
+            body: Box::new(LinguaExpression::Variable(
+                lexflex_lingua::SymbolName::new_unchecked("x"),
+            )),
         },
     }
 }
@@ -308,7 +308,7 @@ pub fn deeply_nested_not_program(depth: usize) -> lexflex_lingua::LinguaProgram 
         expression = LinguaExpression::Not(Box::new(expression));
     }
     lexflex_lingua::LinguaProgram {
-        id: ProgramId::new("test:deep-not"),
+        id: ProgramId::new_unchecked("test:deep-not"),
         declarations: Vec::new(),
         entry: expression,
     }

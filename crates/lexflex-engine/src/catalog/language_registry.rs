@@ -117,7 +117,21 @@ fn registry_hash_for(models: &BTreeMap<LanguageId, Arc<LanguageModel>>) -> Strin
     lexflex_model::canonical_hash(
         &models
             .iter()
-            .map(|(id, model)| (id, model.as_ref()))
+            .map(|(id, model)| {
+                (
+                    id,
+                    (
+                        &model.manifest.package_id,
+                        &model.manifest.language,
+                        &model.model_hash,
+                        model.lexemes.len(),
+                        model.senses.len(),
+                        model.compiled_senses.len(),
+                        model.forms.len(),
+                        model.paradigms.len(),
+                    ),
+                )
+            })
             .collect::<BTreeMap<_, _>>(),
     )
 }
@@ -262,9 +276,9 @@ mod tests {
             Arc::new(LanguageModel {
                 manifest: base_manifest.clone(),
                 lexemes: BTreeMap::from([(
-                    lexflex_language::LexemeId::new("lexeme:test:one"),
+                    lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
                     Lexeme {
-                        id: lexflex_language::LexemeId::new("lexeme:test:one"),
+                        id: lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
                         language: en.clone(),
                         lemma: "alpha".into(),
                         normalized_lemma: "alpha".into(),

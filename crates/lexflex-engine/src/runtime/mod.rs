@@ -13,22 +13,29 @@ use lexflex_model::{
     canonical_hash, Evidence, EvidenceId, SemanticAssertion, SemanticExpression, SourceSpan,
     WorldId,
 };
-use lexflex_parser::{LexicalCompositionParser, ParseBudget, ParseInput, ParseOutput};
+use lexflex_parser::ParseOutput;
 use lexflex_store::{SessionStore, SessionStoreError};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use thiserror::Error;
 
-mod formal;
-mod operations;
+mod dispatch;
+mod dispatch_helpers;
+mod formal_expression;
+mod path;
+mod persist;
+mod query;
+mod session_ops;
+mod text_analyze;
+mod text_ask;
+mod text_ingest;
 
 pub mod lingua;
 
-pub(crate) use formal::evaluate_text_expression;
 pub use lingua::{EngineError, LinguaRuntime};
-pub(crate) use operations::workspace_path;
+pub(crate) use path::workspace_path;
 
-const SESSION_SCHEMA: u32 = 1;
+const SESSION_SCHEMA: u32 = 2;
 
 pub struct LexFlexRuntime {
     lingua: LinguaRuntime,
@@ -45,6 +52,8 @@ pub enum RuntimeInitError {
     Store(#[from] SessionStoreError),
     #[error("session model mismatch: stored={stored}, current={current}")]
     ModelMismatch { stored: String, current: String },
+    #[error("session language mismatch: stored={stored}, current={current}")]
+    LanguageMismatch { stored: String, current: String },
     #[error("language registry error: {0}")]
     Languages(#[from] crate::catalog::LanguageRegistryError),
 }
@@ -81,13 +90,14 @@ impl LexFlexRuntime {
         let model = ModelPackageLoader
             .load(model_root.as_ref())
             .map_err(RuntimeInitError::Model)?;
-        let catalog = Arc::new(model.catalog);
+        let catalog = Arc::new(model.catalog.clone());
         let model_hash = model.model_hash.clone();
-        let lingua = LinguaRuntime::from_catalog(catalog.clone());
+        let lingua = LinguaRuntime::from_model(&model);
         let store: SessionStore<EngineSessionState> =
             SessionStore::new(state_root.as_ref().to_path_buf(), SESSION_SCHEMA);
         let languages = LanguageRegistry::load(language_root.as_ref(), catalog.clone())
             .map_err(RuntimeInitError::Languages)?;
+        let language_hash = languages.registry_hash.clone();
         let state = match store.load(&session_id) {
             Ok(state) => {
                 if state.model_hash != model_hash {
@@ -96,10 +106,16 @@ impl LexFlexRuntime {
                         current: model_hash,
                     });
                 }
+                if state.language_hash != language_hash {
+                    return Err(RuntimeInitError::LanguageMismatch {
+                        stored: state.language_hash,
+                        current: language_hash,
+                    });
+                }
                 state
             }
             Err(SessionStoreError::NotFound { .. }) => {
-                EngineSessionState::new(session_id.clone(), model_hash.clone())
+                EngineSessionState::new(session_id.clone(), model_hash.clone(), language_hash)
             }
             Err(error) => return Err(RuntimeInitError::Store(error)),
         };

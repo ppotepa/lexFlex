@@ -1,0 +1,15 @@
+[
+    (
+        id: "paradigm:pl:copula",
+        language: "pl",
+        forms: [
+            (
+                id: "form:pl:jest",
+                lexeme_id: "lexeme:pl:byc:verb",
+                surface: "jest",
+                normalized: "jest",
+                features: (values: { "tense": "present", "number": "singular" }),
+            ),
+        ],
+    ),
+]

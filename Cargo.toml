@@ -2,15 +2,15 @@
 resolver = "2"
 
 members = [
-    "apps/lexflex",
-    "crates/lexflex-engine",
-    "crates/lexflex-language",
-    "crates/lexflex-learning",
+    "crates/lexflex-model",
     "crates/lexflex-lingua",
     "crates/lexflex-parser",
-    "crates/lexflex-model",
-    "crates/lexflex-provider-llm",
+    "crates/lexflex-language",
     "crates/lexflex-store",
+    "crates/lexflex-engine",
+    "crates/lexflex-learning",
+    "crates/lexflex-provider-llm",
+    "apps/lexflex",
     "tools/lexflex-benchmark",
     "tools/lexflex-model-inspect",
 ]

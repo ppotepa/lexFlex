@@ -1,3 +1,5 @@
+pub mod error;
+pub mod evidence;
 pub mod input;
 pub mod language_validate;
 pub mod lingua_eval;
@@ -5,6 +7,7 @@ pub mod lingua_ingest;
 pub mod lingua_query;
 pub mod model_validate;
 pub mod output;
+pub mod runtime;
 pub mod session_clear;
 pub mod session_inspect;
 pub mod support;

@@ -74,11 +74,6 @@ impl<'a> TypeChecker<'a> {
                 let SemanticType::Function(function) = callee_type else {
                     return Err(TypeError::ExpectedFunction { found: callee_type });
                 };
-                for parameter in function.parameters.keys() {
-                    if !arguments.contains_key(parameter) {
-                        return Err(TypeError::MissingFunctionArgument(parameter.clone()));
-                    }
-                }
                 for parameter in arguments.keys() {
                     if !function.parameters.contains_key(parameter) {
                         return Err(TypeError::UnknownFunctionArgument(parameter.clone()));
@@ -99,7 +94,20 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                 }
-                Ok(*function.result)
+                let remaining_parameters = function
+                    .parameters
+                    .iter()
+                    .filter(|(parameter, _)| !arguments.contains_key(*parameter))
+                    .map(|(parameter, value_type)| (parameter.clone(), value_type.clone()))
+                    .collect::<BTreeMap<_, _>>();
+                if remaining_parameters.is_empty() {
+                    Ok(*function.result)
+                } else {
+                    Ok(SemanticType::Function(crate::types::FunctionType {
+                        parameters: remaining_parameters,
+                        result: function.result,
+                    }))
+                }
             }
             ResolvedExpression::ApplyConcept { concept, bindings } => {
                 self.infer_apply_concept(concept, bindings)

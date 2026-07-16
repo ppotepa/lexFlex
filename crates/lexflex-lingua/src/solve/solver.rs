@@ -1,6 +1,6 @@
 use crate::solve::{
-    goal::canonical_goal_hash, unify, EvidencePolicy, LinguaGoal, Substitution, UnificationContext,
-    UnificationMode,
+    goal::canonical_goal_hash, unify, validate_goal, EvidencePolicy, LinguaGoal, SolveError,
+    Substitution, UnificationContext, UnificationMode,
 };
 use lexflex_model::{AssertionId, ConceptCatalog, Evidence, SemanticAssertion};
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,8 @@ impl LinguaSolver {
         goal: &LinguaGoal,
         assertions: impl IntoIterator<Item = &'a SemanticAssertion>,
         catalog: Arc<ConceptCatalog>,
-    ) -> Result<Vec<QuerySolution>, crate::types::TypeError> {
+    ) -> Result<Vec<QuerySolution>, SolveError> {
+        validate_goal(goal, catalog.as_ref())?;
         let _goal_hash = canonical_goal_hash(goal);
         let context = UnificationContext {
             catalog: catalog.clone(),

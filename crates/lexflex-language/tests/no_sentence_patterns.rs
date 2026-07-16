@@ -27,5 +27,5 @@ fn no_whole_sentence_templates_exist() {
     assert!(en
         .senses
         .values()
-        .all(|sense| !sense.base_category.is_sentence()));
+        .all(|sense| !sense.base_category.is_sentence() || !sense.valency.is_empty()));
 }

@@ -5,6 +5,7 @@ mod fixtures;
 
 use bench::{BenchmarkCase, BenchmarkSuite};
 use clap::Parser;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
@@ -16,6 +17,9 @@ struct Cli {
 
     #[arg(long, value_enum)]
     case: Vec<BenchmarkCase>,
+
+    #[arg(long)]
+    output: Option<PathBuf>,
 }
 
 fn main() {
@@ -34,8 +38,16 @@ fn main() {
     let suite = BenchmarkSuite::new(Arc::new(fixtures::kernel_catalog()));
     let report = suite.run_all(&cases, cli.iterations);
 
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&report).expect("benchmark report serializes")
-    );
+    let json = serde_json::to_string_pretty(&report).expect("benchmark report serializes");
+
+    if let Some(path) = cli.output {
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent).expect("benchmark output directory");
+            }
+        }
+        std::fs::write(&path, &json).expect("write benchmark report");
+    } else {
+        println!("{json}");
+    }
 }

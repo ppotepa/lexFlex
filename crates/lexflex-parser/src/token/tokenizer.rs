@@ -1,11 +1,12 @@
 use crate::diagnostic::ParseError;
+use crate::id::TokenId;
 use crate::input::{ClauseMode, ParseInput};
-use lexflex_model::SourceSpan;
+use lexflex_model::{canonical_hash, SourceSpan};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Token {
-    pub id: String,
+    pub id: TokenId,
     pub surface: String,
     pub normalized: String,
     pub span: SourceSpan,
@@ -34,6 +35,7 @@ pub fn normalize_surface(surface: &str) -> String {
 
 pub fn tokenize(input: &ParseInput) -> Result<TokenizationResult, ParseError> {
     let mut tokens = Vec::new();
+    let source_seed = canonical_hash(&(&input.source_id, &input.language, &input.text));
     let mut start = None;
     for (index, character) in input.text.char_indices() {
         if character.is_alphanumeric() || matches!(character, '\'' | '’' | '-') {
@@ -41,12 +43,16 @@ pub fn tokenize(input: &ParseInput) -> Result<TokenizationResult, ParseError> {
             continue;
         }
         if let Some(begin) = start.take() {
-            push_word(&mut tokens, &input.text, begin, index)?;
+            push_word(&mut tokens, &input.text, begin, index, &source_seed)?;
         }
         if is_punctuation(character) {
             let end = index + character.len_utf8();
             tokens.push(Token {
-                id: format!("tok:{}", tokens.len()),
+                id: TokenId::new_unchecked(format!(
+                    "token:{}:{}",
+                    &source_seed[..16],
+                    tokens.len()
+                )),
                 surface: character.to_string(),
                 normalized: character.to_string(),
                 span: SourceSpan {
@@ -60,7 +66,13 @@ pub fn tokenize(input: &ParseInput) -> Result<TokenizationResult, ParseError> {
         }
     }
     if let Some(begin) = start {
-        push_word(&mut tokens, &input.text, begin, input.text.len())?;
+        push_word(
+            &mut tokens,
+            &input.text,
+            begin,
+            input.text.len(),
+            &source_seed,
+        )?;
     }
     if tokens.is_empty() {
         return Err(ParseError::EmptyInput);
@@ -77,10 +89,11 @@ fn push_word(
     text: &str,
     start: usize,
     end: usize,
+    source_seed: &str,
 ) -> Result<(), ParseError> {
     let surface = text[start..end].to_string();
     tokens.push(Token {
-        id: format!("tok:{}", tokens.len()),
+        id: TokenId::new_unchecked(format!("token:{}:{}", &source_seed[..16], tokens.len())),
         normalized: normalize_surface(&surface),
         surface,
         span: SourceSpan {

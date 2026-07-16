@@ -1,6 +1,6 @@
 use lexflex_language::{
-    CategoryType, LanguageLoadError, LanguageModelValidator, LanguagePackageLoader, MeaningTemplate,
-    MeaningTemplateId, SemanticAnchor, SyntacticCategory, ValencySlot,
+    CategoryType, LanguageLoadError, LanguageModelValidator, LanguagePackageLoader,
+    MeaningTemplate, MeaningTemplateId, SemanticAnchor, SyntacticCategory, ValencySlot,
 };
 use lexflex_lingua::LinguaExpression;
 use lexflex_model::{ConceptCatalog, EntityId, VariableId};
@@ -37,13 +37,15 @@ fn english_package_loads() {
         .any(|sense| matches!(sense.base_category, SyntacticCategory::Function { .. })));
     assert_eq!(
         model.form_index.lookup("paris"),
-        &[lexflex_language::FormId::new("form:en:Paris")]
+        &[lexflex_language::FormId::new_unchecked("form:en:Paris")]
     );
     assert_eq!(
         model
             .sense_index
-            .lookup(&lexflex_language::LexemeId::new("lexeme:en:paris:proper")),
-        &[lexflex_language::LexicalSenseId::new(
+            .lookup(&lexflex_language::LexemeId::new_unchecked(
+                "lexeme:en:paris:proper"
+            )),
+        &[lexflex_language::LexicalSenseId::new_unchecked(
             "sense:en:paris:entity"
         )]
     );
@@ -185,6 +187,7 @@ fn lexeme_language_mismatch_is_rejected() {
         id: "lexeme:test:one",
         language: "fr",
         lemma: "bonjour",
+        normalized_lemma: "bonjour",
     ),
 ]"#,
     )
@@ -228,6 +231,7 @@ fn feature_conflict_between_sense_and_form_is_rejected() {
         id: "lexeme:test:one",
         language: "en",
         lemma: "alpha",
+        normalized_lemma: "alpha",
     ),
 ]"#,
     )
@@ -326,6 +330,7 @@ fn form_normalized_mismatch_is_rejected() {
         id: "lexeme:test:one",
         language: "en",
         lemma: "alpha",
+        normalized_lemma: "alpha",
     ),
 ]"#,
     )
@@ -418,6 +423,7 @@ fn paradigm_form_normalized_mismatch_is_rejected() {
         id: "lexeme:test:one",
         language: "en",
         lemma: "alpha",
+        normalized_lemma: "alpha",
     ),
 ]"#,
     )
@@ -530,6 +536,7 @@ fn paradigm_form_must_match_canonical_form() {
         id: "lexeme:test:one",
         language: "en",
         lemma: "alpha",
+        normalized_lemma: "alpha",
     ),
 ]"#,
     )
@@ -651,7 +658,7 @@ fn declarative_query_variable_is_rejected() {
 
     let sense_id = model.senses.keys().next().cloned().expect("sense id");
     model.senses.get_mut(&sense_id).expect("sense").meaning = MeaningTemplate::new(
-        MeaningTemplateId::new("meaning:test:query"),
+        MeaningTemplateId::new_unchecked("meaning:test:query"),
         LinguaExpression::QueryVariable(VariableId::new_unchecked("answer")),
         BTreeMap::new(),
     );
@@ -680,7 +687,7 @@ fn unknown_valency_parameter_is_rejected() {
         .find(|sense| sense.id.as_str() == "sense:en:capital:city")
         .expect("capital sense");
     capital.valency = vec![ValencySlot {
-        id: lexflex_language::ValencySlotId::new("valency:test:invalid"),
+        id: lexflex_language::ValencySlotId::new_unchecked("valency:test:invalid"),
         parameter: lexflex_model::ParameterId::new_unchecked("missing"),
         argument_category: SyntacticCategory::noun_phrase(
             CategoryType::Concrete(lexflex_model::SemanticType::EntityOf(
@@ -688,7 +695,9 @@ fn unknown_valency_parameter_is_rejected() {
             )),
             Default::default(),
         ),
-        surface_relation: Some(lexflex_language::SurfaceRelationId::new("of-complement")),
+        surface_relation: Some(lexflex_language::SurfaceRelationId::new_unchecked(
+            "of-complement",
+        )),
         direction: lexflex_language::SlashDirection::Forward,
         application_rank: 0,
         required: true,
@@ -720,7 +729,7 @@ fn duplicate_valency_rank_is_rejected() {
         .find(|sense| sense.id.as_str() == "sense:en:capital:city")
         .expect("capital sense");
     capital.valency.push(ValencySlot {
-        id: lexflex_language::ValencySlotId::new("valency:test:duplicate"),
+        id: lexflex_language::ValencySlotId::new_unchecked("valency:test:duplicate"),
         parameter: lexflex_model::ParameterId::new_unchecked("scope"),
         argument_category: SyntacticCategory::noun_phrase(
             CategoryType::Concrete(lexflex_model::SemanticType::EntityOf(
@@ -728,7 +737,9 @@ fn duplicate_valency_rank_is_rejected() {
             )),
             Default::default(),
         ),
-        surface_relation: Some(lexflex_language::SurfaceRelationId::new("of-complement")),
+        surface_relation: Some(lexflex_language::SurfaceRelationId::new_unchecked(
+            "of-complement",
+        )),
         direction: lexflex_language::SlashDirection::Forward,
         application_rank: 0,
         required: true,
@@ -773,6 +784,7 @@ fn category_semantic_type_mismatch_is_rejected() {
         id: "lexeme:test:one",
         language: "en",
         lemma: "alpha",
+        normalized_lemma: "alpha",
     ),
 ]"#,
     )

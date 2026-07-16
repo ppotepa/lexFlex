@@ -10,7 +10,7 @@ use lexflex_model::EntityId;
 fn duplicate_concept_is_rejected() {
     let declaration = support::model::capital_declaration();
     let program = LinguaProgram {
-        id: ProgramId::new("test:duplicate-concept"),
+        id: ProgramId::new_unchecked("test:duplicate-concept"),
         declarations: vec![
             LinguaDeclaration::Concept(declaration.clone()),
             LinguaDeclaration::Concept(declaration),
@@ -29,7 +29,7 @@ fn duplicate_concept_is_rejected() {
 #[test]
 fn recursive_concept_is_rejected() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:recursive"),
+        id: ProgramId::new_unchecked("test:recursive"),
         declarations: vec![LinguaDeclaration::Concept(
             support::model::recursive_capital_declaration(),
         )],
@@ -51,7 +51,7 @@ fn too_deep_expression_is_rejected() {
         expression = LinguaExpression::Not(Box::new(expression));
     }
     let program = LinguaProgram {
-        id: ProgramId::new("test:too-deep"),
+        id: ProgramId::new_unchecked("test:too-deep"),
         declarations: Vec::new(),
         entry: expression,
     };
@@ -67,9 +67,9 @@ fn too_deep_expression_is_rejected() {
 #[test]
 fn free_local_symbol_is_rejected_by_compiler() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:free-local"),
+        id: ProgramId::new_unchecked("test:free-local"),
         declarations: Vec::new(),
-        entry: LinguaExpression::Variable(lexflex_lingua::SymbolName::new("missing")),
+        entry: LinguaExpression::Variable(lexflex_lingua::SymbolName::new_unchecked("missing")),
     };
 
     let error = support::test_compiler()

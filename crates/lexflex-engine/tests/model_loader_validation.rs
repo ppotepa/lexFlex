@@ -47,9 +47,9 @@ fn unknown_concept_program_target_is_rejected() {
     )
     .expect("copy entities");
     let program = LinguaProgram {
-        id: lexflex_lingua::ProgramId::new("program:test:invalid"),
+        id: lexflex_lingua::ProgramId::new_unchecked("program:test:invalid"),
         declarations: vec![LinguaDeclaration::Concept(ConceptDeclaration {
-            declaration_id: DeclarationId::new("decl:test:invalid"),
+            declaration_id: DeclarationId::new_unchecked("decl:test:invalid"),
             concept_id: ConceptId::new_unchecked("MISSING"),
             self_parameter: None,
             parameters: Vec::new(),
@@ -77,9 +77,9 @@ fn unknown_concept_program_target_is_rejected() {
 fn defined_concept_body_result_mismatch_is_rejected() {
     let catalog = ConceptCatalog::default();
     let program = LinguaProgram {
-        id: lexflex_lingua::ProgramId::new("program:test:mismatch"),
+        id: lexflex_lingua::ProgramId::new_unchecked("program:test:mismatch"),
         declarations: vec![LinguaDeclaration::Concept(ConceptDeclaration {
-            declaration_id: DeclarationId::new("decl:test:mismatch"),
+            declaration_id: DeclarationId::new_unchecked("decl:test:mismatch"),
             concept_id: ConceptId::new_unchecked("BROKEN"),
             self_parameter: None,
             parameters: Vec::new(),

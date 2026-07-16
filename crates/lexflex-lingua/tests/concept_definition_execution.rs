@@ -20,7 +20,7 @@ fn transparent_definition_expands_into_its_body() {
     capital.expansion = ExpansionPolicy::Transparent;
 
     let program = LinguaProgram {
-        id: ProgramId::new("test:transparent-definition"),
+        id: ProgramId::new_unchecked("test:transparent-definition"),
         declarations: vec![LinguaDeclaration::Concept(capital)],
         entry: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CAPITAL"),
@@ -60,7 +60,7 @@ fn on_demand_definition_expands_only_in_expand_all_defined() {
     capital.expansion = ExpansionPolicy::OnDemand;
 
     let program = LinguaProgram {
-        id: ProgramId::new("test:on-demand-definition"),
+        id: ProgramId::new_unchecked("test:on-demand-definition"),
         declarations: vec![LinguaDeclaration::Concept(capital)],
         entry: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CAPITAL"),

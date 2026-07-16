@@ -50,6 +50,9 @@ pub enum LanguageValidationIssue {
         sense_id: String,
         variable: String,
     },
+    BaseCategoryMustBeAtomicWhenValencyPresent {
+        sense_id: String,
+    },
     UnknownAnchorConcept {
         sense_id: String,
         concept_id: String,
@@ -172,6 +175,10 @@ impl std::fmt::Display for LanguageValidationIssue {
             Self::QueryVariableNotAllowed { sense_id, variable } => write!(
                 f,
                 "sense {sense_id}: query variable not allowed in declarative sense: {variable}"
+            ),
+            Self::BaseCategoryMustBeAtomicWhenValencyPresent { sense_id } => write!(
+                f,
+                "sense {sense_id}: valency requires atomic base category"
             ),
             Self::UnknownAnchorConcept { sense_id, concept_id } => {
                 write!(f, "sense {sense_id}: unknown anchor concept: {concept_id}")

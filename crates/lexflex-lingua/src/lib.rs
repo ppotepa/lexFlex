@@ -10,7 +10,9 @@ pub mod syntax;
 pub mod types;
 pub mod verifier;
 
-pub use compiler::{CompiledConcept, CompiledFunction, CompiledProgram, LinguaCompiler};
+pub use compiler::{
+    CompileContext, CompiledConcept, CompiledFunction, CompiledProgram, LinguaCompiler,
+};
 pub use error::LinguaError;
 pub use id::{DeclarationId, FunctionId, ModuleId, ProgramId, SymbolId, SymbolName};
 pub use normalize::{normalize_expression, ExpressionNormalizer, NormalizationReport};
@@ -20,8 +22,8 @@ pub use runtime::{
 };
 pub use solve::unify;
 pub use solve::{
-    EvidencePolicy, LinguaGoal, LinguaSolver, QuerySolution, Substitution, UnificationContext,
-    UnificationMode,
+    canonical_goal_hash, validate_goal, EvidencePolicy, GoalValidationError, LinguaGoal,
+    LinguaSolver, QuerySolution, SolveError, Substitution, UnificationContext, UnificationMode,
 };
 pub use syntax::{
     ConceptDeclaration, ConceptSemantics, ExpansionPolicy, FunctionDeclaration, LambdaParameter,

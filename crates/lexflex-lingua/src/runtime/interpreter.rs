@@ -395,15 +395,25 @@ impl<'a> InterpreterState<'a> {
         let result = (|| {
             let closure = self.eval(callee, environment)?.into_closure()?;
             let mut child = closure.captured.as_ref().clone();
+            let mut remaining = BTreeMap::new();
             for (parameter_id, parameter) in &closure.parameters {
-                let argument = arguments
-                    .get(parameter_id)
-                    .ok_or_else(|| RuntimeError::MissingArgument(parameter_id.clone()))?;
-                let value = self.eval(argument, environment)?;
-                child.insert(parameter.symbol.clone(), value);
+                if let Some(argument) = arguments.get(parameter_id) {
+                    let value = self.eval(argument, environment)?;
+                    child.insert(parameter.symbol.clone(), value);
+                } else {
+                    remaining.insert(parameter_id.clone(), parameter.clone());
+                }
             }
             self.push_trace(TraceOperation::CallClosure, "Call", BTreeMap::new())?;
-            self.eval(&closure.body, &child)
+            if remaining.is_empty() {
+                self.eval(&closure.body, &child)
+            } else {
+                Ok(RuntimeValue::Closure(ClosureValue {
+                    parameters: remaining,
+                    body: closure.body.clone(),
+                    captured: Arc::new(child),
+                }))
+            }
         })();
         self.leave_call();
         result

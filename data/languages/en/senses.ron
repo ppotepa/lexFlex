@@ -139,29 +139,11 @@
                 "CAPITAL",
             ),
         ),
-        base_category: Function(
-            result: Atom(
-                kind: Predicate,
-                semantic_type: Concrete(
-                    EntityOf("CITY"),
-                ),
-                features: (
-                    values: {},
-                ),
+        base_category: Atom(
+            kind: Predicate,
+            semantic_type: Concrete(
+                EntityOf("CITY"),
             ),
-            argument: Atom(
-                kind: MarkedArgument(
-                    relation: "of-complement",
-                ),
-                semantic_type: Concrete(
-                    EntityOf("COUNTRY"),
-                ),
-                features: (
-                    values: {},
-                ),
-            ),
-            direction: Forward,
-            semantic_parameter: "scope",
             features: (
                 values: {},
             ),
@@ -171,7 +153,7 @@
             expression: Lambda(
                 parameters: [
                     (
-                        name: SymbolName("scope"),
+                        name: "scope",
                         parameter_id: "scope",
                         value_type: EntityOf("POLITY"),
                     ),
@@ -179,7 +161,7 @@
                 body: ApplyConcept(
                     concept: "CAPITAL",
                     bindings: {
-                        "scope": Variable(SymbolName("scope")),
+                        "scope": Variable("scope"),
                     },
                 ),
             ),
@@ -265,21 +247,21 @@
             expression: Lambda(
                 parameters: [
                     (
-                        name: SymbolName("predicate"),
+                        name: "predicate",
                         parameter_id: "predicate",
                         value_type: Predicate(
                             Entity,
                         ),
                     ),
                     (
-                        name: SymbolName("subject"),
+                        name: "subject",
                         parameter_id: "subject",
                         value_type: Entity,
                     ),
                 ],
                 body: Satisfies(
-                    subject: Variable(SymbolName("subject")),
-                    concept: Variable(SymbolName("predicate")),
+                    subject: Variable("subject"),
+                    concept: Variable("predicate"),
                 ),
             ),
             query_variables: {},
@@ -332,14 +314,14 @@
             expression: Lambda(
                 parameters: [
                     (
-                        name: SymbolName("value"),
+                        name: "value",
                         parameter_id: "value",
                         value_type: Predicate(
                             Entity,
                         ),
                     ),
                 ],
-                body: Variable(SymbolName("value")),
+                body: Variable("value"),
             ),
             query_variables: {},
         ),
@@ -391,12 +373,12 @@
             expression: Lambda(
                 parameters: [
                     (
-                        name: SymbolName("value"),
+                        name: "value",
                         parameter_id: "value",
-                        value_type: Entity,
+                        value_type: EntityOf("POLITY"),
                     ),
                 ],
-                body: Variable(SymbolName("value")),
+                body: Variable("value"),
             ),
             query_variables: {},
         ),
@@ -512,43 +494,11 @@
                 "SEE_EVENT",
             ),
         ),
-        base_category: Function(
-            result: Function(
-                result: Atom(
-                    kind: Sentence,
-                    semantic_type: Concrete(
-                        Boolean,
-                    ),
-                    features: (
-                        values: {},
-                    ),
-                ),
-                argument: Atom(
-                    kind: NounPhrase,
-                    semantic_type: Concrete(
-                        EntityOf("PERSON"),
-                    ),
-                    features: (
-                        values: {},
-                    ),
-                ),
-                direction: Backward,
-                semantic_parameter: "agent",
-                features: (
-                    values: {},
-                ),
+        base_category: Atom(
+            kind: Sentence,
+            semantic_type: Concrete(
+                Boolean,
             ),
-            argument: Atom(
-                kind: NounPhrase,
-                semantic_type: Concrete(
-                    EntityOf("PERSON"),
-                ),
-                features: (
-                    values: {},
-                ),
-            ),
-            direction: Forward,
-            semantic_parameter: "patient",
             features: (
                 values: {},
             ),
@@ -558,12 +508,12 @@
             expression: Lambda(
                 parameters: [
                     (
-                        name: SymbolName("patient"),
+                        name: "patient",
                         parameter_id: "patient",
                         value_type: EntityOf("PERSON"),
                     ),
                     (
-                        name: SymbolName("agent"),
+                        name: "agent",
                         parameter_id: "agent",
                         value_type: EntityOf("PERSON"),
                     ),
@@ -571,8 +521,8 @@
                 body: ApplyConcept(
                     concept: "SEE_EVENT",
                     bindings: {
-                        "agent": Variable(SymbolName("agent")),
-                        "patient": Variable(SymbolName("patient")),
+                        "agent": Variable("agent"),
+                        "patient": Variable("patient"),
                     },
                 ),
             ),
@@ -596,7 +546,7 @@
                         values: {},
                     ),
                 ),
-                surface_relation: Some("object"),
+                surface_relation: None,
                 direction: Forward,
                 application_rank: 0,
                 required: true,
@@ -613,7 +563,7 @@
                         values: {},
                     ),
                 ),
-                surface_relation: Some("subject"),
+                surface_relation: None,
                 direction: Backward,
                 application_rank: 1,
                 required: true,

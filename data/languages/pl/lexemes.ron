@@ -1,0 +1,68 @@
+[
+    (
+        id: "lexeme:pl:paryz:proper",
+        language: "pl",
+        lemma: "Paryż",
+        normalized_lemma: "paryż",
+    ),
+    (
+        id: "lexeme:pl:francja:proper",
+        language: "pl",
+        lemma: "Francja",
+        normalized_lemma: "francja",
+    ),
+    (
+        id: "lexeme:pl:warszawa:proper",
+        language: "pl",
+        lemma: "Warszawa",
+        normalized_lemma: "warszawa",
+    ),
+    (
+        id: "lexeme:pl:polska:proper",
+        language: "pl",
+        lemma: "Polska",
+        normalized_lemma: "polska",
+    ),
+    (
+        id: "lexeme:pl:stolica:noun",
+        language: "pl",
+        lemma: "stolica",
+        normalized_lemma: "stolica",
+    ),
+    (
+        id: "lexeme:pl:byc:verb",
+        language: "pl",
+        lemma: "byc",
+        normalized_lemma: "byc",
+    ),
+    (
+        id: "lexeme:pl:jaki:question",
+        language: "pl",
+        lemma: "jaki",
+        normalized_lemma: "jaki",
+    ),
+    (
+        id: "lexeme:pl:tomek:proper",
+        language: "pl",
+        lemma: "Tomek",
+        normalized_lemma: "tomek",
+    ),
+    (
+        id: "lexeme:pl:iza:proper",
+        language: "pl",
+        lemma: "Iza",
+        normalized_lemma: "iza",
+    ),
+    (
+        id: "lexeme:pl:widziec:verb",
+        language: "pl",
+        lemma: "widzieć",
+        normalized_lemma: "widzieć",
+    ),
+    (
+        id: "lexeme:pl:kto:question",
+        language: "pl",
+        lemma: "kto",
+        normalized_lemma: "kto",
+    ),
+]

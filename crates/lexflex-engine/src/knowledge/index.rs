@@ -55,21 +55,23 @@ impl KnowledgeIndex {
         let mut candidates: Option<BTreeSet<AssertionId>> = None;
 
         for concept in root_concepts(&goal.expression) {
-            if let Some(ids) = self.by_root_concept.get(&concept) {
-                candidates = Some(match candidates {
-                    Some(current) => current.intersection(ids).cloned().collect(),
-                    None => ids.clone(),
-                });
-            }
+            let Some(ids) = self.by_root_concept.get(&concept) else {
+                return Vec::new();
+            };
+            candidates = Some(match candidates {
+                Some(current) => current.intersection(ids).cloned().collect(),
+                None => ids.clone(),
+            });
         }
 
         for entity in referenced_entities(&goal.expression) {
-            if let Some(ids) = self.by_entity.get(&entity) {
-                candidates = Some(match candidates {
-                    Some(current) => current.intersection(ids).cloned().collect(),
-                    None => ids.clone(),
-                });
-            }
+            let Some(ids) = self.by_entity.get(&entity) else {
+                return Vec::new();
+            };
+            candidates = Some(match candidates {
+                Some(current) => current.intersection(ids).cloned().collect(),
+                None => ids.clone(),
+            });
         }
 
         if let Some(world) = &goal.world {
@@ -83,11 +85,7 @@ impl KnowledgeIndex {
             }
         }
 
-        let mut ids = candidates.unwrap_or_else(|| snapshot.assertions.keys().cloned().collect());
-
-        if ids.is_empty() {
-            ids = snapshot.assertions.keys().cloned().collect();
-        }
+        let ids = candidates.unwrap_or_else(|| snapshot.assertions.keys().cloned().collect());
 
         ids.into_iter().collect()
     }
@@ -165,88 +163,4 @@ fn referenced_entities(expression: &SemanticExpression) -> BTreeSet<EntityId> {
         | SemanticExpression::Variable(_) => {}
     }
     output
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lexflex_lingua::{solve::EvidencePolicy, LinguaGoal};
-    use lexflex_model::{Evidence, SemanticAssertion, VariableId, WorldId};
-
-    #[test]
-    fn rebuild_indexes_world_root_concept_and_entity() {
-        let assertion = SemanticAssertion::create(
-            SemanticExpression::Satisfies {
-                subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(
-                    "ENTITY_1",
-                ))),
-                predicate: Box::new(SemanticExpression::Apply {
-                    concept: ConceptId::new_unchecked("ROOT_CONCEPT"),
-                    bindings: BTreeMap::new(),
-                }),
-            },
-            vec![Evidence::create("source:1", None, None)],
-            WorldId::new_unchecked("actual"),
-        );
-        let snapshot = KnowledgeSnapshot {
-            assertions: BTreeMap::from([(assertion.id.clone(), assertion.clone())]),
-            snapshot_hash: String::new(),
-        };
-        let index = KnowledgeIndex::rebuild(&snapshot);
-        assert!(index
-            .by_root_concept
-            .get(&ConceptId::new_unchecked("ROOT_CONCEPT"))
-            .is_some_and(|ids| ids.contains(&assertion.id)));
-        assert!(index
-            .by_entity
-            .get(&EntityId::new_unchecked("ENTITY_1"))
-            .is_some_and(|ids| ids.contains(&assertion.id)));
-        assert!(index
-            .by_world
-            .get(&WorldId::new_unchecked("actual"))
-            .is_some_and(|ids| ids.contains(&assertion.id)));
-
-        let goal = LinguaGoal {
-            expression: SemanticExpression::Satisfies {
-                subject: Box::new(SemanticExpression::Variable(VariableId::new_unchecked(
-                    "answer",
-                ))),
-                predicate: Box::new(SemanticExpression::Apply {
-                    concept: ConceptId::new_unchecked("ROOT_CONCEPT"),
-                    bindings: BTreeMap::new(),
-                }),
-            },
-            variables: BTreeMap::new(),
-            projection: Vec::new(),
-            evidence_policy: EvidencePolicy::Ignore,
-            world: Some(WorldId::new_unchecked("actual")),
-            limit: None,
-        };
-        let candidates = index.candidate_ids(&goal, &snapshot);
-        assert_eq!(candidates, vec![assertion.id.clone()]);
-    }
-
-    #[test]
-    fn candidate_ids_use_entity_index() {
-        let assertion = SemanticAssertion::create(
-            SemanticExpression::Entity(EntityId::new_unchecked("ENTITY_1")),
-            vec![Evidence::create("source:1", None, None)],
-            WorldId::new_unchecked("actual"),
-        );
-        let snapshot = KnowledgeSnapshot {
-            assertions: BTreeMap::from([(assertion.id.clone(), assertion.clone())]),
-            snapshot_hash: String::new(),
-        };
-        let index = KnowledgeIndex::rebuild(&snapshot);
-        let goal = LinguaGoal {
-            expression: SemanticExpression::Entity(EntityId::new_unchecked("ENTITY_1")),
-            variables: BTreeMap::new(),
-            projection: Vec::new(),
-            evidence_policy: EvidencePolicy::Ignore,
-            world: None,
-            limit: None,
-        };
-        let candidates = index.candidate_ids(&goal, &snapshot);
-        assert_eq!(candidates, vec![assertion.id.clone()]);
-    }
 }

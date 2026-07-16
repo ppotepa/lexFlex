@@ -35,11 +35,14 @@ fn evaluate_lingua_request_uses_new_runtime() {
     let mut runtime = test_runtime();
     let response = runtime.handle(EngineRequest::EvaluateLingua {
         program: LinguaProgram {
-            id: ProgramId::new("test:runtime-wrapper"),
+            id: ProgramId::new_unchecked("test:runtime-wrapper"),
             declarations: Vec::new(),
             entry: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
         },
-        trace: false,
+        policy: lexflex_lingua::ExecutionPolicy {
+            expansion: lexflex_lingua::ExpansionMode::PreserveApplications,
+        },
+        include_trace: false,
     });
 
     match response {
@@ -236,9 +239,18 @@ fn ingest_query_and_session_round_trip() {
     let mut runtime = test_runtime();
     let ingest = runtime.handle(EngineRequest::IngestLingua {
         program: LinguaProgram {
-            id: ProgramId::new("test:ingest"),
+            id: ProgramId::new_unchecked("test:ingest"),
             declarations: Vec::new(),
-            entry: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
+            entry: LinguaExpression::Satisfies {
+                subject: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
+                concept: Box::new(LinguaExpression::ApplyConcept {
+                    concept: ConceptId::new_unchecked("CAPITAL"),
+                    bindings: std::collections::BTreeMap::from([(
+                        lexflex_model::ParameterId::new_unchecked("scope"),
+                        LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                    )]),
+                }),
+            },
         },
         evidence: vec![Evidence {
             id: lexflex_model::EvidenceId::new_unchecked("evidence:0"),
@@ -258,7 +270,16 @@ fn ingest_query_and_session_round_trip() {
     let city = VariableId::new_unchecked("city");
     let query = runtime.handle(EngineRequest::QueryLingua {
         goal: LinguaGoal {
-            expression: SemanticExpression::Variable(city.clone()),
+            expression: SemanticExpression::Satisfies {
+                subject: Box::new(SemanticExpression::Variable(city.clone())),
+                predicate: Box::new(SemanticExpression::Apply {
+                    concept: ConceptId::new_unchecked("CAPITAL"),
+                    bindings: std::collections::BTreeMap::from([(
+                        lexflex_model::ParameterId::new_unchecked("scope"),
+                        SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                    )]),
+                }),
+            },
             variables: std::collections::BTreeMap::from([(
                 city.clone(),
                 SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
@@ -304,7 +325,7 @@ fn ingest_query_and_session_round_trip() {
 fn duplicate_assertions_merge_evidence() {
     let mut runtime = test_runtime();
     let program = LinguaProgram {
-        id: ProgramId::new("test:merge"),
+        id: ProgramId::new_unchecked("test:merge"),
         declarations: Vec::new(),
         entry: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
     };

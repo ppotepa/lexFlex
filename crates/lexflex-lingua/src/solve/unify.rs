@@ -1,10 +1,8 @@
 use crate::solve::context::{UnificationContext, UnificationMode};
 use crate::solve::occurs::occurs;
-use crate::solve::type_inference::{
-    infer_expression_type, semantic_types_compatible, variable_context, SolveTypeError,
-};
+use crate::solve::type_inference::{infer_expression_type, variable_context, SolveTypeError};
 use crate::solve::Substitution;
-use lexflex_model::{SemanticExpression, SemanticType, VariableId};
+use lexflex_model::{SemanticExpression, SemanticType, TypeRelation, VariableId};
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -45,7 +43,46 @@ pub fn unify(
     context: &UnificationContext,
     substitution: &mut Substitution,
 ) -> Result<(), UnifyError> {
-    unify_inner(pattern, candidate, context, substitution, 0)
+    let mut bound = BoundVariableMap::default();
+    unify_inner(pattern, candidate, context, substitution, 0, &mut bound)
+}
+
+#[derive(Debug, Default, Clone)]
+struct BoundVariableMap {
+    left_to_right: std::collections::BTreeMap<VariableId, VariableId>,
+    right_to_left: std::collections::BTreeMap<VariableId, VariableId>,
+}
+
+impl BoundVariableMap {
+    fn insert(&mut self, left: VariableId, right: VariableId) -> Result<(), UnifyError> {
+        match (
+            self.left_to_right.get(&left),
+            self.right_to_left.get(&right),
+        ) {
+            (Some(existing), _) if existing != &right => Err(UnifyError::ValueMismatch {
+                pattern: SemanticExpression::Variable(left),
+                candidate: SemanticExpression::Variable(right),
+            }),
+            (_, Some(existing)) if existing != &left => Err(UnifyError::ValueMismatch {
+                pattern: SemanticExpression::Variable(left),
+                candidate: SemanticExpression::Variable(right),
+            }),
+            _ => {
+                self.left_to_right.insert(left.clone(), right.clone());
+                self.right_to_left.insert(right, left);
+                Ok(())
+            }
+        }
+    }
+
+    fn remove(&mut self, left: &VariableId, right: &VariableId) {
+        self.left_to_right.remove(left);
+        self.right_to_left.remove(right);
+    }
+
+    fn match_bound(&self, left: &VariableId, right: &VariableId) -> bool {
+        self.left_to_right.get(left) == Some(right)
+    }
 }
 
 fn unify_inner(
@@ -54,6 +91,7 @@ fn unify_inner(
     context: &UnificationContext,
     substitution: &mut Substitution,
     depth: usize,
+    bound: &mut BoundVariableMap,
 ) -> Result<(), UnifyError> {
     if depth > context.max_depth {
         return Err(UnifyError::ValueMismatch {
@@ -62,6 +100,19 @@ fn unify_inner(
         });
     }
     match (pattern, candidate) {
+        (SemanticExpression::Variable(variable), SemanticExpression::Variable(other))
+            if bound.left_to_right.contains_key(variable)
+                || bound.right_to_left.contains_key(other) =>
+        {
+            if bound.match_bound(variable, other) {
+                Ok(())
+            } else {
+                Err(UnifyError::ValueMismatch {
+                    pattern: pattern.clone(),
+                    candidate: candidate.clone(),
+                })
+            }
+        }
         (SemanticExpression::Variable(variable), value) => {
             bind_variable(variable, value, context, substitution)
         }
@@ -98,7 +149,14 @@ fn unify_inner(
                 let right_value = right_bindings
                     .get(parameter)
                     .ok_or_else(|| UnifyError::MissingBinding(parameter.clone()))?;
-                unify_inner(left_value, right_value, context, substitution, depth + 1)?;
+                unify_inner(
+                    left_value,
+                    right_value,
+                    context,
+                    substitution,
+                    depth + 1,
+                    bound,
+                )?;
             }
             Ok(())
         }
@@ -118,6 +176,7 @@ fn unify_inner(
                 context,
                 substitution,
                 depth + 1,
+                bound,
             )?;
             unify_inner(
                 left_predicate,
@@ -125,6 +184,7 @@ fn unify_inner(
                 context,
                 substitution,
                 depth + 1,
+                bound,
             )
         }
         (
@@ -137,20 +197,27 @@ fn unify_inner(
                 right: right_b,
             },
         ) => {
-            unify_inner(left_a, right_a, context, substitution, depth + 1)?;
-            unify_inner(left_b, right_b, context, substitution, depth + 1)
+            unify_inner(left_a, right_a, context, substitution, depth + 1, bound)?;
+            unify_inner(left_b, right_b, context, substitution, depth + 1, bound)
         }
         (SemanticExpression::And(left), SemanticExpression::And(right))
         | (SemanticExpression::Or(left), SemanticExpression::Or(right))
             if left.len() == right.len() =>
         {
             for (left_item, right_item) in left.iter().zip(right) {
-                unify_inner(left_item, right_item, context, substitution, depth + 1)?;
+                unify_inner(
+                    left_item,
+                    right_item,
+                    context,
+                    substitution,
+                    depth + 1,
+                    bound,
+                )?;
             }
             Ok(())
         }
         (SemanticExpression::Not(left), SemanticExpression::Not(right)) => {
-            unify_inner(left, right, context, substitution, depth + 1)
+            unify_inner(left, right, context, substitution, depth + 1, bound)
         }
         (
             SemanticExpression::Exists {
@@ -171,8 +238,18 @@ fn unify_inner(
                 variable: right_variable,
                 body: right_body,
             },
-        ) if left_variable == right_variable => {
-            unify_inner(left_body, right_body, context, substitution, depth + 1)
+        ) => {
+            bound.insert(left_variable.clone(), right_variable.clone())?;
+            let result = unify_inner(
+                left_body,
+                right_body,
+                context,
+                substitution,
+                depth + 1,
+                bound,
+            );
+            bound.remove(left_variable, right_variable);
+            result
         }
         (
             SemanticExpression::Qualified {
@@ -190,6 +267,7 @@ fn unify_inner(
                 context,
                 substitution,
                 depth + 1,
+                bound,
             )?;
             for (qualifier, left_value) in left_qualifiers {
                 let right_value = right_qualifiers.get(qualifier).ok_or_else(|| {
@@ -197,7 +275,14 @@ fn unify_inner(
                         qualifier.as_str(),
                     ))
                 })?;
-                unify_inner(left_value, right_value, context, substitution, depth + 1)?;
+                unify_inner(
+                    left_value,
+                    right_value,
+                    context,
+                    substitution,
+                    depth + 1,
+                    bound,
+                )?;
             }
             Ok(())
         }
@@ -237,7 +322,7 @@ fn bind_variable(
                 SolveTypeError::Variable(variable) => UnifyError::UnknownVariableType(variable),
             })?;
 
-    if !semantic_types_compatible(&actual, &expected, context.catalog.as_ref()) {
+    if !TypeRelation::new(context.catalog.as_ref()).accepts(&expected, &actual) {
         return Err(UnifyError::VariableTypeMismatch {
             variable: variable.clone(),
             expected,

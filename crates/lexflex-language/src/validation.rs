@@ -34,17 +34,13 @@ impl LanguageModelValidator {
                 .into());
             }
             let expected_normalized = crate::Form::normalize_surface(&lexeme.lemma);
-            if !lexeme.normalized_lemma.is_empty()
-                && lexeme.normalized_lemma != expected_normalized
-            {
-                return Err(
-                    LanguageValidationIssue::LexemeNormalizedLemmaMismatch {
-                        lexeme_id: lexeme.id.to_string(),
-                        expected: expected_normalized,
-                        found: lexeme.normalized_lemma.clone(),
-                    }
-                    .into(),
-                );
+            if lexeme.normalized_lemma != expected_normalized {
+                return Err(LanguageValidationIssue::LexemeNormalizedLemmaMismatch {
+                    lexeme_id: lexeme.id.to_string(),
+                    expected: expected_normalized,
+                    found: lexeme.normalized_lemma.clone(),
+                }
+                .into());
             }
         }
 
@@ -63,6 +59,7 @@ impl LanguageModelValidator {
                 }
                 .into());
             }
+            ensure_atomic_base_category_for_valency(sense)?;
             validate_anchor(&sense.anchor, catalog, sense.id.as_str())?;
             meaning::validate_meaning_template(&sense.meaning, catalog, sense.id.as_str())?;
             validate_category(&sense.base_category, catalog, sense.id.as_str())?;
@@ -324,9 +321,7 @@ fn validate_category(
             Ok(())
         }
         crate::SyntacticCategory::Function {
-            result,
-            argument,
-            ..
+            result, argument, ..
         } => {
             validate_category(result, catalog, sense_id)?;
             validate_category(argument, catalog, sense_id)
@@ -340,9 +335,29 @@ fn validate_category_type(
     sense_id: &str,
 ) -> Result<(), LanguageValidationIssue> {
     match category_type {
-        crate::CategoryType::Concrete(semantic_type) => validate_semantic_type(semantic_type, catalog, sense_id),
+        crate::CategoryType::Concrete(semantic_type) => {
+            validate_semantic_type(semantic_type, catalog, sense_id)
+        }
         crate::CategoryType::Variable(_) => Ok(()),
     }
+}
+
+fn ensure_atomic_base_category_for_valency(
+    sense: &crate::LexicalSense,
+) -> Result<(), LanguageValidationIssue> {
+    if !sense.valency.is_empty()
+        && matches!(
+            sense.base_category,
+            crate::SyntacticCategory::Function { .. }
+        )
+    {
+        return Err(
+            LanguageValidationIssue::BaseCategoryMustBeAtomicWhenValencyPresent {
+                sense_id: sense.id.to_string(),
+            },
+        );
+    }
+    Ok(())
 }
 
 fn semantic_type_of_category(category: &crate::SyntacticCategory) -> Option<SemanticType> {
@@ -355,27 +370,27 @@ fn semantic_type_of_category(category: &crate::SyntacticCategory) -> Option<Sema
             kind: crate::AtomicCategoryKind::NounPhrase,
             semantic_type,
             ..
-        } => Some(extract_category_type(semantic_type)),
+        } => extract_category_type(semantic_type),
         crate::SyntacticCategory::Atom {
             kind: crate::AtomicCategoryKind::Predicate,
             semantic_type,
             ..
         } => Some(SemanticType::Predicate(Box::new(extract_category_type(
             semantic_type,
-        )))),
+        )?))),
         crate::SyntacticCategory::Atom {
             kind: crate::AtomicCategoryKind::MarkedArgument { .. },
             semantic_type,
             ..
-        } => Some(extract_category_type(semantic_type)),
+        } => extract_category_type(semantic_type),
         crate::SyntacticCategory::Function { result, .. } => semantic_type_of_category(result),
     }
 }
 
-fn extract_category_type(category_type: &crate::CategoryType) -> SemanticType {
+fn extract_category_type(category_type: &crate::CategoryType) -> Option<SemanticType> {
     match category_type {
-        crate::CategoryType::Concrete(semantic_type) => semantic_type.clone(),
-        crate::CategoryType::Variable(_) => SemanticType::Entity,
+        crate::CategoryType::Concrete(semantic_type) => Some(semantic_type.clone()),
+        crate::CategoryType::Variable(_) => None,
     }
 }
 

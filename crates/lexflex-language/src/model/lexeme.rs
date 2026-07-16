@@ -7,6 +7,5 @@ pub struct Lexeme {
     pub id: LexemeId,
     pub language: LanguageId,
     pub lemma: String,
-    #[serde(default)]
     pub normalized_lemma: String,
 }

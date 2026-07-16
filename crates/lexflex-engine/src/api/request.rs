@@ -1,6 +1,6 @@
 use crate::api::input::TextInput;
 use lexflex_lingua::solve::EvidencePolicy;
-use lexflex_lingua::{LinguaGoal, LinguaProgram};
+use lexflex_lingua::{ExecutionPolicy, LinguaGoal, LinguaProgram};
 use lexflex_model::Evidence;
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 pub enum EngineRequest {
     EvaluateLingua {
         program: LinguaProgram,
-        trace: bool,
+        policy: ExecutionPolicy,
+        include_trace: bool,
     },
     IngestLingua {
         program: LinguaProgram,

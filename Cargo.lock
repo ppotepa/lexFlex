@@ -204,8 +204,10 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "lexflex-engine",
+ "lexflex-language",
  "lexflex-lingua",
  "lexflex-model",
+ "lexflex-parser",
  "serde",
  "serde_json",
 ]

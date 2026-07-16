@@ -35,7 +35,7 @@ impl SymbolResolver {
                 format!("duplicate symbol '{}'", name.as_str()).into(),
             ));
         }
-        let symbol = SymbolId::new(format!("sym:{}", self.next_symbol));
+        let symbol = SymbolId::new_unchecked(format!("sym:{}", self.next_symbol));
         self.next_symbol += 1;
         scope.insert(name.clone(), symbol.clone());
         Ok(symbol)

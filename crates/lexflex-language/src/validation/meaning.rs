@@ -70,7 +70,9 @@ fn validate_meaning_expression(
     sense_id: &str,
 ) -> Result<(), LanguageValidationIssue> {
     match expression {
-        LinguaExpression::Concept(concept) => crate::validation::ensure_known_concept(concept, catalog, sense_id),
+        LinguaExpression::Concept(concept) => {
+            crate::validation::ensure_known_concept(concept, catalog, sense_id)
+        }
         LinguaExpression::Entity(entity) => {
             if catalog.entity(entity).is_some() {
                 Ok(())

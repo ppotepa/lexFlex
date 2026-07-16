@@ -1,5 +1,9 @@
 use lexflex_language::LanguagePackageLoader;
-use lexflex_model::{ConceptCatalog, EntityDefinition, EntityId, LanguageId};
+use lexflex_lingua::{
+    canonical_goal_hash, CompileContext, EvidencePolicy, LinguaCompiler, LinguaGoal,
+    LinguaInterpreter, LinguaProgram, ProgramId,
+};
+use lexflex_model::{ConceptCatalog, EntityDefinition, EntityId, LanguageId, SemanticExpression};
 use lexflex_parser::{LexicalCompositionParser, ParseBudget, ParseInput, ParseOutput};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -33,11 +37,64 @@ fn language(code: &str) -> Arc<lexflex_language::LanguageModel> {
 }
 
 fn parser(code: &str) -> LexicalCompositionParser {
-    LexicalCompositionParser::with_budget(language(code), ParseBudget::default())
+    LexicalCompositionParser::with_budget(
+        Arc::new(catalog()),
+        language(code),
+        ParseBudget::default(),
+    )
+}
+
+fn lower_assertion(
+    draft: lexflex_parser::AssertionDraft,
+    catalog: Arc<ConceptCatalog>,
+) -> SemanticExpression {
+    let compiler = LinguaCompiler::new(catalog);
+    let program = LinguaProgram {
+        id: ProgramId::new_unchecked("test:event:assertion"),
+        declarations: Vec::new(),
+        entry: draft.expression,
+    };
+    let compiled = compiler
+        .compile_with_context(&program, &CompileContext::default())
+        .expect("compile assertion");
+    LinguaInterpreter::default()
+        .execute(&compiled)
+        .expect("execute assertion")
+        .value
+}
+
+fn lower_goal(draft: lexflex_parser::GoalDraft, catalog: Arc<ConceptCatalog>) -> LinguaGoal {
+    let compiler = LinguaCompiler::new(catalog);
+    let program = LinguaProgram {
+        id: ProgramId::new_unchecked("test:event:goal"),
+        declarations: Vec::new(),
+        entry: draft.expression,
+    };
+    let compiled = compiler
+        .compile_with_context(
+            &program,
+            &CompileContext {
+                query_variables: draft.variables.clone(),
+            },
+        )
+        .expect("compile goal");
+    let expression = LinguaInterpreter::default()
+        .execute(&compiled)
+        .expect("execute goal")
+        .value;
+    LinguaGoal {
+        expression,
+        variables: draft.variables,
+        projection: draft.projection,
+        evidence_policy: EvidencePolicy::Ignore,
+        world: None,
+        limit: None,
+    }
 }
 
 #[test]
 fn event_assertions_are_equal_across_languages() {
+    let shared_catalog = Arc::new(catalog());
     let en = parser("en")
         .parse(ParseInput {
             source_id: "test:en:event".into(),
@@ -61,11 +118,14 @@ fn event_assertions_are_equal_across_languages() {
         panic!("expected assertion");
     };
 
-    assert_eq!(en.expression, pl.expression);
+    let lowered_en = lower_assertion(en, Arc::clone(&shared_catalog));
+    let lowered_pl = lower_assertion(pl, shared_catalog);
+    assert_eq!(lowered_en, lowered_pl);
 }
 
 #[test]
 fn event_questions_are_alpha_equivalent() {
+    let shared_catalog = Arc::new(catalog());
     let en = parser("en")
         .parse(ParseInput {
             source_id: "test:en:question".into(),
@@ -89,7 +149,12 @@ fn event_questions_are_alpha_equivalent() {
         panic!("expected goal");
     };
 
-    assert_eq!(en.expression, pl.expression);
-    assert_eq!(en.variables, pl.variables);
-    assert_eq!(en.projection, pl.projection);
+    assert_ne!(en.variables, pl.variables);
+
+    let lowered_en = lower_goal(en, Arc::clone(&shared_catalog));
+    let lowered_pl = lower_goal(pl, shared_catalog);
+    assert_eq!(
+        canonical_goal_hash(&lowered_en),
+        canonical_goal_hash(&lowered_pl)
+    );
 }

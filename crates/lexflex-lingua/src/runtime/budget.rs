@@ -1,5 +1,6 @@
 use crate::id::{FunctionId, SymbolId};
 use lexflex_model::{ConceptId, ParameterId};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -28,14 +29,14 @@ pub struct BudgetState {
     pub value_nodes: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExpansionMode {
     PreserveApplications,
     ExpandTransparent,
     ExpandAllDefined,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionPolicy {
     pub expansion: ExpansionMode,
 }

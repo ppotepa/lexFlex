@@ -1,3 +1,6 @@
+use lexflex_engine::api::input::TextInput;
+use lexflex_engine::LexFlexRuntime;
+use lexflex_language::LanguageId;
 use lexflex_lingua::solve::EvidencePolicy;
 use lexflex_lingua::{
     ConceptDeclaration, ConceptSemantics, ExpansionPolicy, FunctionDeclaration, LinguaDeclaration,
@@ -9,6 +12,7 @@ use lexflex_model::{
     SemanticExpression, SourceSpan, VariableId, WorldId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
 pub fn kernel_catalog() -> ConceptCatalog {
     let primary = ConceptId::new_unchecked("PRIMARY_TYPE");
@@ -127,7 +131,7 @@ pub fn kernel_catalog() -> ConceptCatalog {
 
 pub fn entity_program() -> LinguaProgram {
     LinguaProgram {
-        id: ProgramId::new("benchmark:entity"),
+        id: ProgramId::new_unchecked("benchmark:entity"),
         declarations: Vec::new(),
         entry: LinguaExpression::Entity(EntityId::new_unchecked("ENTITY_A")),
     }
@@ -136,16 +140,18 @@ pub fn entity_program() -> LinguaProgram {
 pub fn lambda_program() -> LinguaProgram {
     let parameter = ParameterId::new_unchecked("value");
     LinguaProgram {
-        id: ProgramId::new("benchmark:lambda"),
+        id: ProgramId::new_unchecked("benchmark:lambda"),
         declarations: Vec::new(),
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Lambda {
                 parameters: vec![lexflex_lingua::LambdaParameter {
-                    name: SymbolName::new("value"),
+                    name: SymbolName::new_unchecked("value"),
                     parameter_id: parameter.clone(),
                     value_type: SemanticType::Entity,
                 }],
-                body: Box::new(LinguaExpression::Variable(SymbolName::new("value"))),
+                body: Box::new(LinguaExpression::Variable(SymbolName::new_unchecked(
+                    "value",
+                ))),
             }),
             arguments: BTreeMap::from([(
                 parameter,
@@ -157,15 +163,15 @@ pub fn lambda_program() -> LinguaProgram {
 
 pub fn concept_application_program(defined: bool) -> LinguaProgram {
     let target = ConceptDeclaration {
-        declaration_id: lexflex_lingua::DeclarationId::new("concept:TARGET_PREDICATE"),
+        declaration_id: lexflex_lingua::DeclarationId::new_unchecked("concept:TARGET_PREDICATE"),
         concept_id: ConceptId::new_unchecked("TARGET_PREDICATE"),
         self_parameter: Some(lexflex_lingua::LambdaParameter {
-            name: SymbolName::new("self"),
+            name: SymbolName::new_unchecked("self"),
             parameter_id: ParameterId::new_unchecked("self"),
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("PRIMARY_TYPE")),
         }),
         parameters: vec![lexflex_lingua::LambdaParameter {
-            name: SymbolName::new("scope"),
+            name: SymbolName::new_unchecked("scope"),
             parameter_id: ParameterId::new_unchecked("scope"),
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("SECONDARY_TYPE")),
         }],
@@ -187,7 +193,7 @@ pub fn concept_application_program(defined: bool) -> LinguaProgram {
     };
 
     LinguaProgram {
-        id: ProgramId::new(if defined {
+        id: ProgramId::new_unchecked(if defined {
             "benchmark:defined-concept-expansion"
         } else {
             "benchmark:concept-application"
@@ -210,20 +216,20 @@ pub fn concept_application_program(defined: bool) -> LinguaProgram {
 
 pub fn global_function_program() -> LinguaProgram {
     let parameter = ParameterId::new_unchecked("value");
-    let function_id = lexflex_lingua::FunctionId::new("function:identity");
+    let function_id = lexflex_lingua::FunctionId::new_unchecked("function:identity");
     LinguaProgram {
-        id: ProgramId::new("benchmark:global-function"),
+        id: ProgramId::new_unchecked("benchmark:global-function"),
         declarations: vec![LinguaDeclaration::Function(FunctionDeclaration {
-            declaration_id: lexflex_lingua::DeclarationId::new("function:identity"),
+            declaration_id: lexflex_lingua::DeclarationId::new_unchecked("function:identity"),
             function_id: function_id.clone(),
-            name: SymbolName::new("identity"),
+            name: SymbolName::new_unchecked("identity"),
             parameters: vec![lexflex_lingua::LambdaParameter {
-                name: SymbolName::new("value"),
+                name: SymbolName::new_unchecked("value"),
                 parameter_id: parameter.clone(),
                 value_type: SemanticType::Entity,
             }],
             result_type: SemanticType::Entity,
-            body: LinguaExpression::Variable(SymbolName::new("value")),
+            body: LinguaExpression::Variable(SymbolName::new_unchecked("value")),
         })],
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Function(function_id)),
@@ -292,4 +298,32 @@ fn generic_assertion(subject: &str) -> SemanticAssertion {
         }],
         WorldId::new_unchecked("actual"),
     )
+}
+
+pub fn analyze_input(source_id: &str, language: &str, text: &str) -> TextInput {
+    TextInput {
+        source_id: source_id.into(),
+        language: LanguageId::new(language).expect("language id"),
+        text: text.into(),
+    }
+}
+
+pub fn runtime(case: &str) -> LexFlexRuntime {
+    let state_dir = benchmark_state_dir(case);
+    let _ = std::fs::remove_dir_all(&state_dir);
+    std::fs::create_dir_all(&state_dir).expect("benchmark state dir");
+    let session_id = format!("benchmark_{}", case.replace([':', '-'], "_"));
+    LexFlexRuntime::with_session_and_roots(
+        session_id,
+        &state_dir,
+        PathBuf::from("data/model"),
+        PathBuf::from("data/languages"),
+    )
+    .expect("benchmark runtime")
+}
+
+fn benchmark_state_dir(case: &str) -> PathBuf {
+    PathBuf::from(".lexflex")
+        .join("benchmark")
+        .join(case.replace(':', "_"))
 }

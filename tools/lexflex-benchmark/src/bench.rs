@@ -1,10 +1,12 @@
 use crate::fixtures;
 use clap::ValueEnum;
+use lexflex_engine::api::input::TextInput;
+use lexflex_engine::{EngineRequest, EngineResponse, LexFlexRuntime};
 use lexflex_lingua::solve::LinguaSolver;
 use lexflex_lingua::{
     ExecutionPolicy, ExpansionMode, LinguaCompiler, LinguaInterpreter, LinguaProgram,
 };
-use lexflex_model::{ConceptCatalog, SemanticAssertion};
+use lexflex_model::{canonical_hash, ConceptCatalog, SemanticAssertion};
 use serde::Serialize;
 use std::hint::black_box;
 use std::sync::Arc;
@@ -19,6 +21,12 @@ pub enum BenchmarkCase {
     GlobalFunction,
     SolverSingle,
     SolverThousand,
+    AnalyzeCapitalEn,
+    AnalyzeCapitalPl,
+    AnalyzeEventEn,
+    AnalyzeEventPl,
+    AskCapital,
+    AskEvent,
 }
 
 impl BenchmarkCase {
@@ -31,6 +39,12 @@ impl BenchmarkCase {
             Self::GlobalFunction,
             Self::SolverSingle,
             Self::SolverThousand,
+            Self::AnalyzeCapitalEn,
+            Self::AnalyzeCapitalPl,
+            Self::AnalyzeEventEn,
+            Self::AnalyzeEventPl,
+            Self::AskCapital,
+            Self::AskEvent,
         ]
     }
 
@@ -43,6 +57,12 @@ impl BenchmarkCase {
             Self::GlobalFunction => "global-function",
             Self::SolverSingle => "solver-single",
             Self::SolverThousand => "solver-thousand",
+            Self::AnalyzeCapitalEn => "analyze-capital-en",
+            Self::AnalyzeCapitalPl => "analyze-capital-pl",
+            Self::AnalyzeEventEn => "analyze-event-en",
+            Self::AnalyzeEventPl => "analyze-event-pl",
+            Self::AskCapital => "ask-capital",
+            Self::AskEvent => "ask-event",
         }
     }
 }
@@ -62,7 +82,14 @@ pub struct BenchmarkResult {
     pub median_ns: u128,
     pub p95_ns: u128,
     pub max_ns: u128,
+    pub output_hash: String,
+    pub parser_metrics: Option<ParserMetricsSnapshot>,
     pub steps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ParserMetricsSnapshot {
+    pub derivation_depth: usize,
 }
 
 pub struct BenchmarkSuite {
@@ -141,6 +168,72 @@ impl BenchmarkSuite {
                 fixtures::solver_single_goal(),
                 fixtures::solver_thousand_assertions(),
             ),
+            BenchmarkCase::AnalyzeCapitalEn => self.run_runtime_case(
+                case,
+                iterations,
+                vec!["parse", "compile", "execute"],
+                fixtures::analyze_input(
+                    "bench:capital:en",
+                    "en",
+                    "Paris is the capital of France.",
+                ),
+            ),
+            BenchmarkCase::AnalyzeCapitalPl => self.run_runtime_case(
+                case,
+                iterations,
+                vec!["parse", "compile", "execute"],
+                fixtures::analyze_input("bench:capital:pl", "pl", "Paryż jest stolicą Francji."),
+            ),
+            BenchmarkCase::AnalyzeEventEn => self.run_runtime_case(
+                case,
+                iterations,
+                vec!["parse", "compile", "execute"],
+                fixtures::analyze_input("bench:event:en", "en", "Tom sees Iza."),
+            ),
+            BenchmarkCase::AnalyzeEventPl => self.run_runtime_case(
+                case,
+                iterations,
+                vec!["parse", "compile", "execute"],
+                fixtures::analyze_input("bench:event:pl", "pl", "Tomek widzi Izę."),
+            ),
+            BenchmarkCase::AskCapital => self.run_stateful_runtime_case(
+                case,
+                iterations,
+                vec!["ingest", "ask", "solve"],
+                |runtime| {
+                    black_box(runtime.handle(EngineRequest::IngestText {
+                        input: fixtures::analyze_input(
+                            "bench:capital:ingest",
+                            "en",
+                            "Paris is the capital of France.",
+                        ),
+                    }));
+                    runtime.handle(EngineRequest::AskText {
+                        input: fixtures::analyze_input(
+                            "bench:capital:ask",
+                            "en",
+                            "What is the capital of France?",
+                        ),
+                        evidence_policy: lexflex_lingua::EvidencePolicy::Required,
+                        limit: Some(1),
+                    })
+                },
+            ),
+            BenchmarkCase::AskEvent => self.run_stateful_runtime_case(
+                case,
+                iterations,
+                vec!["ingest", "ask", "solve"],
+                |runtime| {
+                    black_box(runtime.handle(EngineRequest::IngestText {
+                        input: fixtures::analyze_input("bench:event:ingest", "en", "Tom sees Iza."),
+                    }));
+                    runtime.handle(EngineRequest::AskText {
+                        input: fixtures::analyze_input("bench:event:ask", "pl", "Kto widzi Izę?"),
+                        evidence_policy: lexflex_lingua::EvidencePolicy::Required,
+                        limit: Some(1),
+                    })
+                },
+            ),
         }
     }
 
@@ -157,13 +250,26 @@ impl BenchmarkSuite {
             .compile(&program)
             .expect("benchmark program compiles");
         let interpreter = LinguaInterpreter::with_policy(Default::default(), policy);
+        let mut last_hash = None;
         let samples = measure(iterations, || {
             let result = interpreter
                 .execute(&compiled)
                 .expect("benchmark program executes");
+            let hash = canonical_hash(&result.value);
+            if let Some(existing) = &last_hash {
+                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+            }
+            last_hash = Some(hash);
             black_box(result);
         });
-        BenchmarkResult::from_samples(case, iterations, samples, steps)
+        BenchmarkResult::from_samples(
+            case,
+            iterations,
+            samples,
+            steps,
+            last_hash.unwrap_or_default(),
+            None,
+        )
     }
 
     fn run_solver_case(
@@ -175,13 +281,89 @@ impl BenchmarkSuite {
         assertions: Vec<SemanticAssertion>,
     ) -> BenchmarkResult {
         let solver = LinguaSolver::default();
+        let mut last_hash = None;
         let samples = measure(iterations, || {
             let results = solver
                 .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
                 .expect("benchmark goal solves");
+            let hash = canonical_hash(&results);
+            if let Some(existing) = &last_hash {
+                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+            }
+            last_hash = Some(hash);
             black_box(results.len());
         });
-        BenchmarkResult::from_samples(case, iterations, samples, steps)
+        BenchmarkResult::from_samples(
+            case,
+            iterations,
+            samples,
+            steps,
+            last_hash.unwrap_or_default(),
+            None,
+        )
+    }
+
+    fn run_runtime_case(
+        &self,
+        case: BenchmarkCase,
+        iterations: usize,
+        steps: Vec<&'static str>,
+        input: TextInput,
+    ) -> BenchmarkResult {
+        let mut runtime = fixtures::runtime(case.label());
+        let mut last_hash = None;
+        let mut parser_metrics = None;
+        let samples = measure(iterations, || {
+            let response = runtime.handle(EngineRequest::AnalyzeText {
+                input: input.clone(),
+                include_derivation: true,
+            });
+            let hash = response_hash(&response);
+            if let Some(existing) = &last_hash {
+                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+            }
+            if parser_metrics.is_none() {
+                parser_metrics = extract_parser_metrics(&response);
+            }
+            last_hash = Some(hash);
+            black_box(response);
+        });
+        BenchmarkResult::from_samples(
+            case,
+            iterations,
+            samples,
+            steps,
+            last_hash.unwrap_or_default(),
+            parser_metrics,
+        )
+    }
+
+    fn run_stateful_runtime_case(
+        &self,
+        case: BenchmarkCase,
+        iterations: usize,
+        steps: Vec<&'static str>,
+        mut f: impl FnMut(&mut LexFlexRuntime) -> EngineResponse,
+    ) -> BenchmarkResult {
+        let mut last_hash = None;
+        let samples = measure(iterations, || {
+            let mut runtime = fixtures::runtime(case.label());
+            let response = f(&mut runtime);
+            let hash = response_hash(&response);
+            if let Some(existing) = &last_hash {
+                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+            }
+            last_hash = Some(hash);
+            black_box(response);
+        });
+        BenchmarkResult::from_samples(
+            case,
+            iterations,
+            samples,
+            steps,
+            last_hash.unwrap_or_default(),
+            None,
+        )
     }
 }
 
@@ -191,6 +373,8 @@ impl BenchmarkResult {
         iterations: usize,
         mut samples: Vec<u128>,
         steps: Vec<&'static str>,
+        output_hash: String,
+        parser_metrics: Option<ParserMetricsSnapshot>,
     ) -> Self {
         samples.sort_unstable();
         let total_ns = samples.iter().copied().sum();
@@ -208,8 +392,28 @@ impl BenchmarkResult {
             median_ns,
             p95_ns,
             max_ns,
+            output_hash,
+            parser_metrics,
             steps: steps.into_iter().map(str::to_string).collect(),
         }
+    }
+}
+
+fn response_hash(response: &EngineResponse) -> String {
+    canonical_hash(response)
+}
+
+fn extract_parser_metrics(response: &EngineResponse) -> Option<ParserMetricsSnapshot> {
+    match response {
+        EngineResponse::TextAnalyzed { analysis } => {
+            analysis
+                .derivation
+                .as_ref()
+                .map(|derivation| ParserMetricsSnapshot {
+                    derivation_depth: derivation.depth(),
+                })
+        }
+        _ => None,
     }
 }
 
@@ -240,6 +444,8 @@ mod tests {
                 median_ns: 1,
                 p95_ns: 1,
                 max_ns: 1,
+                output_hash: "hash".into(),
+                parser_metrics: None,
                 steps: vec!["compile".into(), "execute".into()],
             }],
         };

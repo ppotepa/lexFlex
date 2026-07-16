@@ -98,4 +98,79 @@ impl SyntacticCategory {
             }
         )
     }
+
+    pub fn depth(&self) -> usize {
+        match self {
+            Self::Atom { .. } => 1,
+            Self::Function {
+                result, argument, ..
+            } => 1 + result.depth().max(argument.depth()),
+        }
+    }
+
+    pub fn node_count(&self) -> usize {
+        match self {
+            Self::Atom { .. } => 1,
+            Self::Function {
+                result, argument, ..
+            } => 1 + result.node_count() + argument.node_count(),
+        }
+    }
+
+    pub fn map_types(&self, mapper: &mut impl FnMut(&CategoryType) -> CategoryType) -> Self {
+        match self {
+            Self::Atom {
+                kind,
+                semantic_type,
+                features,
+            } => Self::Atom {
+                kind: kind.clone(),
+                semantic_type: mapper(semantic_type),
+                features: features.clone(),
+            },
+            Self::Function {
+                result,
+                argument,
+                direction,
+                semantic_parameter,
+                features,
+            } => Self::Function {
+                result: Box::new(result.map_types(mapper)),
+                argument: Box::new(argument.map_types(mapper)),
+                direction: *direction,
+                semantic_parameter: semantic_parameter.clone(),
+                features: features.clone(),
+            },
+        }
+    }
+
+    pub fn with_root_features(
+        &self,
+        additional: &FeatureStructure,
+    ) -> Result<Self, crate::FeatureConflict> {
+        match self {
+            Self::Atom {
+                kind,
+                semantic_type,
+                features,
+            } => Ok(Self::Atom {
+                kind: kind.clone(),
+                semantic_type: semantic_type.clone(),
+                features: features.unify(additional)?,
+            }),
+            Self::Function {
+                result,
+                argument,
+                direction,
+                semantic_parameter,
+                features,
+            } => Ok(Self::Function {
+                result: result.clone(),
+                argument: argument.clone(),
+                direction: *direction,
+                semantic_parameter: semantic_parameter.clone(),
+                features: features.unify(additional)?,
+            }),
+        }
+    }
 }

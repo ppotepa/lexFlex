@@ -1,6 +1,6 @@
 use crate::{
-    FeatureStructure, LexemeId, LexicalSenseId, MeaningTemplate, SemanticAnchor,
-    SyntacticCategory, ValencySlot,
+    FeatureStructure, LexemeId, LexicalSenseId, MeaningTemplate, SemanticAnchor, SyntacticCategory,
+    ValencySlot,
 };
 use serde::{Deserialize, Serialize};
 

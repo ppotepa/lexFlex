@@ -42,6 +42,9 @@ impl TextInputArgs {
                 buffer
             }
         };
+        if text.trim().is_empty() {
+            return Err("text input is empty".into());
+        }
         let source_id = source_id.unwrap_or_else(|| {
             let digest = canonical_hash(&text);
             if let Some(file) = file {

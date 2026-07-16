@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 #[test]
 fn missing_required_scope_is_rejected() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:missing-scope"),
+        id: ProgramId::new_unchecked("test:missing-scope"),
         declarations: vec![LinguaDeclaration::Concept(
             support::model::capital_declaration(),
         )],
@@ -33,7 +33,7 @@ fn missing_required_scope_is_rejected() {
 #[test]
 fn unknown_parameter_is_rejected() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:unknown-param"),
+        id: ProgramId::new_unchecked("test:unknown-param"),
         declarations: vec![LinguaDeclaration::Concept(
             support::model::capital_declaration(),
         )],
@@ -64,7 +64,7 @@ fn unknown_parameter_is_rejected() {
 #[test]
 fn wrong_scope_type_is_rejected() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:wrong-scope"),
+        id: ProgramId::new_unchecked("test:wrong-scope"),
         declarations: vec![LinguaDeclaration::Concept(
             support::model::capital_declaration(),
         )],
@@ -89,7 +89,7 @@ fn wrong_scope_type_is_rejected() {
 #[test]
 fn satisfies_requires_boolean_predicate_subject() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:bad-satisfies"),
+        id: ProgramId::new_unchecked("test:bad-satisfies"),
         declarations: vec![LinguaDeclaration::Concept(
             support::model::capital_declaration(),
         )],
@@ -117,7 +117,7 @@ fn satisfies_requires_boolean_predicate_subject() {
 #[test]
 fn equals_rejects_incompatible_operands() {
     let program = LinguaProgram {
-        id: ProgramId::new("test:bad-equals"),
+        id: ProgramId::new_unchecked("test:bad-equals"),
         declarations: Vec::new(),
         entry: LinguaExpression::Equals {
             left: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),

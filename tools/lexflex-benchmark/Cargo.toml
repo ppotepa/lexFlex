@@ -13,7 +13,9 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 lexflex-engine = { path = "../../crates/lexflex-engine" }
+lexflex-language = { path = "../../crates/lexflex-language" }
 lexflex-lingua = { path = "../../crates/lexflex-lingua" }
 lexflex-model = { path = "../../crates/lexflex-model" }
+lexflex-parser = { path = "../../crates/lexflex-parser" }
 serde.workspace = true
 serde_json.workspace = true

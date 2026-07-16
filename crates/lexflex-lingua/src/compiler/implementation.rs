@@ -1,6 +1,6 @@
 use crate::compiler::{
-    CompileError, CompiledConcept, CompiledConceptSemantics, CompiledFunction, CompiledProgram,
-    ResolvedParameter, SymbolResolver,
+    CompileContext, CompileError, CompiledConcept, CompiledConceptSemantics, CompiledFunction,
+    CompiledProgram, ResolvedParameter, SymbolResolver,
 };
 use crate::syntax::{ConceptDeclaration, ConceptSemantics, LinguaDeclaration, LinguaProgram};
 use crate::types::{FunctionType, TypeChecker, TypeEnvironment};
@@ -19,10 +19,18 @@ impl LinguaCompiler {
     }
 
     pub fn compile(&self, program: &LinguaProgram) -> Result<CompiledProgram, CompileError> {
+        self.compile_with_context(program, &CompileContext::default())
+    }
+
+    pub fn compile_with_context(
+        &self,
+        program: &LinguaProgram,
+        context: &CompileContext,
+    ) -> Result<CompiledProgram, CompileError> {
         LinguaVerifier::default().verify_program(program)?;
         let concepts = self.compile_concepts(&program.declarations)?;
         let functions = self.compile_functions(&program.declarations)?;
-        let environment = TypeEnvironment::new(
+        let mut environment = TypeEnvironment::new(
             self.catalog.clone(),
             functions
                 .iter()
@@ -43,6 +51,7 @@ impl LinguaCompiler {
                 })
                 .collect(),
         );
+        environment.variables = context.query_variables.clone();
 
         self.validate_compiled_units(&environment, &concepts, &functions)?;
 
@@ -50,11 +59,12 @@ impl LinguaCompiler {
         resolver.push_scope();
         let entry = resolver.resolve_expression(&program.entry)?;
         let checker = TypeChecker::new(&environment);
-        let _ = checker.infer(&entry)?;
+        let entry_type = checker.infer(&entry)?;
         Ok(CompiledProgram {
             concepts,
             functions,
             entry,
+            entry_type,
         })
     }
 }

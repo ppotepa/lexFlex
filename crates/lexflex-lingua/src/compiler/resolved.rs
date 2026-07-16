@@ -86,4 +86,5 @@ pub struct CompiledProgram {
     pub concepts: BTreeMap<ConceptId, CompiledConcept>,
     pub functions: BTreeMap<FunctionId, CompiledFunction>,
     pub entry: ResolvedExpression,
+    pub entry_type: SemanticType,
 }

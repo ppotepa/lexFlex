@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 
+use crate::cli::error::CliError;
+use crate::cli::evidence::EvidencePolicyArg;
+use crate::cli::runtime::RuntimeArgs;
 use clap::{Parser, Subcommand};
-use lexflex_lingua::solve::EvidencePolicy;
+use lexflex_lingua::ExpansionMode;
 use std::path::PathBuf;
 use std::process;
 
@@ -35,6 +38,9 @@ enum Command {
 
         #[arg(long)]
         trace: bool,
+
+        #[arg(long, value_enum, default_value_t = ExpansionPolicyArg::Preserve)]
+        expansion: ExpansionPolicyArg,
     },
     LinguaIngest {
         #[arg(value_name = "PROGRAM")]
@@ -65,8 +71,8 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         limit: usize,
 
-        #[arg(long, default_value = "required")]
-        evidence: String,
+        #[arg(long, value_enum, default_value_t = EvidencePolicyArg::Required)]
+        evidence: EvidencePolicyArg,
     },
     SessionInspect,
     SessionClear,
@@ -80,14 +86,31 @@ enum Command {
     },
 }
 
-fn main() {
-    if let Err(error) = run_from_env() {
-        eprintln!("{error}");
-        process::exit(1);
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum ExpansionPolicyArg {
+    Preserve,
+    Transparent,
+    AllDefined,
+}
+
+impl From<ExpansionPolicyArg> for ExpansionMode {
+    fn from(value: ExpansionPolicyArg) -> Self {
+        match value {
+            ExpansionPolicyArg::Preserve => ExpansionMode::PreserveApplications,
+            ExpansionPolicyArg::Transparent => ExpansionMode::ExpandTransparent,
+            ExpansionPolicyArg::AllDefined => ExpansionMode::ExpandAllDefined,
+        }
     }
 }
 
-pub fn run_from_env() -> Result<(), String> {
+fn main() {
+    if let Err(error) = run_from_env() {
+        eprintln!("{error}");
+        process::exit(error.exit_code());
+    }
+}
+
+pub fn run_from_env() -> Result<(), CliError> {
     let Cli {
         session,
         state_dir,
@@ -96,104 +119,65 @@ pub fn run_from_env() -> Result<(), String> {
         command,
     } = Cli::parse();
 
+    let runtime_args = RuntimeArgs {
+        session,
+        state_dir,
+        model_root: default_model_root.clone(),
+        language_root: default_language_root.clone(),
+    };
+
     match command {
-        Command::LinguaEval { program, trace } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::lingua_eval::run(&mut runtime, &program, trace)
+        Command::LinguaEval {
+            program,
+            trace,
+            expansion,
+        } => {
+            let mut runtime = runtime_args.build()?;
+            cli::lingua_eval::run(&mut runtime, &program, expansion.into(), trace)
+                .map_err(CliError::Command)
         }
         Command::LinguaIngest { program, evidence } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::lingua_ingest::run(&mut runtime, &program, &evidence)
+            let mut runtime = runtime_args.build()?;
+            cli::lingua_ingest::run(&mut runtime, &program, &evidence).map_err(CliError::Command)
         }
         Command::LinguaQuery { goal } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::lingua_query::run(&mut runtime, &goal)
+            let mut runtime = runtime_args.build()?;
+            cli::lingua_query::run(&mut runtime, &goal).map_err(CliError::Command)
         }
         Command::TextAnalyze { input, derivation } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::text_analyze::run(&mut runtime, input, derivation)
+            let mut runtime = runtime_args.build()?;
+            cli::text_analyze::run(&mut runtime, input, derivation).map_err(CliError::Command)
         }
         Command::TextIngest { input } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::text_ingest::run(&mut runtime, input)
+            let mut runtime = runtime_args.build()?;
+            cli::text_ingest::run(&mut runtime, input).map_err(CliError::Command)
         }
         Command::TextAsk {
             input,
             limit,
             evidence,
         } => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            let evidence = match evidence.as_str() {
-                "required" => EvidencePolicy::Required,
-                "optional" => EvidencePolicy::Optional,
-                "ignore" => EvidencePolicy::Ignore,
-                other => return Err(format!("invalid evidence policy: {other}")),
-            };
-            cli::text_ask::run(&mut runtime, input, limit, evidence)
+            let mut runtime = runtime_args.build()?;
+            cli::text_ask::run(&mut runtime, input, limit, evidence.into())
+                .map_err(CliError::Command)
         }
         Command::SessionInspect => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::session_inspect::run(&mut runtime)
+            let mut runtime = runtime_args.build()?;
+            cli::session_inspect::run(&mut runtime).map_err(CliError::Command)
         }
         Command::SessionClear => {
-            let mut runtime = lexflex_engine::runtime::LexFlexRuntime::with_session_and_roots(
-                session,
-                state_dir,
-                default_model_root,
-                default_language_root.clone(),
-            )
-            .map_err(|error| error.to_string())?;
-            cli::session_clear::run(&mut runtime)
+            let mut runtime = runtime_args.build()?;
+            cli::session_clear::run(&mut runtime).map_err(CliError::Command)
         }
         Command::ModelValidate { model_root } => cli::model_validate::run(
             model_root.unwrap_or(default_model_root),
             default_language_root,
-        ),
+        )
+        .map_err(CliError::Command),
         Command::LanguageValidate { language_root } => cli::language_validate::run(
             default_model_root,
             language_root.unwrap_or(default_language_root),
-        ),
+        )
+        .map_err(CliError::Command),
     }
 }

@@ -19,11 +19,11 @@ fn identity_executes() {
 fn nested_closure_captures_outer_value() {
     let outer = ParameterId::new_unchecked("outer");
     let inner = ParameterId::new_unchecked("inner");
-    let outer_name = lexflex_lingua::SymbolName::new("outer");
-    let inner_name = lexflex_lingua::SymbolName::new("inner");
+    let outer_name = lexflex_lingua::SymbolName::new_unchecked("outer");
+    let inner_name = lexflex_lingua::SymbolName::new_unchecked("inner");
 
     let program = LinguaProgram {
-        id: ProgramId::new("test:nested-closure"),
+        id: ProgramId::new_unchecked("test:nested-closure"),
         declarations: Vec::new(),
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Call {

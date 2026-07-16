@@ -1,0 +1,9 @@
+(
+    schema: 1,
+    package_id: "lexflex:language:pl:composition-v1",
+    language: "pl",
+    lexemes: "lexemes.ron",
+    senses: "senses.ron",
+    forms: "forms.ron",
+    paradigms: "paradigms.ron",
+)

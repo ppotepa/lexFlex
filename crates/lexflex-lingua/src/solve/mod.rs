@@ -1,5 +1,7 @@
 mod context;
+mod error;
 mod goal;
+mod goal_validation;
 mod occurs;
 mod solver;
 mod substitution;
@@ -7,7 +9,9 @@ mod type_inference;
 mod unify;
 
 pub use context::{UnificationContext, UnificationMode};
-pub use goal::{EvidencePolicy, LinguaGoal};
+pub use error::SolveError;
+pub use goal::{canonical_goal_hash, EvidencePolicy, LinguaGoal};
+pub use goal_validation::{validate_goal, GoalValidationError};
 pub use solver::{LinguaSolver, QuerySolution};
 pub use substitution::Substitution;
 pub use type_inference::{semantic_types_compatible, SolveTypeError};

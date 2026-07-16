@@ -3,7 +3,7 @@ use lexflex_model::ConceptCatalog;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-const SESSION_SCHEMA: u32 = 1;
+const SESSION_SCHEMA: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineSessionState {
@@ -11,15 +11,21 @@ pub struct EngineSessionState {
     pub session_id: String,
     pub knowledge: KnowledgeSnapshot,
     pub model_hash: String,
+    pub language_hash: String,
 }
 
 impl EngineSessionState {
-    pub fn new(session_id: impl Into<String>, model_hash: impl Into<String>) -> Self {
+    pub fn new(
+        session_id: impl Into<String>,
+        model_hash: impl Into<String>,
+        language_hash: impl Into<String>,
+    ) -> Self {
         Self {
             schema: SESSION_SCHEMA,
             session_id: session_id.into(),
             knowledge: KnowledgeSnapshot::new(),
             model_hash: model_hash.into(),
+            language_hash: language_hash.into(),
         }
     }
 

@@ -1,7 +1,6 @@
 use lexflex_language::LanguageId;
-use lexflex_lingua::LinguaExpression;
 use lexflex_lingua::LinguaGoal;
-use lexflex_model::{canonical_hash, SemanticType, VariableId};
+use lexflex_model::{canonical_hash, SemanticExpression, SemanticType, VariableId};
 use lexflex_parser::DerivationNode;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -17,7 +16,7 @@ pub struct TextAnalysis {
     pub source_id: String,
     pub language: LanguageId,
     pub kind: TextAnalysisKind,
-    pub canonical_expression: LinguaExpression,
+    pub canonical_expression: SemanticExpression,
     pub canonical_hash: String,
     pub variables: BTreeMap<VariableId, SemanticType>,
     pub projection: Vec<VariableId>,
@@ -29,7 +28,7 @@ impl TextAnalysis {
         source_id: impl Into<String>,
         language: LanguageId,
         kind: TextAnalysisKind,
-        canonical_expression: LinguaExpression,
+        canonical_expression: SemanticExpression,
         variables: BTreeMap<VariableId, SemanticType>,
         projection: Vec<VariableId>,
         derivation: Option<DerivationNode>,
@@ -51,7 +50,7 @@ impl TextAnalysis {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextAnalysisAlternative {
-    pub canonical_expression: LinguaExpression,
+    pub canonical_expression: SemanticExpression,
     pub canonical_hash: String,
     pub derivation: Option<DerivationNode>,
     pub score: i64,
@@ -59,7 +58,7 @@ pub struct TextAnalysisAlternative {
 
 impl TextAnalysisAlternative {
     pub fn new(
-        canonical_expression: LinguaExpression,
+        canonical_expression: SemanticExpression,
         derivation: Option<DerivationNode>,
         score: i64,
     ) -> Self {

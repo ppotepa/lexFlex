@@ -115,7 +115,7 @@ impl LinguaVerifier {
                 .map(|function| LinguaDeclaration::Function(function.declaration)),
         );
         self.verify_program(&LinguaProgram {
-            id: ProgramId::new("compiled"),
+            id: ProgramId::new_unchecked("compiled"),
             declarations,
             entry: expression_to_source(&compiled.entry),
         })
@@ -236,7 +236,7 @@ fn expression_to_source(expression: &ResolvedExpression) -> LinguaExpression {
         ResolvedExpression::Entity(id) => LinguaExpression::Entity(id.clone()),
         ResolvedExpression::Value(value) => LinguaExpression::Value(value.clone()),
         ResolvedExpression::Local(symbol) => {
-            LinguaExpression::Variable(crate::id::SymbolName::new(symbol.as_str()))
+            LinguaExpression::Variable(crate::id::SymbolName::new_unchecked(symbol.as_str()))
         }
         ResolvedExpression::QueryVariable(variable) => {
             LinguaExpression::QueryVariable(variable.clone())
@@ -248,7 +248,7 @@ fn expression_to_source(expression: &ResolvedExpression) -> LinguaExpression {
             parameters: parameters
                 .iter()
                 .map(|parameter| crate::syntax::LambdaParameter {
-                    name: crate::id::SymbolName::new(parameter.symbol.as_str()),
+                    name: crate::id::SymbolName::new_unchecked(parameter.symbol.as_str()),
                     parameter_id: parameter.parameter_id.clone(),
                     value_type: parameter.value_type.clone(),
                 })
@@ -309,7 +309,7 @@ fn expression_to_source(expression: &ResolvedExpression) -> LinguaExpression {
             value,
             body,
         } => LinguaExpression::Let {
-            name: crate::id::SymbolName::new(symbol.as_str()),
+            name: crate::id::SymbolName::new_unchecked(symbol.as_str()),
             value: Box::new(expression_to_source(value)),
             body: Box::new(expression_to_source(body)),
         },

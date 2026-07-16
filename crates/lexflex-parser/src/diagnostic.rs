@@ -1,5 +1,6 @@
+use crate::token::Token;
 use lexflex_language::{FormId, LanguageId};
-use lexflex_model::SourceSpan;
+use lexflex_model::{SemanticType, SourceSpan, VariableId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -12,8 +13,18 @@ pub struct ParseDiagnostic {
 pub enum ParseBudgetLimit {
     #[error("token limit")]
     TokenLimit,
+    #[error("lexical candidate limit")]
+    LexicalCandidateLimit,
+    #[error("cell item limit")]
+    CellItemLimit,
     #[error("total item limit")]
     TotalItemLimit,
+    #[error("derivation depth limit")]
+    DerivationDepthLimit,
+    #[error("complete parse limit")]
+    CompleteParseLimit,
+    #[error("semantic node limit")]
+    SemanticNodeLimit,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +43,18 @@ pub enum ParseError {
     UnexpectedQueryVariable,
     #[error("question without projection")]
     QuestionWithoutProjection,
+    #[error("unsupported punctuation layout near {token:?}")]
+    UnsupportedPunctuationLayout { token: Token },
+    #[error("unresolved query type for variable {0}")]
+    UnresolvedQueryType(VariableId),
+    #[error("conflicting query variable type for {variable}: existing {existing:?}, incoming {incoming:?}")]
+    ConflictingQueryVariableType {
+        variable: VariableId,
+        existing: SemanticType,
+        incoming: SemanticType,
+    },
+    #[error("meaning freshening error: {0}")]
+    MeaningFreshening(String),
     #[error("no complete parse")]
     NoParse,
     #[error("ambiguous parse")]

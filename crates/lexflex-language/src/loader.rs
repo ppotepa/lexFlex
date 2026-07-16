@@ -1,7 +1,7 @@
 use crate::validation::{LanguageModelValidator, LanguageValidationIssue};
 use crate::{
-    FeatureStructure, Form, FormId, FormIndex, Lexeme, LexemeId, LexicalSense, LexicalSenseId,
-    MeaningTemplate, SenseIndex, SyntacticCategory,
+    compile_lexical_sense, CompiledLexicalSense, Form, FormId, FormIndex, LanguageCompileError,
+    Lexeme, LexemeId, LexicalSense, LexicalSenseId, SenseIndex,
 };
 use lexflex_model::{canonical_hash, ConceptCatalog, LanguageId};
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub struct LanguagePackageManifest {
     pub paradigms: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanguageModel {
     pub manifest: LanguagePackageManifest,
     pub lexemes: BTreeMap<LexemeId, Lexeme>,
@@ -42,19 +42,6 @@ pub struct MorphologyParadigm {
     pub language: LanguageId,
     #[serde(default)]
     pub forms: Vec<Form>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CompiledLexicalSense {
-    pub id: LexicalSenseId,
-    pub lexeme_id: LexemeId,
-    pub anchor: Option<crate::SemanticAnchor>,
-    pub category: SyntacticCategory,
-    pub meaning: MeaningTemplate,
-    #[serde(default)]
-    pub features: FeatureStructure,
-    #[serde(default)]
-    pub priority: i32,
 }
 
 impl LanguageModel {
@@ -96,6 +83,8 @@ pub enum LanguageLoadError {
     DuplicateId { kind: &'static str, id: String },
     #[error("unsafe package path: {relative}")]
     UnsafePath { relative: PathBuf },
+    #[error("language compile error: {0}")]
+    Compile(#[from] LanguageCompileError),
 }
 
 pub struct LanguagePackageLoader;
@@ -122,7 +111,13 @@ impl LanguagePackageLoader {
         let forms = collect_unique("form", forms, |form| form.id.clone())?;
         let paradigms = collect_unique("paradigm", paradigms, |paradigm| paradigm.id.clone())?;
         let form_index = FormIndex::build(forms.values().cloned());
-        let compiled_senses = compile_senses(&senses);
+        let compiled_senses = senses
+            .values()
+            .map(|sense| {
+                let compiled = compile_lexical_sense(sense)?;
+                Ok((compiled.id.clone(), compiled))
+            })
+            .collect::<Result<BTreeMap<_, _>, LanguageCompileError>>()?;
         let sense_index = SenseIndex::build(senses.values().cloned());
         let model_hash = canonical_hash(&(&manifest, &lexemes, &senses, &forms, &paradigms));
         let model = LanguageModel {
@@ -183,28 +178,6 @@ where
         }
     }
     Ok(output)
-}
-
-fn compile_senses(
-    senses: &BTreeMap<LexicalSenseId, LexicalSense>,
-) -> BTreeMap<LexicalSenseId, CompiledLexicalSense> {
-    senses
-        .values()
-        .map(|sense| {
-            (
-                sense.id.clone(),
-                CompiledLexicalSense {
-                    id: sense.id.clone(),
-                    lexeme_id: sense.lexeme_id.clone(),
-                    anchor: sense.anchor.clone(),
-                    category: sense.base_category.clone(),
-                    meaning: sense.meaning.clone(),
-                    features: sense.features.clone(),
-                    priority: sense.priority,
-                },
-            )
-        })
-        .collect()
 }
 
 fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, LanguageLoadError> {
