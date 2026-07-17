@@ -14,9 +14,9 @@ impl CanonicalDigest {
         if value.len() != Self::HEX_LENGTH {
             return Err(CanonicalDigestError::Length { found: value.len() });
         }
-        if !value
-            .chars()
-            .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_uppercase())
+        if !value.chars().all(|character| {
+            character.is_ascii_hexdigit() && !character.is_ascii_uppercase()
+        })
         {
             return Err(CanonicalDigestError::Alphabet);
         }

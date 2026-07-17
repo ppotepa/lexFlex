@@ -24,7 +24,7 @@ impl ChartItem {
         substitution: CategorySubstitution,
         meaning: MeaningInstance,
         score: ParseScore,
-        derivation: DerivationNode,
+        derivations: DerivationSet,
     ) -> Self {
         Self {
             start,
@@ -33,8 +33,28 @@ impl ChartItem {
             substitution,
             meaning,
             score,
-            derivations: DerivationSet::new(derivation),
+            derivations,
         }
+    }
+
+    pub fn lexical(
+        start: usize,
+        end: usize,
+        category: SyntacticCategory,
+        substitution: CategorySubstitution,
+        meaning: MeaningInstance,
+        score: ParseScore,
+        derivation: DerivationNode,
+    ) -> Result<Self, crate::diagnostic::ParseError> {
+        Ok(Self {
+            start,
+            end,
+            category,
+            substitution,
+            meaning,
+            score,
+            derivations: DerivationSet::singleton(derivation)?,
+        })
     }
 }
 

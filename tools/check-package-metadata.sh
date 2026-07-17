@@ -27,8 +27,10 @@ done < <(find apps crates tools -name Cargo.toml -type f | sort)
 
 # Use subshell grouping so || true doesn't break the pipe
 versions="$(
-  (cargo tree -d 2>/dev/null || true) \
-    | rg '^thiserror v' \
+  (
+    cargo tree -d 2>/dev/null || true
+  ) \
+    | awk '/^thiserror v/ { print }' \
     | sort -u \
     | wc -l
 )"

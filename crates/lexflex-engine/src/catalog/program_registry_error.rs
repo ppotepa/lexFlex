@@ -20,5 +20,8 @@ pub enum ProgramRegistryError {
     UnknownConcept(ConceptId),
 
     #[error("program registry canonical hash failed: {0}")]
-    CanonicalHash(#[from] CanonicalHashError),
+    CanonicalHash(
+        #[from]
+        CanonicalHashError
+    ),
 }

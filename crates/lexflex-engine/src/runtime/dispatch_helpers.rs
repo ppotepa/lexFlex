@@ -12,9 +12,7 @@ impl LexFlexRuntime {
                 if !include_trace {
                     result.execution.trace = Default::default();
                 }
-                EngineResponse::LinguaEvaluated {
-                    result: result.execution,
-                }
+                EngineResponse::LinguaEvaluated { result: result.execution }
             }
             Err(error) => EngineResponse::Error {
                 code: EngineErrorCode::InvalidProgram,

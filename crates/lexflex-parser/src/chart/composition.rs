@@ -1,7 +1,8 @@
+use super::derivation_set::DerivationSet;
 use super::item::ChartItem;
 use crate::category::{apply_backward, apply_forward};
 use crate::diagnostic::ParseError;
-use crate::explain::{ApplicationRule, DerivationNode};
+use crate::explain::ApplicationRule;
 use crate::meaning::apply_meaning;
 use crate::metrics::ParseScore;
 use lexflex_model::ConceptCatalog;
@@ -11,6 +12,7 @@ pub fn compose_all(
     right: &ChartItem,
     catalog: &ConceptCatalog,
     max_semantic_nodes: usize,
+    max_derivations_per_item: usize,
 ) -> Result<Vec<ChartItem>, ParseError> {
     let mut output = Vec::new();
     let mut base = left.substitution.clone();
@@ -26,6 +28,14 @@ pub fn compose_all(
             max_semantic_nodes,
         )?;
         let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
+        let derivations = DerivationSet::composed(
+            ApplicationRule::Forward {
+                semantic_parameter: semantic_parameter.clone(),
+            },
+            &left.derivations,
+            &right.derivations,
+            max_derivations_per_item,
+        )?;
         output.push(ChartItem::new(
             left.start,
             right.end,
@@ -33,13 +43,7 @@ pub fn compose_all(
             substitution,
             meaning,
             ParseScore::composed(left.score, right.score, unresolved_types),
-            DerivationNode::Applied {
-                rule: ApplicationRule::Forward {
-                    semantic_parameter: semantic_parameter.clone(),
-                },
-                left: Box::new(left.derivations.primary().clone()),
-                right: Box::new(right.derivations.primary().clone()),
-            },
+            derivations,
         ));
     }
 
@@ -53,6 +57,14 @@ pub fn compose_all(
             max_semantic_nodes,
         )?;
         let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
+        let derivations = DerivationSet::composed(
+            ApplicationRule::Backward {
+                semantic_parameter: semantic_parameter.clone(),
+            },
+            &left.derivations,
+            &right.derivations,
+            max_derivations_per_item,
+        )?;
         output.push(ChartItem::new(
             left.start,
             right.end,
@@ -60,13 +72,7 @@ pub fn compose_all(
             substitution,
             meaning,
             ParseScore::composed(left.score, right.score, unresolved_types),
-            DerivationNode::Applied {
-                rule: ApplicationRule::Backward {
-                    semantic_parameter: semantic_parameter.clone(),
-                },
-                left: Box::new(left.derivations.primary().clone()),
-                right: Box::new(right.derivations.primary().clone()),
-            },
+            derivations,
         ));
     }
 

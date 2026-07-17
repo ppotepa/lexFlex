@@ -14,15 +14,16 @@ impl LexFlexRuntime {
     pub(crate) fn handle_clear(&mut self) -> EngineResponse {
         if let Err(response) = self.mutate_and_persist(|state| {
             state.knowledge.assertions.clear();
-            state
-                .rebuild_knowledge()
-                .map_err(|error| EngineResponse::Error {
+            state.rebuild_knowledge().map_err(|error| {
+                EngineResponse::Error {
                     code: EngineErrorCode::InternalInvariant,
                     message: error.to_string(),
                     diagnostics: Vec::new(),
-                })?;
+                }
+            })?;
             Ok(())
-        }) {
+        })
+        {
             return response;
         }
         EngineResponse::SessionCleared {

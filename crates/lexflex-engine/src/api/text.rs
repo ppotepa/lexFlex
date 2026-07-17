@@ -1,9 +1,7 @@
 use lexflex_language::LanguageId;
 use lexflex_lingua::LinguaGoal;
-use lexflex_model::{
-    canonical_hash, CanonicalDigest, CanonicalHashError, SemanticExpression, SemanticType,
-    SourceSpan, VariableId,
-};
+use lexflex_model::{canonical_hash, CanonicalDigest, CanonicalHashError, SemanticExpression,
+                    SemanticType, SourceSpan, VariableId};
 use lexflex_parser::{DerivationNode, ParseMetrics, ParseScore};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

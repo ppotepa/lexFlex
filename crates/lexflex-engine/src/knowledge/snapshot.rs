@@ -1,7 +1,5 @@
-use lexflex_model::{
-    canonical_hash, AssertionError, AssertionId, CanonicalDigest, CanonicalHashError,
-    SemanticAssertion,
-};
+use lexflex_model::{canonical_hash, AssertionError, AssertionId, CanonicalDigest,
+                    CanonicalHashError, SemanticAssertion};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
@@ -14,16 +12,12 @@ pub struct KnowledgeSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpsertOutcome {
-    Inserted {
-        assertion_id: AssertionId,
-    },
+    Inserted { assertion_id: AssertionId },
     EvidenceMerged {
         assertion_id: AssertionId,
         added: usize,
     },
-    Unchanged {
-        assertion_id: AssertionId,
-    },
+    Unchanged { assertion_id: AssertionId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -41,7 +35,10 @@ pub enum KnowledgeSnapshotError {
     },
 
     #[error("snapshot canonical hash failed: {0}")]
-    CanonicalHash(#[from] CanonicalHashError),
+    CanonicalHash(
+        #[from]
+        CanonicalHashError
+    ),
 
     #[error("snapshot hash mismatch: stored={stored}, expected={expected}")]
     SnapshotHashMismatch {
@@ -79,12 +76,12 @@ impl KnowledgeSnapshot {
                 });
             }
 
-            assertion
-                .verify()
-                .map_err(|source| KnowledgeSnapshotError::Assertion {
+            assertion.verify().map_err(|source| {
+                KnowledgeSnapshotError::Assertion {
                     assertion_id: assertion.id.clone(),
                     source,
-                })?;
+                }
+            })?;
         }
 
         let expected = canonical_hash(&self.assertions)?;
@@ -106,20 +103,22 @@ impl KnowledgeSnapshot {
         &mut self,
         incoming: SemanticAssertion,
     ) -> Result<UpsertOutcome, KnowledgeSnapshotError> {
-        incoming
-            .verify()
-            .map_err(|source| KnowledgeSnapshotError::Assertion {
+        incoming.verify().map_err(|source| {
+            KnowledgeSnapshotError::Assertion {
                 assertion_id: incoming.id.clone(),
                 source,
-            })?;
+            }
+        })?;
 
         match self.assertions.get_mut(&incoming.id) {
             Some(existing) => {
                 let added = existing
                     .merge_evidence(incoming.evidence.into_values())
-                    .map_err(|source| KnowledgeSnapshotError::Assertion {
-                        assertion_id: existing.id.clone(),
-                        source,
+                    .map_err(|source| {
+                        KnowledgeSnapshotError::Assertion {
+                            assertion_id: existing.id.clone(),
+                            source,
+                        }
                     })?;
                 let assertion_id = existing.id.clone();
                 self.rebuild_hash()?;
@@ -179,8 +178,7 @@ mod tests {
             SemanticExpression::Entity(EntityId::new_unchecked("PARIS")),
             vec![Evidence::create("source:1", None, None).expect("evidence")],
             WorldId::new_unchecked("actual"),
-        )
-        .expect("assertion");
+        ).expect("assertion");
 
         let first = snapshot.upsert(assertion.clone()).expect("upsert");
         assert!(matches!(first, UpsertOutcome::Inserted { .. }));
@@ -191,8 +189,7 @@ mod tests {
                     SemanticExpression::Entity(EntityId::new_unchecked("PARIS")),
                     vec![Evidence::create("source:2", None, None).expect("evidence")],
                     WorldId::new_unchecked("actual"),
-                )
-                .expect("assertion"),
+                ).expect("assertion"),
             )
             .expect("upsert");
         assert!(matches!(

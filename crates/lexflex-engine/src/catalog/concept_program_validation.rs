@@ -11,9 +11,11 @@ pub fn validate_concept_programs(
     for program in programs {
         if !ids.insert(program.id.clone()) {
             return Err(ModelLoadError::Validation(CatalogValidationReport {
-                issues: vec![CatalogValidationIssue::ConceptProgramDuplicateId {
-                    program_id: program.id.to_string(),
-                }],
+                issues: vec![
+                    CatalogValidationIssue::ConceptProgramDuplicateId {
+                        program_id: program.id.to_string(),
+                    },
+                ],
             }));
         }
 
@@ -21,10 +23,12 @@ pub fn validate_concept_programs(
             if let LinguaDeclaration::Concept(concept) = declaration {
                 if !catalog.concepts.contains_key(&concept.concept_id) {
                     return Err(ModelLoadError::Validation(CatalogValidationReport {
-                        issues: vec![CatalogValidationIssue::ConceptProgramUnknownTarget {
-                            program_id: program.id.to_string(),
-                            concept_id: concept.concept_id.to_string(),
-                        }],
+                        issues: vec![
+                            CatalogValidationIssue::ConceptProgramUnknownTarget {
+                                program_id: program.id.to_string(),
+                                concept_id: concept.concept_id.to_string(),
+                            },
+                        ],
                     }));
                 }
             }
@@ -34,10 +38,12 @@ pub fn validate_concept_programs(
             .compile(program)
             .map_err(|error| {
                 ModelLoadError::Validation(CatalogValidationReport {
-                    issues: vec![CatalogValidationIssue::ConceptProgramValidation {
-                        program_id: program.id.to_string(),
-                        message: error.to_string(),
-                    }],
+                    issues: vec![
+                        CatalogValidationIssue::ConceptProgramValidation {
+                            program_id: program.id.to_string(),
+                            message: error.to_string(),
+                        },
+                    ],
                 })
             })?;
     }

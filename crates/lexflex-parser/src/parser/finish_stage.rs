@@ -1,5 +1,5 @@
+use crate::chart::{Chart, DerivationSet};
 use crate::category::resolve_query_variables;
-use crate::chart::Chart;
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
 use crate::input::ClauseMode;
 use crate::output::{AssertionDraft, GoalDraft, ParseAlternative, ParseOutput};
@@ -23,7 +23,7 @@ pub fn finish_stage(
         return Err(ParseError::NoParse);
     }
 
-    let grouped = group_complete_items(complete)?;
+    let grouped = group_complete_items(complete, ctx.budget.max_derivations_per_item)?;
     ctx.metrics.complete_semantic_count = grouped.len();
 
     if grouped.len() > ctx.budget.max_complete_parses {
@@ -55,7 +55,7 @@ pub fn finish_stage(
                         expression: item.meaning.expression,
                         query_variables,
                         projection: item.meaning.query_variables.keys().cloned().collect(),
-                        derivation: item.derivations.primary().clone(),
+                        derivations: item.derivations,
                         score: item.score,
                         metrics: ctx.metrics.clone(),
                     })
@@ -83,7 +83,7 @@ pub fn finish_stage(
                 language: ctx.input.language,
                 span,
                 expression: item.meaning.expression,
-                derivation: item.derivations.primary().clone(),
+                derivation: item.derivations.primary().ok_or(ParseError::NoParse)?.clone(),
                 metrics: ctx.metrics,
             }))
         }
@@ -101,7 +101,7 @@ pub fn finish_stage(
                 variables,
                 projection,
                 mode: ctx.tokenization.mode,
-                derivation: item.derivations.primary().clone(),
+                derivation: item.derivations.primary().ok_or(ParseError::NoParse)?.clone(),
                 metrics: ctx.metrics,
             }))
         }
@@ -110,6 +110,7 @@ pub fn finish_stage(
 
 fn group_complete_items(
     complete: Vec<crate::chart::ChartItem>,
+    derivation_limit: usize,
 ) -> Result<Vec<(CompleteSemanticKey, crate::chart::ChartItem)>, ParseError> {
     let mut grouped: BTreeMap<CompleteSemanticKey, crate::chart::ChartItem> = BTreeMap::new();
     for item in complete {
@@ -125,12 +126,15 @@ fn group_complete_items(
             variable_hash: canonical_hash(&query_variables)?,
             projection_hash: canonical_hash(&projection)?,
         };
-        match grouped.get(&key) {
+        match grouped.get_mut(&key) {
             None => {
                 grouped.insert(key, item);
             }
             Some(existing) if item.score < existing.score => {
-                grouped.insert(key, item);
+                *existing = item;
+            }
+            Some(existing) if item.score == existing.score => {
+                existing.derivations.try_merge(&item.derivations, derivation_limit)?;
             }
             Some(_) => {}
         }

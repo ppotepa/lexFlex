@@ -27,6 +27,8 @@ pub enum ParseBudgetLimit {
     SemanticNodeLimit,
     #[error("alternative derivation limit")]
     AlternativeDerivationLimit,
+    #[error("derivation limit")]
+    DerivationLimit,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq, Serialize, Deserialize)]

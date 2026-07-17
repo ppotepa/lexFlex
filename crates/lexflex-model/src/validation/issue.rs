@@ -24,55 +24,26 @@ pub enum CatalogValidationIssue {
         entity_id: String,
         additional_type: String,
     },
-    MissingHierarchyChild {
-        concept_id: String,
-    },
+    MissingHierarchyChild { concept_id: String },
     MissingHierarchyParent {
         concept_id: String,
         parent_id: String,
     },
-    HierarchyCycle {
-        cycle: Vec<String>,
-    },
-    UnsupportedEntityType {
-        concept_id: String,
-        found: String,
-    },
-    UnsupportedRoleType {
-        concept_id: String,
-        found: String,
-    },
-    UnsupportedRelationType {
-        concept_id: String,
-        found: String,
-    },
-    EventTypeMustReturnBoolean {
-        concept_id: String,
-        found: String,
-    },
-    EventTypeRequiresParameter {
-        concept_id: String,
-    },
-    UnknownConceptInEntityType {
-        concept_id: String,
-    },
-    UnknownQuantityDimension {
-        dimension: String,
-    },
-    InvalidOptionalNesting {
-        context: String,
-    },
-    ConceptProgramDuplicateId {
-        program_id: String,
-    },
+    HierarchyCycle { cycle: Vec<String> },
+    UnsupportedEntityType { concept_id: String, found: String },
+    UnsupportedRoleType { concept_id: String, found: String },
+    UnsupportedRelationType { concept_id: String, found: String },
+    EventTypeMustReturnBoolean { concept_id: String, found: String },
+    EventTypeRequiresParameter { concept_id: String },
+    UnknownConceptInEntityType { concept_id: String },
+    UnknownQuantityDimension { dimension: String },
+    InvalidOptionalNesting { context: String },
+    ConceptProgramDuplicateId { program_id: String },
     ConceptProgramUnknownTarget {
         program_id: String,
         concept_id: String,
     },
-    ConceptProgramValidation {
-        program_id: String,
-        message: String,
-    },
+    ConceptProgramValidation { program_id: String, message: String },
 }
 
 impl CatalogValidationIssue {
@@ -132,55 +103,85 @@ impl std::fmt::Display for CatalogValidationIssue {
             Self::ConceptKeyMismatch {
                 concept_id,
                 schema_id,
-            } => write!(f, "concept key mismatch: key={concept_id}, schema={schema_id}"),
+            } => {
+                write!(
+                    f,
+                    "concept key mismatch: key={concept_id}, schema={schema_id}"
+                )
+            }
             Self::ParameterKeyMismatch {
                 concept_id,
                 parameter_id,
                 schema_id,
-            } => write!(
-                f,
-                "parameter key mismatch in concept {concept_id}: key={parameter_id}, schema={schema_id}"
-            ),
-            Self::EntityKeyMismatch { entity_id, schema_id } => {
-                write!(f, "entity key mismatch: key={entity_id}, entity={schema_id}")
+            } => {
+                write!(
+                    f,
+                    "parameter key mismatch in concept {concept_id}: key={parameter_id}, schema={schema_id}"
+                )
+            }
+            Self::EntityKeyMismatch {
+                entity_id,
+                schema_id,
+            } => {
+                write!(
+                    f,
+                    "entity key mismatch: key={entity_id}, entity={schema_id}"
+                )
             }
             Self::UnknownPrimaryType {
                 entity_id,
                 primary_type,
-            } => write!(
-                f,
-                "entity {entity_id} references unknown primary type {primary_type}"
-            ),
+            } => {
+                write!(
+                    f,
+                    "entity {entity_id} references unknown primary type {primary_type}"
+                )
+            }
             Self::UnknownAdditionalType {
                 entity_id,
                 additional_type,
-            } => write!(
-                f,
-                "entity {entity_id} references unknown additional type {additional_type}"
-            ),
+            } => {
+                write!(
+                    f,
+                    "entity {entity_id} references unknown additional type {additional_type}"
+                )
+            }
             Self::MissingHierarchyChild { concept_id } => {
                 write!(f, "hierarchy child missing from concepts: {concept_id}")
             }
             Self::MissingHierarchyParent {
                 concept_id,
                 parent_id,
-            } => write!(
-                f,
-                "hierarchy parent missing from concepts: {parent_id} (child {concept_id})"
-            ),
+            } => {
+                write!(
+                    f,
+                    "hierarchy parent missing from concepts: {parent_id} (child {concept_id})"
+                )
+            }
             Self::HierarchyCycle { cycle } => write!(f, "hierarchy cycle: {}", cycle.join(" -> ")),
-            Self::UnsupportedEntityType { concept_id, found } => write!(
-                f,
-                "entity type {concept_id} must return Predicate(Entity) or Predicate(EntityOf(self)), found {found}"
-            ),
+            Self::UnsupportedEntityType { concept_id, found } => {
+                write!(
+                    f,
+                    "entity type {concept_id} must return Predicate(Entity) or Predicate(EntityOf(self)), found {found}"
+                )
+            }
             Self::UnsupportedRoleType { concept_id, found } => {
-                write!(f, "role type {concept_id} must return ConceptOf(RoleType), found {found}")
+                write!(
+                    f,
+                    "role type {concept_id} must return ConceptOf(RoleType), found {found}"
+                )
             }
             Self::UnsupportedRelationType { concept_id, found } => {
-                write!(f, "relation type {concept_id} must return Boolean, found {found}")
+                write!(
+                    f,
+                    "relation type {concept_id} must return Boolean, found {found}"
+                )
             }
             Self::EventTypeMustReturnBoolean { concept_id, found } => {
-                write!(f, "event type {concept_id} must return Boolean, found {found}")
+                write!(
+                    f,
+                    "event type {concept_id} must return Boolean, found {found}"
+                )
             }
             Self::EventTypeRequiresParameter { concept_id } => {
                 write!(f, "event type {concept_id} requires at least one parameter")
@@ -200,14 +201,21 @@ impl std::fmt::Display for CatalogValidationIssue {
             Self::ConceptProgramUnknownTarget {
                 program_id,
                 concept_id,
-            } => write!(
-                f,
-                "concept program {program_id} targets unknown concept {concept_id}"
-            ),
+            } => {
+                write!(
+                    f,
+                    "concept program {program_id} targets unknown concept {concept_id}"
+                )
+            }
             Self::ConceptProgramValidation {
                 program_id,
                 message,
-            } => write!(f, "concept program {program_id} failed validation: {message}"),
+            } => {
+                write!(
+                    f,
+                    "concept program {program_id} failed validation: {message}"
+                )
+            }
         }
     }
 }

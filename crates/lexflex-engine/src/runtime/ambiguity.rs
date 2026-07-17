@@ -139,7 +139,11 @@ impl LexFlexRuntime {
                 alternative.projection,
                 formal_steps,
                 alternative.metrics,
-                include_derivation.then_some(alternative.derivation),
+                if include_derivation {
+                    alternative.derivations.primary().cloned()
+                } else {
+                    None
+                },
                 alternative.score,
             ) {
                 Ok(value) => value,

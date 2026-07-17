@@ -1,4 +1,2 @@
-pub use lexflex_model::{
-    normalize_expression, NormalizationBudget, NormalizationError, NormalizationReport,
-    SemanticNormalizer,
-};
+pub use lexflex_model::{normalize_expression, NormalizationBudget, NormalizationError,
+                        NormalizationReport, SemanticNormalizer};

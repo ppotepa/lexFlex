@@ -1,8 +1,6 @@
 use lexflex_engine::catalog::{ModelProgramRegistry, ProgramRegistryError};
-use lexflex_lingua::{
-    ConceptDeclaration, ConceptSemantics, DeclarationId, ExpansionPolicy, LinguaDeclaration,
-    LinguaExpression, LinguaProgram, ProgramId,
-};
+use lexflex_lingua::{ConceptDeclaration, ConceptSemantics, DeclarationId, ExpansionPolicy,
+                     LinguaDeclaration, LinguaExpression, LinguaProgram, ProgramId};
 use lexflex_model::{ConceptCatalog, ConceptId, EntityId};
 
 fn catalog() -> ConceptCatalog {
@@ -16,16 +14,18 @@ fn catalog() -> ConceptCatalog {
 fn concept_program(program_id: &str, declaration_id: &str, concept_id: &str) -> LinguaProgram {
     LinguaProgram {
         id: ProgramId::new_unchecked(program_id),
-        declarations: vec![LinguaDeclaration::Concept(ConceptDeclaration {
-            declaration_id: DeclarationId::new_unchecked(declaration_id),
-            concept_id: ConceptId::new_unchecked(concept_id),
-            self_parameter: None,
-            parameters: Vec::new(),
-            semantics: ConceptSemantics::Defined {
-                body: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
-            },
-            expansion: ExpansionPolicy::Opaque,
-        })],
+        declarations: vec![
+            LinguaDeclaration::Concept(ConceptDeclaration {
+                declaration_id: DeclarationId::new_unchecked(declaration_id),
+                concept_id: ConceptId::new_unchecked(concept_id),
+                self_parameter: None,
+                parameters: Vec::new(),
+                semantics: ConceptSemantics::Defined {
+                    body: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
+                },
+                expansion: ExpansionPolicy::Opaque,
+            }),
+        ],
         entry: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
     }
 }
@@ -60,7 +60,6 @@ fn unknown_concept_declaration_is_rejected() {
     let error = ModelProgramRegistry::build(
         vec![concept_program("program:test", "decl:test", "MISSING")],
         &catalog,
-    )
-    .expect_err("unknown concept");
+    ).expect_err("unknown concept");
     assert!(matches!(error, ProgramRegistryError::UnknownConcept(_)));
 }

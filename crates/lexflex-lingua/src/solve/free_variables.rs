@@ -23,15 +23,16 @@ fn collect(
                 collect(value, bound, output);
             }
         }
-        SemanticExpression::Satisfies { subject, predicate }
-        | SemanticExpression::Equals {
+        SemanticExpression::Satisfies { subject, predicate } |
+        SemanticExpression::Equals {
             left: subject,
             right: predicate,
         } => {
             collect(subject, bound, output);
             collect(predicate, bound, output);
         }
-        SemanticExpression::And(items) | SemanticExpression::Or(items) => {
+        SemanticExpression::And(items) |
+        SemanticExpression::Or(items) => {
             for item in items {
                 collect(item, bound, output);
             }
@@ -48,14 +49,14 @@ fn collect(
                 collect(qualifier, bound, output);
             }
         }
-        SemanticExpression::Exists { variable, body, .. }
-        | SemanticExpression::ForAll { variable, body, .. } => {
+        SemanticExpression::Exists { variable, body, .. } |
+        SemanticExpression::ForAll { variable, body, .. } => {
             bound.push(variable.clone());
             collect(body, bound, output);
             bound.pop();
         }
-        SemanticExpression::Concept(_)
-        | SemanticExpression::Entity(_)
-        | SemanticExpression::Value(_) => {}
+        SemanticExpression::Concept(_) |
+        SemanticExpression::Entity(_) |
+        SemanticExpression::Value(_) => {}
     }
 }

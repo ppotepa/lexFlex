@@ -16,22 +16,23 @@ pub fn chart_stage(
     for (index, bucket) in candidates.iter().enumerate() {
         let cell = chart.cell_mut(index, index + 1);
         for candidate in bucket {
+            let item = ChartItem::lexical(
+                index,
+                index + 1,
+                candidate.category.clone(),
+                Default::default(),
+                candidate.meaning.clone(),
+                candidate.score,
+                DerivationNode::Lexical {
+                    token: candidate.token.clone(),
+                    sense: candidate.sense.id.clone(),
+                },
+            )?;
             let outcome = crate::chart::insert_item(
                 cell,
-                ChartItem::new(
-                    index,
-                    index + 1,
-                    candidate.category.clone(),
-                    Default::default(),
-                    candidate.meaning.clone(),
-                    candidate.score,
-                    DerivationNode::Lexical {
-                        token: candidate.token.clone(),
-                        sense: candidate.sense.id.clone(),
-                    },
-                ),
+                item,
                 ctx.budget.max_items_per_cell,
-                ctx.budget.max_alternative_derivations_per_item,
+                ctx.budget.max_derivations_per_item,
             )?;
             record_insert_outcome(outcome, &mut total_items, &mut ctx.metrics, ctx.budget)?;
         }
@@ -58,6 +59,7 @@ pub fn chart_stage(
                             right,
                             ctx.catalog.as_ref(),
                             ctx.budget.max_semantic_nodes,
+                            ctx.budget.max_derivations_per_item,
                         )?;
                         if items.is_empty() {
                             ctx.metrics.rejected_application_count += 1;
@@ -79,7 +81,7 @@ pub fn chart_stage(
             }
             let cell = chart.cell_mut(start, end);
             for item in cell_items {
-let outcome = crate::chart::insert_item(cell, item, ctx.budget.max_items_per_cell, ctx.budget.max_alternative_derivations_per_item)?;
+let outcome = crate::chart::insert_item(cell, item, ctx.budget.max_items_per_cell, ctx.budget.max_derivations_per_item)?;
             record_insert_outcome(outcome, &mut total_items, &mut ctx.metrics, ctx.budget)?;
             }
             ctx.metrics.max_cell_size = ctx.metrics.max_cell_size.max(cell.len());

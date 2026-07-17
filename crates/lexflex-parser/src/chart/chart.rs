@@ -1,4 +1,3 @@
-use super::derivation_set::DerivationInsertOutcome;
 use super::item::{ChartItem, InsertOutcome};
 use super::key::ChartItemKey;
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
@@ -34,57 +33,34 @@ impl ChartCell {
         &mut self,
         key: ChartItemKey,
         item: ChartItem,
-        limit: usize,
-        alt_derivation_limit: usize,
+        cell_limit: usize,
+        derivation_limit: usize,
     ) -> Result<InsertOutcome, ParseError> {
         if let Some(existing) = self.items.get_mut(&key) {
             if item.score < existing.score {
                 *existing = item;
                 return Ok(InsertOutcome::ReplacedBetter);
             }
-            if item.score == existing.score {
-                let primary_digest = lexflex_model::canonical_hash(&item.derivations.primary())?;
-                let existing_primary = lexflex_model::canonical_hash(&existing.derivations.primary())?;
-                if primary_digest == existing_primary {
-                    let mut added = 0usize;
-                    for alt in item.derivations.all().skip(1) {
-                        if existing.derivations.insert(alt.clone(), alt_derivation_limit)?
-                            == DerivationInsertOutcome::Inserted
-                        {
-                            added += 1;
-                        }
-                    }
-                    if added > 0 {
-                        return Ok(InsertOutcome::AddedEquivalentDerivations { added });
-                    }
-                    return Ok(InsertOutcome::IgnoredDuplicateDerivation);
-                }
-                match existing.derivations.insert(
-                    item.derivations.primary().clone(),
-                    alt_derivation_limit,
-                )? {
-                    DerivationInsertOutcome::Inserted => {
-                        return Ok(InsertOutcome::AddedEquivalentDerivations { added: 1 });
-                    }
-                    DerivationInsertOutcome::LimitExceeded => {
-                        return Err(ParseError::BudgetExceeded(
-                            ParseBudgetLimit::AlternativeDerivationLimit,
-                        ));
-                    }
-                    DerivationInsertOutcome::Duplicate => {
-                        return Ok(InsertOutcome::IgnoredDuplicateDerivation);
-                    }
-                }
+            if item.score > existing.score {
+                return Ok(InsertOutcome::IgnoredWorse);
             }
-            return Ok(InsertOutcome::IgnoredWorse);
+            let added = existing
+                .derivations
+                .try_merge(&item.derivations, derivation_limit)?;
+            if added == 0 {
+                Ok(InsertOutcome::IgnoredDuplicateDerivation)
+            } else {
+                Ok(InsertOutcome::AddedEquivalentDerivations { added })
+            }
+        } else {
+            if self.items.len() >= cell_limit {
+                return Err(ParseError::BudgetExceeded(
+                    ParseBudgetLimit::CellItemLimit,
+                ));
+            }
+            self.items.insert(key, item);
+            Ok(InsertOutcome::Inserted)
         }
-        if self.items.len() >= limit {
-            return Err(ParseError::BudgetExceeded(
-                ParseBudgetLimit::CellItemLimit,
-            ));
-        }
-        self.items.insert(key, item);
-        Ok(InsertOutcome::Inserted)
     }
 }
 

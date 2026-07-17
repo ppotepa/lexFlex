@@ -1,3 +1,5 @@
+use crate::chart::DerivationSet;
+use crate::explain::DerivationNode;
 use crate::input::ClauseMode;
 use crate::{ParseMetrics, ParseScore};
 use lexflex_language::LanguageId;
@@ -22,7 +24,7 @@ pub struct ParseAlternative {
     pub expression: LinguaExpression,
     pub query_variables: BTreeMap<VariableId, SemanticType>,
     pub projection: Vec<VariableId>,
-    pub derivation: crate::DerivationNode,
+    pub derivations: DerivationSet,
     pub score: ParseScore,
     pub metrics: ParseMetrics,
 }
@@ -33,7 +35,7 @@ pub struct AssertionDraft {
     pub language: LanguageId,
     pub span: SourceSpan,
     pub expression: LinguaExpression,
-    pub derivation: crate::DerivationNode,
+    pub derivation: DerivationNode,
     pub metrics: ParseMetrics,
 }
 
@@ -46,6 +48,6 @@ pub struct GoalDraft {
     pub variables: BTreeMap<VariableId, SemanticType>,
     pub projection: Vec<VariableId>,
     pub mode: ClauseMode,
-    pub derivation: crate::DerivationNode,
+    pub derivation: DerivationNode,
     pub metrics: ParseMetrics,
 }

@@ -7,8 +7,8 @@ pub(crate) fn insert_item(
     cell: &mut ChartCell,
     item: ChartItem,
     cell_limit: usize,
-    alt_derivation_limit: usize,
+    derivation_limit: usize,
 ) -> Result<InsertOutcome, ParseError> {
     let key = ChartItemKey::create(&item)?;
-    cell.insert(key, item, cell_limit, alt_derivation_limit)
+    cell.insert(key, item, cell_limit, derivation_limit)
 }
