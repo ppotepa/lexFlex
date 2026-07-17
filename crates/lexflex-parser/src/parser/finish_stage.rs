@@ -54,7 +54,7 @@ pub fn finish_stage(
                         expression: item.meaning.expression,
                         query_variables,
                         projection: item.meaning.query_variables.keys().cloned().collect(),
-                        derivation: item.derivation,
+                        derivation: item.derivations.primary().clone(),
                         score: item.score,
                         metrics: ctx.metrics.clone(),
                     })
@@ -82,7 +82,7 @@ pub fn finish_stage(
                 language: ctx.input.language,
                 span,
                 expression: item.meaning.expression,
-                derivation: item.derivation,
+                derivation: item.derivations.primary().clone(),
                 metrics: ctx.metrics,
             }))
         }
@@ -100,7 +100,7 @@ pub fn finish_stage(
                 variables,
                 projection,
                 mode: ctx.tokenization.mode,
-                derivation: item.derivation,
+                derivation: item.derivations.primary().clone(),
                 metrics: ctx.metrics,
             }))
         }

@@ -1,11 +1,13 @@
-mod cell;
 #[allow(clippy::module_inception)]
 mod chart;
-mod item;
+mod composition;
+mod derivation_set;
 mod insert;
+mod item;
 mod key;
 mod score;
 
-pub(crate) use chart::{Chart, compose};
-pub(crate) use item::{ChartItem, InsertOutcome};
+pub(crate) use chart::Chart;
+pub(crate) use composition::compose_all;
 pub(crate) use insert::insert_item;
+pub(crate) use item::{ChartItem, InsertOutcome};

@@ -1,6 +1,6 @@
 use crate::budget::ParseBudget;
 use crate::parser::context::ParseContext;
-use crate::chart::{compose, Chart, ChartItem, InsertOutcome};
+use crate::chart::{compose_all, Chart, ChartItem, InsertOutcome};
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
 use crate::explain::DerivationNode;
 use crate::metrics::ParseMetrics;
@@ -18,19 +18,20 @@ pub fn chart_stage(
         for candidate in bucket {
             let outcome = crate::chart::insert_item(
                 cell,
-                ChartItem {
-                    start: index,
-                    end: index + 1,
-                    category: candidate.category.clone(),
-                    substitution: Default::default(),
-                    meaning: candidate.meaning.clone(),
-                    score: candidate.score,
-                    derivation: DerivationNode::Lexical {
+                ChartItem::new(
+                    index,
+                    index + 1,
+                    candidate.category.clone(),
+                    Default::default(),
+                    candidate.meaning.clone(),
+                    candidate.score,
+                    DerivationNode::Lexical {
                         token: candidate.token.clone(),
                         sense: candidate.sense.id.clone(),
                     },
-                },
+                ),
                 ctx.budget.max_items_per_cell,
+                ctx.budget.max_alternative_derivations_per_item,
             )?;
             record_insert_outcome(outcome, &mut total_items, &mut ctx.metrics, ctx.budget)?;
         }
@@ -52,31 +53,33 @@ pub fn chart_stage(
                     .unwrap_or_default();
                 for left in &left_items {
                     for right in &right_items {
-                        if let Some(item) = compose(
+                        let items = compose_all(
                             left,
                             right,
                             ctx.catalog.as_ref(),
                             ctx.budget.max_semantic_nodes,
-                        )? {
-                            if item.derivation.depth() > ctx.budget.max_derivation_depth {
+                        )?;
+                        if items.is_empty() {
+                            ctx.metrics.rejected_application_count += 1;
+                        }
+                        for item in items {
+                            if item.derivations.max_depth() > ctx.budget.max_derivation_depth {
                                 return Err(ParseError::BudgetExceeded(
                                     ParseBudgetLimit::DerivationDepthLimit,
                                 ));
                             }
                             ctx.metrics.max_derivation_depth =
-                                ctx.metrics.max_derivation_depth.max(item.derivation.depth());
+                                ctx.metrics.max_derivation_depth.max(item.derivations.max_depth());
                             ctx.metrics.max_semantic_nodes =
                                 ctx.metrics.max_semantic_nodes.max(item.meaning.semantic_nodes);
                             cell_items.push(item);
-                        } else {
-                            ctx.metrics.rejected_application_count += 1;
                         }
                     }
                 }
             }
             let cell = chart.cell_mut(start, end);
             for item in cell_items {
-let outcome = crate::chart::insert_item(cell, item, ctx.budget.max_items_per_cell)?;
+let outcome = crate::chart::insert_item(cell, item, ctx.budget.max_items_per_cell, ctx.budget.max_alternative_derivations_per_item)?;
             record_insert_outcome(outcome, &mut total_items, &mut ctx.metrics, ctx.budget)?;
             }
             ctx.metrics.max_cell_size = ctx.metrics.max_cell_size.max(cell.len());
@@ -102,10 +105,10 @@ fn record_insert_outcome(
         InsertOutcome::ReplacedBetter => {
             metrics.chart_replacement_count += 1;
         }
-        InsertOutcome::AddedEquivalentDerivation | InsertOutcome::IgnoredWorse => {
-            metrics.semantic_duplicate_count += 1;
+        InsertOutcome::AddedEquivalentDerivations { added } => {
+            metrics.alternative_derivation_count += added;
         }
-        InsertOutcome::IgnoredDuplicateDerivation => {
+        InsertOutcome::IgnoredWorse | InsertOutcome::IgnoredDuplicateDerivation => {
             metrics.semantic_duplicate_count += 1;
         }
     }

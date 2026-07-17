@@ -1,3 +1,3 @@
 mod derivation;
 
-pub use derivation::DerivationNode;
+pub use derivation::{ApplicationRule, DerivationNode};

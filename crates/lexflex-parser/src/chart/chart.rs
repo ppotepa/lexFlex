@@ -1,18 +1,100 @@
-use super::cell::ChartCell;
-use super::item::ChartItem;
+use super::derivation_set::DerivationInsertOutcome;
+use super::item::{ChartItem, InsertOutcome};
 use super::key::ChartItemKey;
-use crate::category::{apply_backward, apply_forward};
-use crate::meaning::apply_meaning;
-use crate::diagnostic::ParseError;
-use crate::explain::DerivationNode;
-use crate::metrics::ParseScore;
-use lexflex_model::ConceptCatalog;
+use crate::diagnostic::{ParseBudgetLimit, ParseError};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpanKey {
     pub start: usize,
     pub end: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChartCell {
+    items: BTreeMap<ChartItemKey, ChartItem>,
+}
+
+impl ChartCell {
+    pub fn new() -> Self {
+        Self {
+            items: BTreeMap::new(),
+        }
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &ChartItem> {
+        self.items.values()
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn insert(
+        &mut self,
+        key: ChartItemKey,
+        item: ChartItem,
+        limit: usize,
+        alt_derivation_limit: usize,
+    ) -> Result<InsertOutcome, ParseError> {
+        if let Some(existing) = self.items.get_mut(&key) {
+            if item.score < existing.score {
+                *existing = item;
+                return Ok(InsertOutcome::ReplacedBetter);
+            }
+            if item.score == existing.score {
+                let primary_digest = lexflex_model::canonical_hash(&item.derivations.primary())?;
+                let existing_primary = lexflex_model::canonical_hash(&existing.derivations.primary())?;
+                if primary_digest == existing_primary {
+                    let mut added = 0usize;
+                    for alt in item.derivations.all().skip(1) {
+                        match existing.derivations.insert(alt.clone(), alt_derivation_limit)? {
+                            DerivationInsertOutcome::Inserted => added += 1,
+                            _ => {}
+                        }
+                    }
+                    if added > 0 {
+                        return Ok(InsertOutcome::AddedEquivalentDerivations { added });
+                    }
+                    return Ok(InsertOutcome::IgnoredDuplicateDerivation);
+                }
+                match existing.derivations.insert(
+                    item.derivations.primary().clone(),
+                    alt_derivation_limit,
+                )? {
+                    DerivationInsertOutcome::Inserted => {
+                        return Ok(InsertOutcome::AddedEquivalentDerivations { added: 1 });
+                    }
+                    DerivationInsertOutcome::LimitExceeded => {
+                        return Err(ParseError::BudgetExceeded(
+                            ParseBudgetLimit::AlternativeDerivationLimit,
+                        ));
+                    }
+                    DerivationInsertOutcome::Duplicate => {
+                        return Ok(InsertOutcome::IgnoredDuplicateDerivation);
+                    }
+                }
+            }
+            return Ok(InsertOutcome::IgnoredWorse);
+        }
+        if self.items.len() >= limit {
+            return Err(ParseError::BudgetExceeded(
+                ParseBudgetLimit::CellItemLimit,
+            ));
+        }
+        self.items.insert(key, item);
+        Ok(InsertOutcome::Inserted)
+    }
+}
+
+impl Default for ChartCell {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +119,6 @@ impl Chart {
             .or_default()
     }
 
-    #[allow(dead_code)]
     pub fn get_items(&self, start: usize, end: usize) -> Vec<ChartItem> {
         self.cells
             .get(&SpanKey { start, end })
@@ -45,18 +126,18 @@ impl Chart {
             .unwrap_or_default()
     }
 
-    #[allow(dead_code)]
     pub fn insert_item(
         &mut self,
         span: (usize, usize),
         item: ChartItem,
-        limit: usize,
-    ) -> Result<crate::chart::item::InsertOutcome, ParseError> {
+        cell_limit: usize,
+        alt_derivation_limit: usize,
+    ) -> Result<InsertOutcome, ParseError> {
         let cell = self.cell_mut(span.0, span.1);
-        cell.insert(ChartItemKey::create(&item)?, item, limit)
+        let key = ChartItemKey::create(&item)?;
+        cell.insert(key, item, cell_limit, alt_derivation_limit)
     }
 
-    #[allow(dead_code)]
     pub fn cell_size(&self, start: usize, end: usize) -> usize {
         self.cells
             .get(&SpanKey { start, end })
@@ -69,64 +150,4 @@ impl Default for Chart {
     fn default() -> Self {
         Self::new()
     }
-}
-
-pub fn compose(
-    left: &ChartItem,
-    right: &ChartItem,
-    catalog: &ConceptCatalog,
-    max_semantic_nodes: usize,
-) -> Result<Option<ChartItem>, ParseError> {
-    let mut base = left.substitution.clone();
-    base.merge(&right.substitution, catalog)?;
-
-    if let Some((category, semantic_parameter, substitution)) =
-        apply_forward(&left.category, &right.category, &base, catalog)?
-    {
-        let meaning = apply_meaning(
-            &left.meaning,
-            &semantic_parameter,
-            &right.meaning,
-            max_semantic_nodes,
-        )?;
-        let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
-        return Ok(Some(ChartItem {
-            start: left.start,
-            end: right.end,
-            category,
-            substitution,
-            meaning,
-            score: ParseScore::composed(left.score, right.score, unresolved_types),
-            derivation: DerivationNode::Applied {
-                left: Box::new(left.derivation.clone()),
-                right: Box::new(right.derivation.clone()),
-            },
-        }));
-    }
-
-    if let Some((category, semantic_parameter, substitution)) =
-        apply_backward(&right.category, &left.category, &base, catalog)?
-    {
-        let meaning = apply_meaning(
-            &right.meaning,
-            &semantic_parameter,
-            &left.meaning,
-            max_semantic_nodes,
-        )?;
-        let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
-        return Ok(Some(ChartItem {
-            start: left.start,
-            end: right.end,
-            category,
-            substitution,
-            meaning,
-            score: ParseScore::composed(left.score, right.score, unresolved_types),
-            derivation: DerivationNode::Applied {
-                left: Box::new(left.derivation.clone()),
-                right: Box::new(right.derivation.clone()),
-            },
-        }));
-    }
-
-    Ok(None)
 }
