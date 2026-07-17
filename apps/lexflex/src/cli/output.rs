@@ -3,10 +3,6 @@ use lexflex_engine::error::EngineErrorCode;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
 
-pub fn print_response(response: &EngineResponse) -> Result<(), String> {
-    print_json(response)
-}
-
 pub fn print_response_and_check(response: &EngineResponse) -> Result<(), CliExit> {
     print_json(response).map_err(|error| CliExit::Command(error))?;
     match response {

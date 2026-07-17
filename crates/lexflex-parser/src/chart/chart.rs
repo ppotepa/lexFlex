@@ -30,10 +30,6 @@ impl ChartCell {
         self.items.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-
     pub fn insert(
         &mut self,
         key: ChartItemKey,
@@ -119,31 +115,7 @@ impl Chart {
             .or_default()
     }
 
-    pub fn get_items(&self, start: usize, end: usize) -> Vec<ChartItem> {
-        self.cells
-            .get(&SpanKey { start, end })
-            .map(|cell| cell.values().cloned().collect())
-            .unwrap_or_default()
-    }
 
-    pub fn insert_item(
-        &mut self,
-        span: (usize, usize),
-        item: ChartItem,
-        cell_limit: usize,
-        alt_derivation_limit: usize,
-    ) -> Result<InsertOutcome, ParseError> {
-        let cell = self.cell_mut(span.0, span.1);
-        let key = ChartItemKey::create(&item)?;
-        cell.insert(key, item, cell_limit, alt_derivation_limit)
-    }
-
-    pub fn cell_size(&self, start: usize, end: usize) -> usize {
-        self.cells
-            .get(&SpanKey { start, end })
-            .map(|c| c.len())
-            .unwrap_or(0)
-    }
 }
 
 impl Default for Chart {

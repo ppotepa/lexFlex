@@ -32,14 +32,6 @@ impl DerivationSet {
         std::iter::once(&self.primary).chain(self.alternatives.values())
     }
 
-    pub fn alternative_count(&self) -> usize {
-        self.alternatives.len()
-    }
-
-    pub fn total_count(&self) -> usize {
-        1 + self.alternatives.len()
-    }
-
     pub fn insert(
         &mut self,
         derivation: DerivationNode,
