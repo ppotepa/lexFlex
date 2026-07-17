@@ -1,8 +1,10 @@
 use crate::solve::context::UnificationContext;
 use crate::solve::occurs::occurs;
-use crate::solve::type_inference::{infer_expression_type, variable_context, SolveTypeError};
 use crate::solve::{Substitution, UnifyError};
-use lexflex_model::{SemanticExpression, TypeRelation, VariableId};
+use lexflex_model::{
+    ConceptCatalog, ExpressionTypeChecker, ExpressionTypeEnvironment, ExpressionTypeError,
+    SemanticExpression, TypeRelation, VariableId,
+};
 
 pub(crate) fn bind_variable(
     variable: &VariableId,
@@ -17,15 +19,27 @@ pub(crate) fn bind_variable(
         });
     }
 
-    let expected = variable_context(context, variable)
-        .map_err(|_| UnifyError::UnknownVariableType(variable.clone()))?;
-    let actual =
-        infer_expression_type(candidate, context.catalog.as_ref(), &context.variable_types)
-            .map_err(|error| match error {
-        SolveTypeError::Concept(concept) => UnifyError::UnknownConcept(concept),
-        SolveTypeError::Entity(entity) => UnifyError::UnknownEntity(entity),
-                SolveTypeError::Variable(variable) => UnifyError::UnknownVariableType(variable),
-            })?;
+    let expected = context
+        .variable_types
+        .get(variable)
+        .cloned()
+        .ok_or_else(|| UnifyError::UnknownVariableType(variable.clone()))?;
+
+    let checker = ExpressionTypeChecker::new(context.catalog.as_ref());
+    let mut env = ExpressionTypeEnvironment::with_free_variables(
+        context.catalog.as_ref(),
+        context.variable_types.clone(),
+    );
+    let actual = checker
+        .infer(candidate, &mut env)
+        .map_err(|error| match error {
+            ExpressionTypeError::UnknownConcept(concept) => UnifyError::UnknownConcept(concept),
+            ExpressionTypeError::UnknownEntity(entity) => UnifyError::UnknownEntity(entity),
+            ExpressionTypeError::UnknownVariable(variable) => {
+                UnifyError::UnknownVariableType(variable)
+            }
+            _ => UnifyError::UnknownVariableType(variable.clone()),
+        })?;
 
     if !TypeRelation::new(context.catalog.as_ref()).accepts(&expected, &actual) {
         return Err(UnifyError::VariableTypeMismatch {

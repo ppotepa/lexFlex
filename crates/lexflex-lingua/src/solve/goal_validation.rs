@@ -1,7 +1,9 @@
 use crate::solve::goal::LinguaGoal;
 use crate::solve::free_variables::collect_free_variables;
-use crate::solve::type_inference::infer_expression_type;
-use lexflex_model::{ConceptCatalog, SemanticExpression, SemanticType, VariableId};
+use lexflex_model::{
+    ConceptCatalog, ExpressionTypeChecker, ExpressionTypeEnvironment, ExpressionTypeError,
+    SemanticExpression, SemanticType, VariableId,
+};
 use std::collections::BTreeSet;
 use thiserror::Error;
 
@@ -70,21 +72,26 @@ pub fn validate_goal(
         }
     }
 
-    let expression_type = infer_expression_type(&goal.expression, catalog, &goal.variables)
+    let checker = ExpressionTypeChecker::new(catalog);
+    let mut env = ExpressionTypeEnvironment::with_free_variables(catalog, goal.variables.clone());
+    let expression_type = checker
+        .infer(&goal.expression, &mut env)
         .map_err(|error| match error {
-            crate::solve::type_inference::SolveTypeError::Variable(variable) => {
+            ExpressionTypeError::UnknownVariable(variable) => {
                 GoalValidationError::ExpressionVariableNotDeclared(variable)
             }
-            crate::solve::type_inference::SolveTypeError::Concept(_)
-            | crate::solve::type_inference::SolveTypeError::Entity(_) => {
+            ExpressionTypeError::UnknownConcept(_)
+            | ExpressionTypeError::UnknownEntity(_) => {
                 GoalValidationError::NonBooleanExpression(SemanticType::Concept)
             }
+            _ => GoalValidationError::NonBooleanExpression(SemanticType::Concept),
         })?;
     if expression_type != SemanticType::Boolean {
         return Err(GoalValidationError::NonBooleanExpression(expression_type));
     }
     Ok(())
 }
+
 fn collect_bound_projection_conflicts(
     expression: &SemanticExpression,
     output: &mut BTreeSet<VariableId>,

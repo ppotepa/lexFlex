@@ -1,6 +1,6 @@
 use crate::compiler::CompileError;
 use crate::runtime::RuntimeError;
-use crate::solve::SolveTypeError;
+use lexflex_model::ExpressionTypeError;
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -12,5 +12,5 @@ pub enum LinguaError {
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
     #[error(transparent)]
-    Solve(#[from] SolveTypeError),
+    Solve(#[from] ExpressionTypeError),
 }

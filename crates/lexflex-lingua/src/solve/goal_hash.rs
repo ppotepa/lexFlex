@@ -1,7 +1,10 @@
 use crate::solve::goal_canonical::{canonical_semantic_goal, CanonicalRequestGoal};
 use crate::solve::goal_validation::validate_goal;
 use crate::solve::LinguaGoal;
-use lexflex_model::{canonical_hash, CanonicalDigest, CanonicalHashError, ConceptCatalog};
+use lexflex_model::{
+    canonical_hash, CanonicalDigest, CanonicalHashError, ConceptCatalog, ConceptId, EntityDefinition,
+    EntityId, SemanticExpression, VariableId,
+};
 
 pub fn canonical_goal_semantic_hash(
     goal: &LinguaGoal,
@@ -42,7 +45,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn catalog() -> ConceptCatalog {
-        ConceptCatalog::default()
+        let mut catalog = ConceptCatalog::default();
+        catalog.entities.insert(
+            EntityId::new_unchecked("PARIS"),
+            EntityDefinition {
+                id: EntityId::new_unchecked("PARIS"),
+                primary_type: ConceptId::new_unchecked("CITY"),
+                additional_types: Default::default(),
+            },
+        );
+        catalog
     }
 
     #[test]
