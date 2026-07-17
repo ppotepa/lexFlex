@@ -30,12 +30,14 @@ pub enum EngineResponse {
         assertion: SemanticAssertion,
         outcome: AssertionWriteOutcome,
         snapshot_hash: String,
+        diagnostics: Vec<EngineDiagnostic>,
     },
     TextAnswer {
         analysis: TextAnalysis,
         goal: LinguaGoal,
         solutions: Vec<QuerySolution>,
         snapshot_hash: String,
+        diagnostics: Vec<EngineDiagnostic>,
     },
     TextAmbiguous {
         alternatives: Vec<TextAnalysisAlternative>,

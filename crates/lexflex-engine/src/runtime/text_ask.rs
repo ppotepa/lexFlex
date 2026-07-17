@@ -1,6 +1,6 @@
 use super::*;
-use crate::runtime::formal_result::FormalExpressionError;
 use crate::runtime::ambiguity::ExpectedTextKind;
+use crate::runtime::formal_result::FormalExpressionError;
 use lexflex_parser::ParseError;
 
 impl LexFlexRuntime {
@@ -18,15 +18,16 @@ impl LexFlexRuntime {
                 };
             }
             Ok(ParseOutput::Ambiguous { mode, alternatives, .. }) => {
-                let expected = match mode {
-                    lexflex_parser::ClauseMode::Declarative => ExpectedTextKind::Assertion,
-                    lexflex_parser::ClauseMode::Interrogative => ExpectedTextKind::Goal,
-                };
+                if mode != lexflex_parser::ClauseMode::Interrogative {
+                    return EngineResponse::TextNotParsed {
+                        diagnostics: vec![ParseError::QuestionWithoutProjection],
+                    };
+                }
                 return match self.lower_ambiguous_alternatives(
                     &input.source_id,
                     alternatives,
                     true,
-                    expected,
+                    ExpectedTextKind::Goal,
                 ) {
                     Ok((alternatives, diagnostics)) => EngineResponse::TextAmbiguous {
                         alternatives,
@@ -107,6 +108,7 @@ impl LexFlexRuntime {
                 goal,
                 solutions,
                 snapshot_hash: self.session.state.snapshot_hash().to_string(),
+                diagnostics: Vec::new(),
             },
             Err(error) => EngineResponse::Error {
                 code: EngineErrorCode::InvalidGoal,

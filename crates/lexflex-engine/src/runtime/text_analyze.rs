@@ -104,9 +104,13 @@ impl LexFlexRuntime {
                 }
             }
             Ok(ParseOutput::Ambiguous { alternatives, mode, .. }) => {
-                let expected = match mode {
-                    ClauseMode::Declarative => ExpectedTextKind::Assertion,
-                    ClauseMode::Interrogative => ExpectedTextKind::Goal,
+                let expected_kind = match mode {
+                    ClauseMode::Declarative => TextAnalysisKind::Assertion,
+                    ClauseMode::Interrogative => TextAnalysisKind::Goal,
+                };
+                let expected = match expected_kind {
+                    TextAnalysisKind::Assertion => ExpectedTextKind::Assertion,
+                    TextAnalysisKind::Goal => ExpectedTextKind::Goal,
                 };
                 match self.lower_ambiguous_alternatives(
                     &input.source_id,
@@ -137,11 +141,7 @@ impl LexFlexRuntime {
                                 source_id: input.source_id,
                                 language: input.language,
                                 span,
-                                kind: if alternative.variables.is_empty() {
-                                    TextAnalysisKind::Assertion
-                                } else {
-                                    TextAnalysisKind::Goal
-                                },
+                                kind: expected_kind,
                                 canonical_expression: alternative.canonical_expression,
                                 variables: alternative.variables,
                                 projection: alternative.projection,

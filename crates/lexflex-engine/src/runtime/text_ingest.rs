@@ -14,15 +14,16 @@ impl LexFlexRuntime {
                 };
             }
             Ok(ParseOutput::Ambiguous { mode, alternatives, .. }) => {
-                let expected = match mode {
-                    lexflex_parser::ClauseMode::Declarative => ExpectedTextKind::Assertion,
-                    lexflex_parser::ClauseMode::Interrogative => ExpectedTextKind::Goal,
-                };
+                if mode != lexflex_parser::ClauseMode::Declarative {
+                    return EngineResponse::TextNotParsed {
+                        diagnostics: vec![ParseError::UnexpectedQueryVariable],
+                    };
+                }
                 return match self.lower_ambiguous_alternatives(
                     &input.source_id,
                     alternatives,
                     true,
-                    expected,
+                    ExpectedTextKind::Assertion,
                 ) {
                     Ok((alternatives, diagnostics)) => EngineResponse::TextAmbiguous {
                         alternatives,
@@ -133,6 +134,7 @@ impl LexFlexRuntime {
             assertion,
             outcome,
             snapshot_hash: self.session.state.snapshot_hash().to_string(),
+            diagnostics: Vec::new(),
         }
     }
 
