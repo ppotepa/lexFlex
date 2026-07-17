@@ -31,7 +31,7 @@ impl LexFlexRuntime {
         alternatives: Vec<lexflex_parser::ParseAlternative>,
         include_derivation: bool,
         expected: ExpectedTextKind,
-    ) -> Result<Vec<TextAnalysisAlternative>, EngineResponse> {
+    ) -> Result<(Vec<TextAnalysisAlternative>, Vec<EngineDiagnostic>), EngineResponse> {
         let mut lowered = BTreeMap::<FormalAlternativeKey, LoweredAlternative>::new();
         let mut failures = Vec::new();
 
@@ -197,17 +197,10 @@ impl LexFlexRuntime {
             .map(|value| value.analysis)
             .collect::<Vec<_>>();
 
-        if alternatives.len() == 1 {
-            return Ok(alternatives);
-        }
-
         if failures.is_empty() {
-            Ok(alternatives)
+            Ok((alternatives, failures))
         } else {
-            Err(EngineResponse::TextAmbiguous {
-                alternatives,
-                diagnostics: failures,
-            })
+            Ok((alternatives, failures))
         }
     }
 }

@@ -69,7 +69,7 @@ fn text_analysis_uses_parser() {
         include_derivation: true,
     });
     match response {
-        EngineResponse::TextAnalyzed { analysis } => {
+        EngineResponse::TextAnalyzed { analysis, .. } => {
             assert!(analysis.derivation.is_some());
         }
         other => panic!("unexpected response: {other:?}"),
@@ -89,7 +89,7 @@ fn ambiguous_text_analysis_carries_derivation() {
     });
 
     match response {
-        EngineResponse::TextAnalyzed { analysis } => {
+        EngineResponse::TextAnalyzed { analysis, .. } => {
             assert!(analysis.derivation.is_some());
         }
         EngineResponse::TextAmbiguous { alternatives, .. } => {

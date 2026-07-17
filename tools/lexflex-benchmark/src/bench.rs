@@ -378,7 +378,7 @@ fn response_hash(response: &EngineResponse) -> String {
 
 fn extract_parser_metrics(response: &EngineResponse) -> Option<ParserMetricsSnapshot> {
     match response {
-        EngineResponse::TextAnalyzed { analysis } => Some(snapshot_metrics(analysis)),
+        EngineResponse::TextAnalyzed { analysis, .. } => Some(snapshot_metrics(analysis)),
         _ => None,
     }
 }

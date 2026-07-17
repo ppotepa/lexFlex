@@ -23,6 +23,7 @@ pub enum EngineResponse {
     },
     TextAnalyzed {
         analysis: TextAnalysis,
+        diagnostics: Vec<EngineDiagnostic>,
     },
     TextIngested {
         analysis: TextAnalysis,

@@ -28,9 +28,9 @@ impl LexFlexRuntime {
                     true,
                     expected,
                 ) {
-                    Ok(alternatives) => EngineResponse::TextAmbiguous {
+                    Ok((alternatives, diagnostics)) => EngineResponse::TextAmbiguous {
                         alternatives,
-                        diagnostics: Vec::new(),
+                        diagnostics,
                     },
                     Err(response) => response,
                 };

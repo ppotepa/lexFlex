@@ -52,7 +52,10 @@ impl LexFlexRuntime {
                         };
                     }
                 };
-                EngineResponse::TextAnalyzed { analysis }
+                EngineResponse::TextAnalyzed {
+                    analysis,
+                    diagnostics: Vec::new(),
+                }
             }
             Ok(ParseOutput::Goal(draft)) => {
                 let semantic_expression = match self.evaluate_formal_expression(
@@ -95,7 +98,10 @@ impl LexFlexRuntime {
                         };
                     }
                 };
-                EngineResponse::TextAnalyzed { analysis }
+                EngineResponse::TextAnalyzed {
+                    analysis,
+                    diagnostics: Vec::new(),
+                }
             }
             Ok(ParseOutput::Ambiguous { alternatives, mode, .. }) => {
                 let expected = match mode {
@@ -108,13 +114,13 @@ impl LexFlexRuntime {
                     include_derivation,
                     expected,
                 ) {
-                    Ok(mut alternatives) => {
+                    Ok((mut alternatives, diagnostics)) => {
                         if alternatives.len() == 1 {
                             let Some(alternative) = alternatives.pop() else {
                                 return EngineResponse::Error {
                                     code: EngineErrorCode::InternalInvariant,
                                     message: "expected exactly one lowered alternative".into(),
-                                    diagnostics: Vec::new(),
+                                    diagnostics,
                                 };
                             };
                             let span = match SourceSpan::new(0, input.text.len() as u64) {
@@ -123,7 +129,7 @@ impl LexFlexRuntime {
                                     return EngineResponse::Error {
                                         code: EngineErrorCode::Canonicalization,
                                         message: error.to_string(),
-                                        diagnostics: Vec::new(),
+                                        diagnostics,
                                     };
                                 }
                             };
@@ -148,15 +154,18 @@ impl LexFlexRuntime {
                                     return EngineResponse::Error {
                                         code: EngineErrorCode::Canonicalization,
                                         message: error.to_string(),
-                                        diagnostics: Vec::new(),
+                                        diagnostics,
                                     };
                                 }
                             };
-                            EngineResponse::TextAnalyzed { analysis }
+                            EngineResponse::TextAnalyzed {
+                                analysis,
+                                diagnostics,
+                            }
                         } else {
                             EngineResponse::TextAmbiguous {
                                 alternatives,
-                                diagnostics: Vec::new(),
+                                diagnostics,
                             }
                         }
                     }
