@@ -134,23 +134,23 @@ pub fn run_from_env() -> Result<(), CliError> {
         } => {
             let mut runtime = runtime_args.build()?;
             cli::lingua_eval::run(&mut runtime, &program, expansion.into(), trace)
-                .map_err(CliError::Command)
+                .map_err(Into::into)
         }
         Command::LinguaIngest { program, evidence } => {
             let mut runtime = runtime_args.build()?;
-            cli::lingua_ingest::run(&mut runtime, &program, &evidence).map_err(CliError::Command)
+            cli::lingua_ingest::run(&mut runtime, &program, &evidence).map_err(Into::into)
         }
         Command::LinguaQuery { goal } => {
             let mut runtime = runtime_args.build()?;
-            cli::lingua_query::run(&mut runtime, &goal).map_err(CliError::Command)
+            cli::lingua_query::run(&mut runtime, &goal).map_err(Into::into)
         }
         Command::TextAnalyze { input, derivation } => {
             let mut runtime = runtime_args.build()?;
-            cli::text_analyze::run(&mut runtime, input, derivation).map_err(CliError::Command)
+            cli::text_analyze::run(&mut runtime, input, derivation).map_err(Into::into)
         }
         Command::TextIngest { input } => {
             let mut runtime = runtime_args.build()?;
-            cli::text_ingest::run(&mut runtime, input).map_err(CliError::Command)
+            cli::text_ingest::run(&mut runtime, input).map_err(Into::into)
         }
         Command::TextAsk {
             input,
@@ -159,15 +159,15 @@ pub fn run_from_env() -> Result<(), CliError> {
         } => {
             let mut runtime = runtime_args.build()?;
             cli::text_ask::run(&mut runtime, input, limit, evidence.into())
-                .map_err(CliError::Command)
+                .map_err(Into::into)
         }
         Command::SessionInspect => {
             let mut runtime = runtime_args.build()?;
-            cli::session_inspect::run(&mut runtime).map_err(CliError::Command)
+            cli::session_inspect::run(&mut runtime).map_err(Into::into)
         }
         Command::SessionClear => {
             let mut runtime = runtime_args.build()?;
-            cli::session_clear::run(&mut runtime).map_err(CliError::Command)
+            cli::session_clear::run(&mut runtime).map_err(Into::into)
         }
         Command::ModelValidate { model_root } => cli::model_validate::run(
             model_root.unwrap_or(default_model_root),

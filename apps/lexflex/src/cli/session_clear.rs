@@ -1,8 +1,7 @@
-use crate::cli::output::print_response;
+use crate::cli::output::{print_response_and_check, CliExit};
 use lexflex_engine::{api::request::EngineRequest, runtime::LexFlexRuntime};
 
-pub fn run(runtime: &mut LexFlexRuntime) -> Result<(), String> {
+pub fn run(runtime: &mut LexFlexRuntime) -> Result<(), CliExit> {
     let response = runtime.handle(EngineRequest::ClearSession);
-    print_response(&response)?;
-    Ok(())
+    print_response_and_check(&response)
 }

@@ -1,7 +1,7 @@
-use crate::cli::output::print_response;
+use crate::cli::output::{print_response_and_check, CliExit};
 use crate::cli::support::read_ron;
 use lexflex_engine::{
-    api::request::EngineRequest, api::response::EngineResponse, runtime::LexFlexRuntime,
+    api::request::EngineRequest, runtime::LexFlexRuntime,
 };
 use lexflex_lingua::LinguaProgram;
 use lexflex_model::Evidence;
@@ -11,13 +11,9 @@ pub fn run(
     runtime: &mut LexFlexRuntime,
     program_path: &Path,
     evidence_path: &Path,
-) -> Result<(), String> {
-    let program: LinguaProgram = read_ron(program_path)?;
-    let evidence: Vec<Evidence> = read_ron(evidence_path)?;
+) -> Result<(), CliExit> {
+    let program: LinguaProgram = read_ron(program_path).map_err(CliExit::Command)?;
+    let evidence: Vec<Evidence> = read_ron(evidence_path).map_err(CliExit::Command)?;
     let response = runtime.handle(EngineRequest::IngestLingua { program, evidence });
-    print_response(&response)?;
-    match response {
-        EngineResponse::Error { message, .. } => Err(message),
-        _ => Ok(()),
-    }
+    print_response_and_check(&response)
 }
