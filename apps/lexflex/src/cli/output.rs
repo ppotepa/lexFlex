@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::fmt::{Display, Formatter};
 
 pub fn print_response_and_check(response: &EngineResponse) -> Result<(), CliExit> {
-    print_json(response).map_err(|error| CliExit::Command(error))?;
+    print_json(response).map_err(CliExit::Command)?;
     match response {
         EngineResponse::Error { code, message, .. } => Err(CliExit::Engine {
             code: *code,

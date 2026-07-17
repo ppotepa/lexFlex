@@ -48,9 +48,10 @@ impl ChartCell {
                 if primary_digest == existing_primary {
                     let mut added = 0usize;
                     for alt in item.derivations.all().skip(1) {
-                        match existing.derivations.insert(alt.clone(), alt_derivation_limit)? {
-                            DerivationInsertOutcome::Inserted => added += 1,
-                            _ => {}
+                        if existing.derivations.insert(alt.clone(), alt_derivation_limit)?
+                            == DerivationInsertOutcome::Inserted
+                        {
+                            added += 1;
                         }
                     }
                     if added > 0 {

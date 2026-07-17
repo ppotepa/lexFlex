@@ -197,10 +197,6 @@ impl LexFlexRuntime {
             .map(|value| value.analysis)
             .collect::<Vec<_>>();
 
-        if failures.is_empty() {
-            Ok((alternatives, failures))
-        } else {
-            Ok((alternatives, failures))
-        }
+        Ok((alternatives, failures))
     }
 }
