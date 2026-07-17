@@ -1,6 +1,5 @@
 mod apply;
 mod binding;
-mod error;
 mod features;
 mod outcome;
 mod substitution;

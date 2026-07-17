@@ -12,7 +12,6 @@ mod meaning;
 mod metrics;
 mod output;
 mod parser;
-mod punctuation;
 mod token;
 
 pub use budget::ParseBudget;

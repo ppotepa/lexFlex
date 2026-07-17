@@ -5,7 +5,6 @@ mod derivation_set;
 mod insert;
 mod item;
 mod key;
-mod score;
 
 pub(crate) use chart::Chart;
 pub(crate) use composition::compose_all;

@@ -3,7 +3,6 @@ mod call;
 mod concept;
 mod environment;
 mod eval;
-mod expansion;
 mod interpreter;
 mod result;
 mod state;

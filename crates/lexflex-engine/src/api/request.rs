@@ -32,8 +32,4 @@ pub enum EngineRequest {
     },
     InspectSession,
     ClearSession,
-    TranslateText {
-        input: TextInput,
-        target_language: lexflex_language::LanguageId,
-    },
 }

@@ -24,10 +24,6 @@ impl LexFlexRuntime {
             } => self.handle_ask_text(input, evidence_policy, limit),
             EngineRequest::InspectSession => self.handle_inspect(),
             EngineRequest::ClearSession => self.handle_clear(),
-            EngineRequest::TranslateText { .. } => EngineResponse::Unsupported {
-                capability: "natural-language-translation".into(),
-                message: "Translation is not implemented yet.".into(),
-            },
         }
     }
 }

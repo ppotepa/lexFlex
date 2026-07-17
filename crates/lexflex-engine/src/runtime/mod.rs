@@ -23,7 +23,6 @@ mod dispatch;
 mod dispatch_helpers;
 mod formal_expression;
 mod formal_result;
-mod mutation;
 mod path;
 mod persist;
 mod query;

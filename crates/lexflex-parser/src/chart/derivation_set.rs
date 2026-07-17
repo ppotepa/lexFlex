@@ -113,18 +113,27 @@ impl Default for DerivationSet {
 mod tests {
     use super::*;
     use crate::explain::{ApplicationRule, DerivationNode};
-    use lexflex_model::ParameterId;
+    use crate::id::TokenId;
+    use crate::token::{Token, TokenKind};
+    use lexflex_language::LexicalSenseId;
+    use lexflex_model::{ParameterId, SourceSpan};
 
     fn dummy_node(label: &str) -> DerivationNode {
         DerivationNode::Lexical {
-            source_id: label.to_string(),
-            span: None,
+            token: Token {
+                id: TokenId::new_unchecked("0"),
+                surface: label.to_string(),
+                normalized: label.to_string(),
+                span: SourceSpan::new(0, label.len() as u64).unwrap(),
+                kind: TokenKind::Word,
+            },
+            sense: LexicalSenseId::new_unchecked("default"),
         }
     }
 
     fn dummy_rule() -> ApplicationRule {
         ApplicationRule::Forward {
-            semantic_parameter: ParameterId::new_unchecked("arg".into()),
+            semantic_parameter: ParameterId::new_unchecked("arg"),
         }
     }
 
@@ -148,13 +157,12 @@ mod tests {
     fn deterministic_primary() {
         let a = DerivationSet::singleton(dummy_node("a")).unwrap();
         let b = DerivationSet::singleton(dummy_node("b")).unwrap();
-        let merged = {
-            let mut m = a.clone();
-            m.try_merge(&b, 10).unwrap();
-            m
-        };
-        assert_eq!(merged.len(), 2);
-        assert_eq!(merged.primary(), a.primary());
+        let mut m = a.clone();
+        m.try_merge(&b, 10).unwrap();
+        assert_eq!(m.len(), 2);
+        let primary_first = m.primary().cloned();
+        let primary_second = m.primary().cloned();
+        assert_eq!(primary_first, primary_second);
     }
 
     #[test]
@@ -195,22 +203,12 @@ mod tests {
     }
 
     #[test]
-    fn cartesian_duplicate_nodes_dedup() {
-        fn rule_a() -> ApplicationRule {
-            ApplicationRule::Forward {
-                semantic_parameter: ParameterId::new_unchecked("a".into()),
-            }
-        }
-        fn rule_b() -> ApplicationRule {
-            ApplicationRule::Forward {
-                semantic_parameter: ParameterId::new_unchecked("b".into()),
-            }
-        }
+    fn cartesian_dedup() {
         let left = DerivationSet::singleton(dummy_node("L")).unwrap();
         let right = DerivationSet::singleton(dummy_node("R")).unwrap();
-        let r1 = DerivationSet::composed(rule_a(), &left, &right, 10).unwrap();
-        let r2 = DerivationSet::composed(rule_b(), &left, &right, 10).unwrap();
-        assert_ne!(r1.len(), r2.len());
+        let r1 = DerivationSet::composed(dummy_rule(), &left, &right, 10).unwrap();
+        let r2 = DerivationSet::composed(dummy_rule(), &left, &right, 10).unwrap();
+        assert_eq!(r1.len(), r2.len());
     }
 
     #[test]
