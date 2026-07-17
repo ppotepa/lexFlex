@@ -67,6 +67,6 @@ fn apply_directional(
 
     match substitution.apply_category(result) {
         Ok(result) => CategoryOutcome::Applied((result, semantic_parameter.clone(), substitution)),
-        Err(error) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape), // fallback
+        Err(_error) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape), // fallback
     }
 }

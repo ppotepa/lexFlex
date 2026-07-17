@@ -1,8 +1,6 @@
 use crate::diagnostic::ParseError;
 use lexflex_language::{AtomicCategoryKind, CategoryType, CategoryTypeVariableId, FeatureName, FeatureValue, SlashDirection};
 use lexflex_model::{CanonicalHashError, ParameterId, SemanticType};
-use serde::{Deserialize, Serialize};
-use std::fmt;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,12 +17,6 @@ pub enum CategoryMismatch {
     SemanticParameter {
         expected: ParameterId,
         actual: ParameterId,
-    },
-    MissingFeature(FeatureName),
-    Feature {
-        name: FeatureName,
-        expected: FeatureValue,
-        actual: FeatureValue,
     },
     SemanticType {
         expected: SemanticType,

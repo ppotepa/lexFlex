@@ -1,4 +1,4 @@
-use crate::chart::{Chart, DerivationSet};
+use crate::chart::Chart;
 use crate::category::resolve_query_variables;
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
 use crate::input::ClauseMode;

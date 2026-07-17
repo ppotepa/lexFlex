@@ -11,7 +11,7 @@ pub enum DerivationInsertOutcome {
     LimitExceeded,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DerivationSet {
     entries: BTreeMap<CanonicalDigest, DerivationNode>,
 }
@@ -98,14 +98,6 @@ impl DerivationSet {
         }
 
         Ok(Self { entries })
-    }
-}
-
-impl Default for DerivationSet {
-    fn default() -> Self {
-        Self {
-            entries: BTreeMap::new(),
-        }
     }
 }
 
