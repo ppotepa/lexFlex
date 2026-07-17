@@ -1,5 +1,5 @@
+use crate::category::outcome::{CategoryMismatch, CategoryOutcome};
 use crate::category::{unify_category, CategorySubstitution};
-use crate::diagnostic::ParseError;
 use lexflex_language::{CategoryType, SlashDirection, SyntacticCategory};
 use lexflex_model::{ConceptCatalog, ParameterId, SemanticType, VariableId};
 use std::collections::BTreeMap;
@@ -9,7 +9,7 @@ pub(crate) fn apply_forward(
     argument: &SyntacticCategory,
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> Result<Option<(SyntacticCategory, ParameterId, CategorySubstitution)>, ParseError> {
+) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     apply_directional(function, argument, base, catalog, SlashDirection::Forward)
 }
 
@@ -18,14 +18,14 @@ pub(crate) fn apply_backward(
     argument: &SyntacticCategory,
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> Result<Option<(SyntacticCategory, ParameterId, CategorySubstitution)>, ParseError> {
+) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     apply_directional(function, argument, base, catalog, SlashDirection::Backward)
 }
 
 pub(crate) fn resolve_query_variables(
     query_variables: &BTreeMap<VariableId, CategoryType>,
     substitution: &CategorySubstitution,
-) -> Result<BTreeMap<VariableId, SemanticType>, ParseError> {
+) -> Result<BTreeMap<VariableId, SemanticType>, crate::diagnostic::ParseError> {
     query_variables
         .iter()
         .map(|(variable, value)| Ok((variable.clone(), substitution.require_concrete(value)?)))
@@ -38,7 +38,7 @@ fn apply_directional(
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
     direction: SlashDirection,
-) -> Result<Option<(SyntacticCategory, ParameterId, CategorySubstitution)>, ParseError> {
+) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     let SyntacticCategory::Function {
         result,
         argument: expected_argument,
@@ -47,18 +47,26 @@ fn apply_directional(
         ..
     } = function
     else {
-        return Ok(None);
+        return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
     };
 
     if *actual_direction != direction {
-        return Ok(None);
+        return CategoryOutcome::NotApplicable(CategoryMismatch::Direction {
+            expected: direction,
+            actual: *actual_direction,
+        });
     }
 
     let mut substitution = base.clone();
-    if !unify_category(expected_argument, argument, &mut substitution, catalog)? {
-        return Ok(None);
+    match unify_category(expected_argument, argument, &mut substitution, catalog) {
+        CategoryOutcome::Applied(()) => {}
+        CategoryOutcome::NotApplicable(mismatch) => {
+            return CategoryOutcome::NotApplicable(mismatch);
+        }
     }
 
-    let result = substitution.apply_category(result)?;
-    Ok(Some((result, semantic_parameter.clone(), substitution)))
+    match substitution.apply_category(result) {
+        Ok(result) => CategoryOutcome::Applied((result, semantic_parameter.clone(), substitution)),
+        Err(error) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape), // fallback
+    }
 }

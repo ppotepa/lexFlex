@@ -60,7 +60,7 @@ pub fn chart_stage(
                             ctx.catalog.as_ref(),
                             ctx.budget.max_semantic_nodes,
                             ctx.budget.max_derivations_per_item,
-                        )?;
+                        );
                         if items.is_empty() {
                             ctx.metrics.rejected_application_count += 1;
                         }

@@ -1,6 +1,6 @@
 use crate::category::features::expected_features_match;
+use crate::category::outcome::{CategoryMismatch, CategoryOutcome};
 use crate::category::CategorySubstitution;
-use crate::diagnostic::ParseError;
 use lexflex_language::{CategoryType, SyntacticCategory};
 use lexflex_model::{ConceptCatalog, TypeRelation};
 
@@ -9,7 +9,7 @@ pub(crate) fn unify_category(
     actual: &SyntacticCategory,
     substitution: &mut CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> Result<bool, ParseError> {
+) -> CategoryOutcome<()> {
     match (expected, actual) {
         (
             SyntacticCategory::Atom {
@@ -23,10 +23,14 @@ pub(crate) fn unify_category(
                 features: actual_features,
             },
         ) => {
-            if expected_kind != actual_kind
-                || !expected_features_match(expected_features, actual_features)
-            {
-                return Ok(false);
+            if expected_kind != actual_kind {
+                return CategoryOutcome::NotApplicable(CategoryMismatch::AtomicKind {
+                    expected: expected_kind.clone(),
+                    actual: actual_kind.clone(),
+                });
+            }
+            if !expected_features_match(expected_features, actual_features) {
+                return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
             }
             unify_type(expected_type, actual_type, substitution, catalog)
         }
@@ -46,18 +50,28 @@ pub(crate) fn unify_category(
                 features: actual_features,
             },
         ) => {
-            if expected_direction != actual_direction
-                || expected_parameter != actual_parameter
-                || !expected_features_match(expected_features, actual_features)
-            {
-                return Ok(false);
+            if expected_direction != actual_direction {
+                return CategoryOutcome::NotApplicable(CategoryMismatch::Direction {
+                    expected: *expected_direction,
+                    actual: *actual_direction,
+                });
             }
-            Ok(
-                unify_category(expected_result, actual_result, substitution, catalog)?
-                    && unify_category(expected_argument, actual_argument, substitution, catalog)?,
-            )
+            if expected_parameter != actual_parameter {
+                return CategoryOutcome::NotApplicable(CategoryMismatch::SemanticParameter {
+                    expected: expected_parameter.clone(),
+                    actual: actual_parameter.clone(),
+                });
+            }
+            if !expected_features_match(expected_features, actual_features) {
+                return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
+            }
+            match unify_category(expected_result, actual_result, substitution, catalog) {
+                CategoryOutcome::Applied(()) => {}
+                other => return other,
+            }
+            unify_category(expected_argument, actual_argument, substitution, catalog)
         }
-        _ => Ok(false),
+        (_, _) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape),
     }
 }
 
@@ -66,21 +80,35 @@ pub(crate) fn unify_type(
     actual: &CategoryType,
     substitution: &mut CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> Result<bool, ParseError> {
+) -> CategoryOutcome<()> {
     match (expected, actual) {
         (CategoryType::Concrete(expected), CategoryType::Concrete(actual)) => {
-            Ok(TypeRelation::new(catalog).accepts(expected, actual))
+            if TypeRelation::new(catalog).accepts(expected, actual) {
+                CategoryOutcome::Applied(())
+            } else {
+                CategoryOutcome::NotApplicable(CategoryMismatch::SemanticType {
+                    expected: expected.clone(),
+                    actual: actual.clone(),
+                })
+            }
         }
         (CategoryType::Variable(left), CategoryType::Variable(right)) => {
-            substitution.alias(left.clone(), right.clone(), catalog)?;
-            Ok(true)
+            match substitution.alias(left.clone(), right.clone(), catalog) {
+                Ok(()) => CategoryOutcome::Applied(()),
+                Err(_) => CategoryOutcome::NotApplicable(CategoryMismatch::SubstitutionConflict {
+                    existing: CategoryType::Variable(left.clone()),
+                    incoming: CategoryType::Variable(right.clone()),
+                }),
+            }
         }
         (CategoryType::Variable(variable), CategoryType::Concrete(value))
         | (CategoryType::Concrete(value), CategoryType::Variable(variable)) => {
             match substitution.bind_concrete(variable.clone(), value.clone(), catalog) {
-                Ok(()) => Ok(true),
-                Err(ParseError::ConflictingQueryCategoryType { .. }) => Ok(false),
-                Err(other) => Err(other),
+                Ok(()) => CategoryOutcome::Applied(()),
+                Err(_) => CategoryOutcome::NotApplicable(CategoryMismatch::SubstitutionConflict {
+                    existing: CategoryType::Variable(variable.clone()),
+                    incoming: CategoryType::Concrete(value.clone()),
+                }),
             }
         }
     }

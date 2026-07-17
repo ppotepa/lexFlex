@@ -104,6 +104,28 @@ impl CategorySubstitution {
         Ok(())
     }
 
+    pub(crate) fn merge_for_composition(
+        &mut self,
+        incoming: &CategorySubstitution,
+        catalog: &ConceptCatalog,
+    ) -> Result<(), ()> {
+        for (variable, binding) in &incoming.bindings {
+            match binding {
+                CategoryBinding::Alias(next) => {
+                    if self.alias(variable.clone(), next.clone(), catalog).is_err() {
+                        return Err(());
+                    }
+                }
+                CategoryBinding::Concrete(semantic_type) => {
+                    if self.bind_concrete(variable.clone(), semantic_type.clone(), catalog).is_err() {
+                        return Err(());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn alias(
         &mut self,
         left: CategoryTypeVariableId,
