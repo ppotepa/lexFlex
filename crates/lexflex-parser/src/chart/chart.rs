@@ -89,7 +89,7 @@ pub fn compose(
             &right.meaning,
             max_semantic_nodes,
         )?;
-        let unresolved_types = meaning.query_variables.len();
+        let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
         return Ok(Some(ChartItem {
             start: left.start,
             end: right.end,
@@ -113,7 +113,7 @@ pub fn compose(
             &left.meaning,
             max_semantic_nodes,
         )?;
-        let unresolved_types = meaning.query_variables.len();
+        let unresolved_types = substitution.unresolved_query_type_count(&meaning.query_variables)?;
         return Ok(Some(ChartItem {
             start: left.start,
             end: right.end,

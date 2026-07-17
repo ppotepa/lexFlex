@@ -60,14 +60,30 @@ impl CategorySubstitution {
         category.try_map_types(&mut |value| self.resolve(value))
     }
 
-    pub(crate) fn apply_query_types(
+    pub(crate) fn apply_query_category_types(
         &self,
         query_variables: &BTreeMap<lexflex_model::VariableId, lexflex_language::CategoryType>,
-    ) -> Result<BTreeMap<lexflex_model::VariableId, lexflex_model::SemanticType>, ParseError> {
+    ) -> Result<BTreeMap<lexflex_model::VariableId, lexflex_language::CategoryType>, ParseError> {
         query_variables
             .iter()
-            .map(|(variable, value)| Ok((variable.clone(), self.require_concrete(value)?)))
+            .map(|(variable, value)| Ok((variable.clone(), self.resolve(value)?)))
             .collect()
+    }
+
+    pub(crate) fn unresolved_query_type_count(
+        &self,
+        query_variables: &BTreeMap<lexflex_model::VariableId, lexflex_language::CategoryType>,
+    ) -> Result<usize, ParseError> {
+        query_variables
+            .values()
+            .map(|value| self.resolve(value))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|resolved| {
+                resolved
+                    .into_iter()
+                    .filter(|resolved| matches!(resolved, lexflex_language::CategoryType::Variable(_)))
+                    .count()
+            })
     }
 
     pub(crate) fn merge(

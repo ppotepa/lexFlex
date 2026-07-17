@@ -16,7 +16,7 @@ impl ChartItemKey {
             .apply_category(&item.category)?;
         let query_types = item
             .substitution
-            .apply_query_types(&item.meaning.query_variables)?;
+            .apply_query_category_types(&item.meaning.query_variables)?;
 
         Ok(Self {
             category: canonical_hash(&category)?,
