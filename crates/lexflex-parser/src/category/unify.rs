@@ -77,8 +77,11 @@ pub(crate) fn unify_type(
         }
         (CategoryType::Variable(variable), CategoryType::Concrete(value))
         | (CategoryType::Concrete(value), CategoryType::Variable(variable)) => {
-            substitution.bind_concrete(variable.clone(), value.clone(), catalog)?;
-            Ok(true)
+            match substitution.bind_concrete(variable.clone(), value.clone(), catalog) {
+                Ok(()) => Ok(true),
+                Err(ParseError::ConflictingQueryCategoryType { .. }) => Ok(false),
+                Err(other) => Err(other),
+            }
         }
     }
 }
