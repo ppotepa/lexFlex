@@ -1,8 +1,8 @@
 use lexflex_engine::{KnowledgeIndex, KnowledgeSnapshot};
 use lexflex_lingua::{solve::EvidencePolicy, LinguaGoal};
 use lexflex_model::{
-    ConceptId, EntityId, Evidence, ParameterId, SemanticAssertion, SemanticExpression, VariableId,
-    WorldId,
+    canonical_hash, ConceptId, EntityId, Evidence, ParameterId, SemanticAssertion,
+    SemanticExpression, VariableId, WorldId,
 };
 use std::collections::BTreeMap;
 
@@ -18,12 +18,14 @@ fn rebuild_indexes_world_root_concept_and_entity() {
                 bindings: BTreeMap::new(),
             }),
         },
-        vec![Evidence::create("source:1", None, None)],
+        vec![Evidence::create("source:1", None, None).expect("evidence")],
         WorldId::new_unchecked("actual"),
-    );
+    )
+    .expect("assertion");
     let snapshot = KnowledgeSnapshot {
         assertions: BTreeMap::from([(assertion.id.clone(), assertion.clone())]),
-        snapshot_hash: String::new(),
+        snapshot_hash: canonical_hash(&BTreeMap::from([(assertion.id.clone(), assertion.clone())]))
+            .expect("snapshot hash"),
     };
     let index = KnowledgeIndex::rebuild(&snapshot);
     assert!(index
@@ -66,12 +68,14 @@ fn rebuild_indexes_world_root_concept_and_entity() {
 fn candidate_ids_use_entity_index() {
     let assertion = SemanticAssertion::create(
         SemanticExpression::Entity(EntityId::new_unchecked("ENTITY_1")),
-        vec![Evidence::create("source:1", None, None)],
+        vec![Evidence::create("source:1", None, None).expect("evidence")],
         WorldId::new_unchecked("actual"),
-    );
+    )
+    .expect("assertion");
     let snapshot = KnowledgeSnapshot {
         assertions: BTreeMap::from([(assertion.id.clone(), assertion.clone())]),
-        snapshot_hash: String::new(),
+        snapshot_hash: canonical_hash(&BTreeMap::from([(assertion.id.clone(), assertion.clone())]))
+            .expect("snapshot hash"),
     };
     let index = KnowledgeIndex::rebuild(&snapshot);
     let goal = LinguaGoal {
@@ -96,12 +100,14 @@ fn empty_intersection_stays_empty() {
                 SemanticExpression::Entity(EntityId::new_unchecked("ENTITY_A")),
             )]),
         },
-        vec![Evidence::create("source:1", None, None)],
+        vec![Evidence::create("source:1", None, None).expect("evidence")],
         WorldId::new_unchecked("actual"),
-    );
+    )
+    .expect("assertion");
+    let assertions = BTreeMap::from([(assertion.id.clone(), assertion.clone())]);
     let snapshot = KnowledgeSnapshot {
-        assertions: BTreeMap::from([(assertion.id.clone(), assertion)]),
-        snapshot_hash: String::new(),
+        snapshot_hash: canonical_hash(&assertions).expect("snapshot hash"),
+        assertions,
     };
     let index = KnowledgeIndex::rebuild(&snapshot);
     let goal = LinguaGoal {

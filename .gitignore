@@ -4,6 +4,8 @@
 /scratch/
 /results/
 /.lexflex/
+/data/sessions/
+/data/sources/
 
 .codegraph/
 .qwen/
@@ -16,3 +18,5 @@
 
 .DS_Store
 Thumbs.db
+concat.txt
+*.bk

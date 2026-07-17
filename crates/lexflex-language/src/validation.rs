@@ -1,4 +1,5 @@
 mod error;
+mod lexical_meaning;
 mod meaning;
 
 pub use error::{LanguageValidationError, LanguageValidationIssue};
@@ -121,23 +122,25 @@ impl LanguageModelValidator {
                 }
                 .into());
             }
-            for form in &paradigm.forms {
-                validate_form(form, &lexemes).map_err(|issue| {
-                    LanguageValidationIssue::SenseValency {
-                        sense_id: paradigm.id.to_string(),
-                        message: issue.to_string(),
+            let mut seen_form_ids = BTreeSet::new();
+            for form_id in &paradigm.form_ids {
+                if !seen_form_ids.insert(form_id.clone()) {
+                    return Err(LanguageValidationIssue::DuplicateParadigmForm {
+                        paradigm_id: paradigm.id.to_string(),
+                        form_id: form_id.to_string(),
                     }
-                })?;
-                let canonical = forms_by_id.get(&form.id).ok_or_else(|| {
+                    .into());
+                }
+                let canonical = forms_by_id.get(form_id).ok_or_else(|| {
                     LanguageValidationIssue::ParadigmUnknownForm {
                         paradigm_id: paradigm.id.to_string(),
-                        form_id: form.id.to_string(),
+                        form_id: form_id.to_string(),
                     }
                 })?;
-                if *canonical != form {
-                    return Err(LanguageValidationIssue::ParadigmCanonicalMismatch {
+                if !lexemes.contains(canonical.lexeme_id.as_str()) {
+                    return Err(LanguageValidationIssue::ParadigmUnknownLexeme {
                         paradigm_id: paradigm.id.to_string(),
-                        form_id: form.id.to_string(),
+                        lexeme_id: canonical.lexeme_id.to_string(),
                     }
                     .into());
                 }
@@ -169,7 +172,7 @@ fn validate_form(
     Ok(())
 }
 
-fn validate_semantic_type(
+pub(super) fn validate_semantic_type(
     semantic_type: &SemanticType,
     catalog: &ConceptCatalog,
     sense_id: &str,
@@ -329,7 +332,7 @@ fn validate_category(
     }
 }
 
-fn validate_category_type(
+pub(super) fn validate_category_type(
     category_type: &crate::CategoryType,
     catalog: &ConceptCatalog,
     sense_id: &str,

@@ -15,4 +15,12 @@ impl RuntimeEnvironment {
     pub fn get(&self, symbol: &SymbolId) -> Option<&RuntimeValue> {
         self.locals.get(symbol)
     }
+
+    pub fn len(&self) -> usize {
+        self.locals.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.locals.is_empty()
+    }
 }

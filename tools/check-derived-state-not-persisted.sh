@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if rg -n 'pub knowledge_index:' crates/lexflex-engine/src/session.rs
+if rg -n 'pub knowledge_index:' crates/lexflex-engine/src/session/state.rs
 then
   echo "ERROR: derived knowledge index is persisted"
   exit 1

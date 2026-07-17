@@ -1,4 +1,6 @@
 use super::*;
+use crate::runtime::formal_result::FormalExpressionError;
+use crate::runtime::ambiguity::ExpectedTextKind;
 use std::collections::BTreeMap;
 
 impl LexFlexRuntime {
@@ -18,13 +20,37 @@ impl LexFlexRuntime {
                     Err(error) => {
                         return EngineResponse::Error {
                             code: EngineErrorCode::InvalidProgram,
-                            message: error,
+                            message: error.to_string(),
                             diagnostics: Vec::new(),
                         };
                     }
                 };
-                let analysis =
-                    self.assertion_analysis(&draft, semantic_expression, include_derivation);
+                if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
+                    let error = FormalExpressionError::NonBooleanAssertion(
+                        semantic_expression.entry_type.clone(),
+                    );
+                    return EngineResponse::Error {
+                        code: EngineErrorCode::InvalidProgram,
+                        message: error.to_string(),
+                        diagnostics: Vec::new(),
+                    };
+                }
+                let analysis = self.assertion_analysis(
+                    &draft,
+                    semantic_expression.value,
+                    semantic_expression.steps,
+                    include_derivation,
+                );
+                let analysis = match analysis {
+                    Ok(analysis) => analysis,
+                    Err(error) => {
+                        return EngineResponse::Error {
+                            code: EngineErrorCode::Canonicalization,
+                            message: error.to_string(),
+                            diagnostics: Vec::new(),
+                        };
+                    }
+                };
                 EngineResponse::TextAnalyzed { analysis }
             }
             Ok(ParseOutput::Goal(draft)) => {
@@ -37,33 +63,107 @@ impl LexFlexRuntime {
                     Err(error) => {
                         return EngineResponse::Error {
                             code: EngineErrorCode::InvalidProgram,
-                            message: error,
+                            message: error.to_string(),
                             diagnostics: Vec::new(),
                         };
                     }
                 };
-                let analysis = self.goal_analysis(&draft, semantic_expression, include_derivation);
+                if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
+                    let error = FormalExpressionError::NonBooleanGoal(
+                        semantic_expression.entry_type.clone(),
+                    );
+                    return EngineResponse::Error {
+                        code: EngineErrorCode::InvalidProgram,
+                        message: error.to_string(),
+                        diagnostics: Vec::new(),
+                    };
+                }
+                let analysis = self.goal_analysis(
+                    &draft,
+                    semantic_expression.value,
+                    semantic_expression.steps,
+                    include_derivation,
+                );
+                let analysis = match analysis {
+                    Ok(analysis) => analysis,
+                    Err(error) => {
+                        return EngineResponse::Error {
+                            code: EngineErrorCode::Canonicalization,
+                            message: error.to_string(),
+                            diagnostics: Vec::new(),
+                        };
+                    }
+                };
                 EngineResponse::TextAnalyzed { analysis }
             }
-            Ok(ParseOutput::Ambiguous { alternatives }) => {
-                let mut lowered = Vec::new();
-                for alternative in alternatives {
-                    let semantic_expression = match self.evaluate_formal_expression(
-                        "analysis:ambiguous",
-                        alternative.expression.clone(),
-                        BTreeMap::new(),
-                    ) {
-                        Ok(value) => value,
-                        Err(_) => continue,
-                    };
-                    lowered.push(TextAnalysisAlternative::new(
-                        semantic_expression,
-                        include_derivation.then_some(alternative.derivation),
-                        alternative.score,
-                    ));
-                }
-                EngineResponse::TextAmbiguous {
-                    alternatives: lowered,
+            Ok(ParseOutput::Ambiguous { alternatives, .. }) => {
+                let expected = if alternatives
+                    .iter()
+                    .any(|alternative| !alternative.query_variables.is_empty())
+                {
+                    ExpectedTextKind::Goal
+                } else {
+                    ExpectedTextKind::Assertion
+                };
+                match self.lower_ambiguous_alternatives(
+                    &input.source_id,
+                    alternatives,
+                    include_derivation,
+                    expected,
+                ) {
+                    Ok(mut alternatives) => {
+                        if alternatives.len() == 1 {
+                            let Some(alternative) = alternatives.pop() else {
+                                return EngineResponse::Error {
+                                    code: EngineErrorCode::InternalInvariant,
+                                    message: "expected exactly one lowered alternative".into(),
+                                    diagnostics: Vec::new(),
+                                };
+                            };
+                            let span = match SourceSpan::new(0, input.text.len() as u64) {
+                                Ok(span) => span,
+                                Err(error) => {
+                                    return EngineResponse::Error {
+                                        code: EngineErrorCode::Canonicalization,
+                                        message: error.to_string(),
+                                        diagnostics: Vec::new(),
+                                    };
+                                }
+                            };
+                            let analysis = match TextAnalysis::new(TextAnalysisInput {
+                                source_id: input.source_id,
+                                language: input.language,
+                                span,
+                                kind: if alternative.variables.is_empty() {
+                                    TextAnalysisKind::Assertion
+                                } else {
+                                    TextAnalysisKind::Goal
+                                },
+                                canonical_expression: alternative.canonical_expression,
+                                variables: alternative.variables,
+                                projection: alternative.projection,
+                                formal_steps: alternative.formal_steps,
+                                parser_metrics: alternative.parser_metrics,
+                                derivation: alternative.derivation,
+                            }) {
+                                Ok(analysis) => analysis,
+                                Err(error) => {
+                                    return EngineResponse::Error {
+                                        code: EngineErrorCode::Canonicalization,
+                                        message: error.to_string(),
+                                        diagnostics: Vec::new(),
+                                    };
+                                }
+                            };
+                            EngineResponse::TextAnalyzed { analysis }
+                        } else {
+                            EngineResponse::TextAmbiguous {
+                                alternatives,
+                                diagnostics: Vec::new(),
+                            }
+                        }
+                    }
+                    Err(response) => response,
                 }
             }
             Err(error) => EngineResponse::TextNotParsed {

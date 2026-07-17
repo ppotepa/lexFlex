@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::formal_result::{FormalExpressionError, FormalExpressionResult};
 use lexflex_lingua::CompileContext;
 use std::collections::BTreeMap;
 
@@ -8,11 +9,12 @@ impl LexFlexRuntime {
         source_id: &str,
         expression: lexflex_lingua::LinguaExpression,
         query_variables: BTreeMap<lexflex_model::VariableId, lexflex_model::SemanticType>,
-    ) -> Result<SemanticExpression, String> {
+    ) -> Result<FormalExpressionResult, FormalExpressionError> {
+        let source_digest = canonical_hash(&source_id)?;
         let program = LinguaProgram {
             id: lexflex_lingua::ProgramId::new_unchecked(format!(
                 "text:{}",
-                canonical_hash(&source_id)
+                source_digest.as_str()
             )),
             declarations: self.lingua.base_declarations().to_vec(),
             entry: expression,
@@ -25,41 +27,55 @@ impl LexFlexRuntime {
                     expansion: ExpansionMode::PreserveApplications,
                 },
             )
-            .map(|result| result.value)
-            .map_err(|error| error.to_string())
+            .map(|result| FormalExpressionResult {
+                value: result.execution.value,
+                entry_type: result.entry_type,
+                steps: result.execution.steps,
+            })
+            .map_err(FormalExpressionError::Lingua)
     }
 
     pub(crate) fn assertion_analysis(
         &self,
         draft: &lexflex_parser::AssertionDraft,
         canonical_expression: SemanticExpression,
+        formal_steps: u64,
         include_derivation: bool,
-    ) -> TextAnalysis {
-        TextAnalysis::new(
-            draft.source_id.clone(),
-            draft.language.clone(),
-            TextAnalysisKind::Assertion,
+    ) -> Result<TextAnalysis, FormalExpressionError> {
+        TextAnalysis::new(TextAnalysisInput {
+            source_id: draft.source_id.clone(),
+            language: draft.language.clone(),
+            span: draft.span.clone(),
+            kind: TextAnalysisKind::Assertion,
             canonical_expression,
-            Default::default(),
-            Vec::new(),
-            include_derivation.then(|| draft.derivation.clone()),
-        )
+            variables: Default::default(),
+            projection: Vec::new(),
+            formal_steps,
+            parser_metrics: draft.metrics.clone(),
+            derivation: include_derivation.then(|| draft.derivation.clone()),
+        })
+        .map_err(FormalExpressionError::CanonicalHash)
     }
 
     pub(crate) fn goal_analysis(
         &self,
         draft: &lexflex_parser::GoalDraft,
         canonical_expression: SemanticExpression,
+        formal_steps: u64,
         include_derivation: bool,
-    ) -> TextAnalysis {
-        TextAnalysis::new(
-            draft.source_id.clone(),
-            draft.language.clone(),
-            TextAnalysisKind::Goal,
+    ) -> Result<TextAnalysis, FormalExpressionError> {
+        TextAnalysis::new(TextAnalysisInput {
+            source_id: draft.source_id.clone(),
+            language: draft.language.clone(),
+            span: draft.span.clone(),
+            kind: TextAnalysisKind::Goal,
             canonical_expression,
-            draft.variables.clone(),
-            draft.projection.clone(),
-            include_derivation.then(|| draft.derivation.clone()),
-        )
+            variables: draft.variables.clone(),
+            projection: draft.projection.clone(),
+            formal_steps,
+            parser_metrics: draft.metrics.clone(),
+            derivation: include_derivation.then(|| draft.derivation.clone()),
+        })
+        .map_err(FormalExpressionError::CanonicalHash)
     }
 }

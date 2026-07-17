@@ -1,11 +1,8 @@
-use lexflex_lingua::{
-    ConceptDeclaration, ConceptSemantics, DeclarationId, ExpansionPolicy, LambdaParameter,
-    LinguaExpression, ProgramId, SemanticType, SymbolName, ValueType,
-};
-use lexflex_model::{
-    ConceptCatalog, ConceptId, ConceptKind, ConceptParameterSchema, ConceptSchema,
-    EntityDefinition, EntityId, ParameterId,
-};
+use lexflex_lingua::{ConceptDeclaration, ConceptSemantics, DeclarationId, ExpansionPolicy,
+                     LambdaParameter, LinguaExpression, ProgramId, SemanticType, SymbolName,
+                     ValueType};
+use lexflex_model::{ConceptCatalog, ConceptId, ConceptKind, ConceptParameterSchema, ConceptSchema,
+                    EntityDefinition, EntityId, ParameterId};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn kernel_catalog() -> ConceptCatalog {
@@ -18,149 +15,163 @@ pub fn kernel_catalog() -> ConceptCatalog {
     let entity = ConceptId::new_unchecked("ENTITY");
 
     ConceptCatalog {
-        concepts: BTreeMap::from([
-            (
-                entity.clone(),
-                ConceptSchema {
-                    id: entity.clone(),
-                    kind: ConceptKind::EntityType,
-                    parameters: BTreeMap::new(),
-                    result_type: SemanticType::Predicate(Box::new(SemanticType::Entity)),
-                },
-            ),
-            (
-                city.clone(),
-                ConceptSchema {
-                    id: city.clone(),
-                    kind: ConceptKind::EntityType,
-                    parameters: BTreeMap::new(),
-                    result_type: SemanticType::Predicate(Box::new(SemanticType::EntityOf(
-                        city.clone(),
-                    ))),
-                },
-            ),
-            (
-                polity.clone(),
-                ConceptSchema {
-                    id: polity.clone(),
-                    kind: ConceptKind::EntityType,
-                    parameters: BTreeMap::new(),
-                    result_type: SemanticType::Predicate(Box::new(SemanticType::EntityOf(
-                        polity.clone(),
-                    ))),
-                },
-            ),
-            (
-                country.clone(),
-                ConceptSchema {
-                    id: country.clone(),
-                    kind: ConceptKind::EntityType,
-                    parameters: BTreeMap::new(),
-                    result_type: SemanticType::Predicate(Box::new(SemanticType::EntityOf(
-                        country.clone(),
-                    ))),
-                },
-            ),
-            (
-                capital_role.clone(),
-                ConceptSchema {
-                    id: capital_role.clone(),
-                    kind: ConceptKind::RoleType,
-                    parameters: BTreeMap::new(),
-                    result_type: SemanticType::ConceptOf(ConceptKind::RoleType),
-                },
-            ),
-            (
-                fills_role.clone(),
-                ConceptSchema {
-                    id: fills_role.clone(),
-                    kind: ConceptKind::RelationType,
-                    parameters: BTreeMap::from([
-                        (
-                            ParameterId::new_unchecked("holder"),
-                            ConceptParameterSchema {
-                                id: ParameterId::new_unchecked("holder"),
-                                value_type: SemanticType::Entity,
-                                required: true,
-                            },
+        concepts: BTreeMap::from(
+            [
+                (
+                    entity.clone(),
+                    ConceptSchema {
+                        id: entity.clone(),
+                        kind: ConceptKind::EntityType,
+                        parameters: BTreeMap::new(),
+                        result_type: SemanticType::Predicate(Box::new(SemanticType::Entity)),
+                    },
+                ),
+                (
+                    city.clone(),
+                    ConceptSchema {
+                        id: city.clone(),
+                        kind: ConceptKind::EntityType,
+                        parameters: BTreeMap::new(),
+                        result_type: SemanticType::Predicate(
+                            Box::new(SemanticType::EntityOf(city.clone())),
                         ),
-                        (
-                            ParameterId::new_unchecked("role"),
-                            ConceptParameterSchema {
-                                id: ParameterId::new_unchecked("role"),
-                                value_type: SemanticType::ConceptOf(ConceptKind::RoleType),
-                                required: true,
-                            },
+                    },
+                ),
+                (
+                    polity.clone(),
+                    ConceptSchema {
+                        id: polity.clone(),
+                        kind: ConceptKind::EntityType,
+                        parameters: BTreeMap::new(),
+                        result_type: SemanticType::Predicate(
+                            Box::new(SemanticType::EntityOf(polity.clone())),
                         ),
-                        (
-                            ParameterId::new_unchecked("scope"),
-                            ConceptParameterSchema {
-                                id: ParameterId::new_unchecked("scope"),
-                                value_type: SemanticType::Entity,
-                                required: true,
-                            },
+                    },
+                ),
+                (
+                    country.clone(),
+                    ConceptSchema {
+                        id: country.clone(),
+                        kind: ConceptKind::EntityType,
+                        parameters: BTreeMap::new(),
+                        result_type: SemanticType::Predicate(
+                            Box::new(SemanticType::EntityOf(country.clone())),
                         ),
-                    ]),
-                    result_type: SemanticType::Boolean,
-                },
-            ),
-            (
-                capital.clone(),
-                ConceptSchema {
-                    id: capital.clone(),
-                    kind: ConceptKind::Predicate,
-                    parameters: BTreeMap::from([(
-                        ParameterId::new_unchecked("scope"),
-                        ConceptParameterSchema {
-                            id: ParameterId::new_unchecked("scope"),
-                            value_type: SemanticType::EntityOf(polity.clone()),
-                            required: true,
-                        },
-                    )]),
-                    result_type: SemanticType::Predicate(Box::new(SemanticType::EntityOf(
-                        city.clone(),
-                    ))),
-                },
-            ),
-        ]),
-        entities: BTreeMap::from([
-            (
-                EntityId::new_unchecked("PARIS"),
-                EntityDefinition {
-                    id: EntityId::new_unchecked("PARIS"),
-                    primary_type: city,
-                    additional_types: BTreeSet::new(),
-                },
-            ),
-            (
-                EntityId::new_unchecked("FRANCE"),
-                EntityDefinition {
-                    id: EntityId::new_unchecked("FRANCE"),
-                    primary_type: country,
-                    additional_types: BTreeSet::new(),
-                },
-            ),
-            (
-                EntityId::new_unchecked("WARSAW"),
-                EntityDefinition {
-                    id: EntityId::new_unchecked("WARSAW"),
-                    primary_type: ConceptId::new_unchecked("CITY"),
-                    additional_types: BTreeSet::new(),
-                },
-            ),
-            (
-                EntityId::new_unchecked("POLAND"),
-                EntityDefinition {
-                    id: EntityId::new_unchecked("POLAND"),
-                    primary_type: ConceptId::new_unchecked("COUNTRY"),
-                    additional_types: BTreeSet::new(),
-                },
-            ),
-        ]),
-        parents: BTreeMap::from([(
-            ConceptId::new_unchecked("COUNTRY"),
-            BTreeSet::from([polity]),
-        )]),
+                    },
+                ),
+                (
+                    capital_role.clone(),
+                    ConceptSchema {
+                        id: capital_role.clone(),
+                        kind: ConceptKind::RoleType,
+                        parameters: BTreeMap::new(),
+                        result_type: SemanticType::ConceptOf(ConceptKind::RoleType),
+                    },
+                ),
+                (
+                    fills_role.clone(),
+                    ConceptSchema {
+                        id: fills_role.clone(),
+                        kind: ConceptKind::RelationType,
+                        parameters: BTreeMap::from(
+                            [
+                                (
+                                    ParameterId::new_unchecked("holder"),
+                                    ConceptParameterSchema {
+                                        id: ParameterId::new_unchecked("holder"),
+                                        value_type: SemanticType::Entity,
+                                        required: true,
+                                    },
+                                ),
+                                (
+                                    ParameterId::new_unchecked("role"),
+                                    ConceptParameterSchema {
+                                        id: ParameterId::new_unchecked("role"),
+                                        value_type: SemanticType::ConceptOf(ConceptKind::RoleType),
+                                        required: true,
+                                    },
+                                ),
+                                (
+                                    ParameterId::new_unchecked("scope"),
+                                    ConceptParameterSchema {
+                                        id: ParameterId::new_unchecked("scope"),
+                                        value_type: SemanticType::Entity,
+                                        required: true,
+                                    },
+                                ),
+                            ],
+                        ),
+                        result_type: SemanticType::Boolean,
+                    },
+                ),
+                (
+                    capital.clone(),
+                    ConceptSchema {
+                        id: capital.clone(),
+                        kind: ConceptKind::Predicate,
+                        parameters: BTreeMap::from(
+                            [
+                                (
+                                    ParameterId::new_unchecked("scope"),
+                                    ConceptParameterSchema {
+                                        id: ParameterId::new_unchecked("scope"),
+                                        value_type: SemanticType::EntityOf(polity.clone()),
+                                        required: true,
+                                    },
+                                ),
+                            ],
+                        ),
+                        result_type: SemanticType::Predicate(
+                            Box::new(SemanticType::EntityOf(city.clone())),
+                        ),
+                    },
+                ),
+            ],
+        ),
+        entities: BTreeMap::from(
+            [
+                (
+                    EntityId::new_unchecked("PARIS"),
+                    EntityDefinition {
+                        id: EntityId::new_unchecked("PARIS"),
+                        primary_type: city,
+                        additional_types: BTreeSet::new(),
+                    },
+                ),
+                (
+                    EntityId::new_unchecked("FRANCE"),
+                    EntityDefinition {
+                        id: EntityId::new_unchecked("FRANCE"),
+                        primary_type: country,
+                        additional_types: BTreeSet::new(),
+                    },
+                ),
+                (
+                    EntityId::new_unchecked("WARSAW"),
+                    EntityDefinition {
+                        id: EntityId::new_unchecked("WARSAW"),
+                        primary_type: ConceptId::new_unchecked("CITY"),
+                        additional_types: BTreeSet::new(),
+                    },
+                ),
+                (
+                    EntityId::new_unchecked("POLAND"),
+                    EntityDefinition {
+                        id: EntityId::new_unchecked("POLAND"),
+                        primary_type: ConceptId::new_unchecked("COUNTRY"),
+                        additional_types: BTreeSet::new(),
+                    },
+                ),
+            ],
+        ),
+        parents: BTreeMap::from(
+            [
+                (
+                    ConceptId::new_unchecked("COUNTRY"),
+                    BTreeSet::from([polity]),
+                ),
+            ],
+        ),
     }
 }
 
@@ -174,11 +185,13 @@ pub fn capital_declaration() -> ConceptDeclaration {
             parameter_id: ParameterId::new_unchecked("self"),
             value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         }),
-        parameters: vec![LambdaParameter {
-            name: SymbolName::new_unchecked("scope"),
-            parameter_id: scope,
-            value_type: SemanticType::EntityOf(ConceptId::new_unchecked("POLITY")),
-        }],
+        parameters: vec![
+            LambdaParameter {
+                name: SymbolName::new_unchecked("scope"),
+                parameter_id: scope,
+                value_type: SemanticType::EntityOf(ConceptId::new_unchecked("POLITY")),
+            },
+        ],
         semantics: ConceptSemantics::Primitive,
         expansion: ExpansionPolicy::Transparent,
     }
@@ -228,10 +241,14 @@ pub fn recursive_capital_declaration() -> ConceptDeclaration {
     declaration.semantics = ConceptSemantics::Defined {
         body: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CAPITAL"),
-            bindings: BTreeMap::from([(
-                ParameterId::new_unchecked("scope"),
-                LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
-            )]),
+            bindings: BTreeMap::from(
+                [
+                    (
+                        ParameterId::new_unchecked("scope"),
+                        LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                    ),
+                ],
+            ),
         },
     };
     declaration
@@ -248,10 +265,14 @@ pub fn capital_program() -> lexflex_lingua::LinguaProgram {
             subject: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
             concept: Box::new(LinguaExpression::ApplyConcept {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from([(
-                    scope,
-                    LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                )]),
+                bindings: BTreeMap::from(
+                    [
+                        (
+                            scope,
+                            LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                        ),
+                    ],
+                ),
             }),
         },
     }
@@ -266,19 +287,25 @@ pub fn identity_program() -> lexflex_lingua::LinguaProgram {
         declarations: Vec::new(),
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Lambda {
-                parameters: vec![LambdaParameter {
-                    name,
-                    parameter_id: parameter.clone(),
-                    value_type: SemanticType::Entity,
-                }],
+                parameters: vec![
+                    LambdaParameter {
+                        name,
+                        parameter_id: parameter.clone(),
+                        value_type: SemanticType::Entity,
+                    },
+                ],
                 body: Box::new(LinguaExpression::Variable(
                     lexflex_lingua::SymbolName::new_unchecked("value"),
                 )),
             }),
-            arguments: BTreeMap::from([(
-                parameter,
-                LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
-            )]),
+            arguments: BTreeMap::from(
+                [
+                    (
+                        parameter,
+                        LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
+                    ),
+                ],
+            ),
         },
     }
 }

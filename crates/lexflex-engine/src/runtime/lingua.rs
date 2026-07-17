@@ -3,7 +3,7 @@ use lexflex_lingua::runtime::RuntimeError;
 use lexflex_lingua::{
     compiler::CompileError, CompileContext, ExecutionPolicy, ExecutionResult, ExpansionMode,
     LinguaCompiler, LinguaDeclaration, LinguaGoal, LinguaInterpreter, LinguaProgram, LinguaSolver,
-    LinguaVerifier,
+    LinguaVerifier, TypedExecutionResult,
 };
 use lexflex_model::{ConceptCatalog, SemanticAssertion};
 use std::path::Path;
@@ -46,11 +46,7 @@ impl LinguaRuntime {
     pub fn from_model(model: &crate::catalog::LoadedModelPackage) -> Self {
         let catalog = Arc::new(model.catalog.clone());
         let compiler = LinguaCompiler::new(catalog.clone());
-        let base_declarations = model
-            .concept_programs
-            .iter()
-            .flat_map(|program| program.declarations.iter().cloned())
-            .collect::<Vec<_>>();
+        let base_declarations = model.programs.declarations().to_vec();
 
         Self {
             catalog,
@@ -82,13 +78,14 @@ impl LinguaRuntime {
                 expansion: ExpansionMode::PreserveApplications,
             },
         )
+        .map(|result| result.execution)
     }
 
     pub fn evaluate_with_policy(
         &self,
         program: &LinguaProgram,
         policy: ExecutionPolicy,
-    ) -> Result<ExecutionResult, EngineError> {
+    ) -> Result<TypedExecutionResult, EngineError> {
         let compiled = self.compiler.compile(program)?;
         self.verifier
             .verify_compiled(&compiled)
@@ -103,7 +100,7 @@ impl LinguaRuntime {
         program: &LinguaProgram,
         context: &CompileContext,
         policy: ExecutionPolicy,
-    ) -> Result<ExecutionResult, EngineError> {
+    ) -> Result<TypedExecutionResult, EngineError> {
         let compiled = self.compiler.compile_with_context(program, context)?;
         self.verifier
             .verify_compiled(&compiled)

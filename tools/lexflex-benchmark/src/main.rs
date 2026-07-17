@@ -2,6 +2,7 @@
 
 mod bench;
 mod fixtures;
+mod report;
 
 use bench::{BenchmarkCase, BenchmarkSuite};
 use clap::Parser;

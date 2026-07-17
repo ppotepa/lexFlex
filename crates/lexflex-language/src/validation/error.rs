@@ -113,7 +113,7 @@ pub enum LanguageValidationIssue {
         paradigm_id: String,
         form_id: String,
     },
-    ParadigmCanonicalMismatch {
+    DuplicateParadigmForm {
         paradigm_id: String,
         form_id: String,
     },
@@ -249,12 +249,12 @@ impl std::fmt::Display for LanguageValidationIssue {
                 paradigm_id,
                 form_id,
             } => write!(f, "paradigm {paradigm_id}: references unknown top-level form {form_id}"),
-            Self::ParadigmCanonicalMismatch {
+            Self::DuplicateParadigmForm {
                 paradigm_id,
                 form_id,
             } => write!(
                 f,
-                "paradigm {paradigm_id} form {form_id} does not match canonical form"
+                "paradigm {paradigm_id} contains duplicate form reference {form_id}"
             ),
             Self::SenseAnchor { sense_id, message } => write!(f, "sense {sense_id}: {message}"),
             Self::SenseMeaning { sense_id, message } => write!(f, "sense {sense_id}: {message}"),

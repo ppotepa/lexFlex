@@ -1,5 +1,6 @@
 use crate::{
-    canonical_hash, ConceptId, EntityId, ParameterId, QualifierId, SemanticValue, VariableId,
+    canonical_hash, normalize_expression, CanonicalDigest, CanonicalHashError, ConceptId, EntityId,
+    NormalizationError, ParameterId, QualifierId, SemanticValue, SemanticType, VariableId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -27,10 +28,12 @@ pub enum SemanticExpression {
     Not(Box<SemanticExpression>),
     Exists {
         variable: VariableId,
+        value_type: SemanticType,
         body: Box<SemanticExpression>,
     },
     ForAll {
         variable: VariableId,
+        value_type: SemanticType,
         body: Box<SemanticExpression>,
     },
     Qualified {
@@ -40,7 +43,13 @@ pub enum SemanticExpression {
 }
 
 impl SemanticExpression {
-    pub fn canonical_hash(&self) -> String {
-        canonical_hash(self)
+    pub fn normalized(&self) -> Result<SemanticExpression, NormalizationError> {
+        normalize_expression(self.clone()).map(|result| result.expression)
+    }
+
+    pub fn canonical_hash(&self) -> Result<CanonicalDigest, CanonicalHashError> {
+        canonical_hash(&self.normalized().map_err(|error| CanonicalHashError::Serialization {
+            message: error.to_string(),
+        })?)
     }
 }

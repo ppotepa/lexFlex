@@ -8,8 +8,8 @@ use lexflex_lingua::{
 };
 use lexflex_model::{
     canonical_hash, ConceptCatalog, ConceptId, ConceptKind, ConceptParameterSchema, ConceptSchema,
-    EntityDefinition, EntityId, Evidence, EvidenceId, ParameterId, SemanticAssertion,
-    SemanticExpression, SourceSpan, VariableId, WorldId,
+    EntityDefinition, EntityId, Evidence, ParameterId, SemanticAssertion, SemanticExpression,
+    SourceSpan, VariableId, WorldId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -278,7 +278,7 @@ pub fn solver_thousand_assertions() -> Vec<SemanticAssertion> {
 
 fn generic_assertion(subject: &str) -> SemanticAssertion {
     let scope = ParameterId::new_unchecked("scope");
-    let source_hash = canonical_hash(&(subject, "ENTITY_B"));
+    let source_hash = canonical_hash(&(subject, "ENTITY_B")).expect("source hash");
     SemanticAssertion::create(
         SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(subject))),
@@ -290,14 +290,15 @@ fn generic_assertion(subject: &str) -> SemanticAssertion {
                 )]),
             }),
         },
-        vec![Evidence {
-            id: EvidenceId::new_unchecked(format!("evidence:{source_hash}")),
-            source_id: "benchmark".into(),
-            span: Some(SourceSpan { start: 0, end: 1 }),
-            source_hash: Some(source_hash),
-        }],
+        vec![Evidence::create(
+            "benchmark",
+            Some(SourceSpan { start: 0, end: 1 }),
+            Some(source_hash),
+        )
+        .expect("evidence")],
         WorldId::new_unchecked("actual"),
     )
+    .expect("assertion")
 }
 
 pub fn analyze_input(source_id: &str, language: &str, text: &str) -> TextInput {

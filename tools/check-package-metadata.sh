@@ -37,4 +37,13 @@ if [[ "$versions" -gt 1 ]]; then
   failed=1
 fi
 
+if rg -n \
+  --glob 'Cargo.toml' \
+  'serde[[:space:]]*=[[:space:]]*\{|serde_json[[:space:]]*=[[:space:]]*"|sha2[[:space:]]*=[[:space:]]*"|thiserror[[:space:]]*=[[:space:]]*"|ron[[:space:]]*=[[:space:]]*"|clap[[:space:]]*=[[:space:]]*\{' \
+  apps crates tools
+then
+  echo "ERROR: shared dependency version duplicated outside workspace.dependencies"
+  failed=1
+fi
+
 exit "$failed"

@@ -1,5 +1,6 @@
 use crate::meaning::MeaningInstance;
 use crate::token::Token;
+use crate::ParseScore;
 use lexflex_language::{CompiledLexicalSense, FeatureStructure, Form, SyntacticCategory};
 
 #[derive(Debug, Clone)]
@@ -8,11 +9,11 @@ pub(crate) struct Candidate {
     pub(crate) sense: CompiledLexicalSense,
     pub(crate) category: SyntacticCategory,
     pub(crate) meaning: MeaningInstance,
-    pub(crate) score: i64,
+    pub(crate) score: ParseScore,
 }
 
-pub(crate) fn score_candidate(form: &Form, sense: &CompiledLexicalSense) -> i64 {
-    i64::from(form.priority) + i64::from(sense.priority)
+pub(crate) fn score_candidate(form: &Form, sense: &CompiledLexicalSense) -> ParseScore {
+    ParseScore::lexical(i64::from(form.priority) + i64::from(sense.priority))
 }
 
 pub(crate) fn candidate_order(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {

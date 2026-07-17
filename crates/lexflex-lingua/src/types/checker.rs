@@ -149,8 +149,23 @@ impl<'a> TypeChecker<'a> {
                 }
                 Ok(SemanticType::Boolean)
             }
-            ResolvedExpression::Exists { body, .. } | ResolvedExpression::ForAll { body, .. } => {
-                let _ = self.infer(body)?;
+            ResolvedExpression::Exists {
+                variable,
+                value_type,
+                body,
+            }
+            | ResolvedExpression::ForAll {
+                variable,
+                value_type,
+                body,
+            } => {
+                let mut child = self.environment.clone();
+                child.variables.insert(variable.clone(), value_type.clone());
+                let checker = TypeChecker::new(&child);
+                let body_type = checker.infer(body)?;
+                if body_type != SemanticType::Boolean {
+                    return Err(TypeError::ExpectedBoolean(body_type));
+                }
                 Ok(SemanticType::Boolean)
             }
             ResolvedExpression::Let {

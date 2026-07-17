@@ -92,7 +92,7 @@ fn ambiguous_text_analysis_carries_derivation() {
         EngineResponse::TextAnalyzed { analysis } => {
             assert!(analysis.derivation.is_some());
         }
-        EngineResponse::TextAmbiguous { alternatives } => {
+        EngineResponse::TextAmbiguous { alternatives, .. } => {
             assert!(alternatives
                 .iter()
                 .all(|alternative| alternative.derivation.is_some()));
@@ -252,12 +252,7 @@ fn ingest_query_and_session_round_trip() {
                 }),
             },
         },
-        evidence: vec![Evidence {
-            id: lexflex_model::EvidenceId::new_unchecked("evidence:0"),
-            source_id: "source:test".into(),
-            span: None,
-            source_hash: None,
-        }],
+        evidence: vec![Evidence::create("source:test", None, None).expect("valid evidence")],
     });
     assert!(matches!(
         ingest,
@@ -327,17 +322,15 @@ fn duplicate_assertions_merge_evidence() {
     let program = LinguaProgram {
         id: ProgramId::new_unchecked("test:merge"),
         declarations: Vec::new(),
-        entry: LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
+        entry: LinguaExpression::Equals {
+            left: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
+            right: Box::new(LinguaExpression::Entity(EntityId::new_unchecked("PARIS"))),
+        },
     };
 
     let first = runtime.handle(EngineRequest::IngestLingua {
         program: program.clone(),
-        evidence: vec![Evidence {
-            id: lexflex_model::EvidenceId::new_unchecked("evidence:1"),
-            source_id: "source:1".into(),
-            span: None,
-            source_hash: None,
-        }],
+        evidence: vec![Evidence::create("source:1", None, None).expect("valid evidence")],
     });
     assert!(matches!(
         first,
@@ -352,12 +345,7 @@ fn duplicate_assertions_merge_evidence() {
 
     let second = runtime.handle(EngineRequest::IngestLingua {
         program,
-        evidence: vec![Evidence {
-            id: lexflex_model::EvidenceId::new_unchecked("evidence:2"),
-            source_id: "source:2".into(),
-            span: None,
-            source_hash: None,
-        }],
+        evidence: vec![Evidence::create("source:2", None, None).expect("valid evidence")],
     });
 
     match second {

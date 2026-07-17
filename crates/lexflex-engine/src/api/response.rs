@@ -38,6 +38,7 @@ pub enum EngineResponse {
     },
     TextAmbiguous {
         alternatives: Vec<TextAnalysisAlternative>,
+        diagnostics: Vec<EngineDiagnostic>,
     },
     TextNotParsed {
         diagnostics: Vec<ParseError>,
@@ -66,4 +67,5 @@ pub enum EngineResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EngineDiagnostic {
     MissingAssertion { assertion_id: AssertionId },
+    InvalidAlternative { index: usize, message: String },
 }

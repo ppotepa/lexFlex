@@ -10,9 +10,11 @@ impl LexFlexRuntime {
         match self.lingua.evaluate_with_policy(&program, policy) {
             Ok(mut result) => {
                 if !include_trace {
-                    result.trace = Default::default();
+                    result.execution.trace = Default::default();
                 }
-                EngineResponse::LinguaEvaluated { result }
+                EngineResponse::LinguaEvaluated {
+                    result: result.execution,
+                }
             }
             Err(error) => EngineResponse::Error {
                 code: EngineErrorCode::InvalidProgram,

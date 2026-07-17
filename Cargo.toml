@@ -4,8 +4,8 @@ resolver = "2"
 members = [
     "crates/lexflex-model",
     "crates/lexflex-lingua",
-    "crates/lexflex-parser",
     "crates/lexflex-language",
+    "crates/lexflex-parser",
     "crates/lexflex-store",
     "crates/lexflex-engine",
     "crates/lexflex-learning",

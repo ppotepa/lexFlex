@@ -3,7 +3,9 @@ use crate::{
     compile_lexical_sense, CompiledLexicalSense, Form, FormId, FormIndex, LanguageCompileError,
     Lexeme, LexemeId, LexicalSense, LexicalSenseId, SenseIndex,
 };
-use lexflex_model::{canonical_hash, ConceptCatalog, LanguageId};
+use lexflex_model::{
+    canonical_hash, CanonicalDigest, CanonicalHashError, ConceptCatalog, LanguageId,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -33,7 +35,7 @@ pub struct LanguageModel {
     pub paradigms: BTreeMap<crate::ParadigmId, MorphologyParadigm>,
     pub form_index: FormIndex,
     pub sense_index: SenseIndex,
-    pub model_hash: String,
+    pub model_hash: CanonicalDigest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,7 +43,7 @@ pub struct MorphologyParadigm {
     pub id: crate::ParadigmId,
     pub language: LanguageId,
     #[serde(default)]
-    pub forms: Vec<Form>,
+    pub form_ids: Vec<FormId>,
 }
 
 impl LanguageModel {
@@ -85,6 +87,8 @@ pub enum LanguageLoadError {
     UnsafePath { relative: PathBuf },
     #[error("language compile error: {0}")]
     Compile(#[from] LanguageCompileError),
+    #[error("canonical hash error: {0}")]
+    CanonicalHash(#[from] CanonicalHashError),
 }
 
 pub struct LanguagePackageLoader;
@@ -111,20 +115,13 @@ impl LanguagePackageLoader {
         let forms = collect_unique("form", forms, |form| form.id.clone())?;
         let paradigms = collect_unique("paradigm", paradigms, |paradigm| paradigm.id.clone())?;
         let form_index = FormIndex::build(forms.values().cloned());
-        let compiled_senses = senses
-            .values()
-            .map(|sense| {
-                let compiled = compile_lexical_sense(sense)?;
-                Ok((compiled.id.clone(), compiled))
-            })
-            .collect::<Result<BTreeMap<_, _>, LanguageCompileError>>()?;
         let sense_index = SenseIndex::build(senses.values().cloned());
-        let model_hash = canonical_hash(&(&manifest, &lexemes, &senses, &forms, &paradigms));
-        let model = LanguageModel {
+        let model_hash = canonical_hash(&(&manifest, &lexemes, &senses, &forms, &paradigms))?;
+        let mut model = LanguageModel {
             manifest,
             lexemes,
             senses,
-            compiled_senses,
+            compiled_senses: BTreeMap::new(),
             forms,
             paradigms,
             form_index,
@@ -138,6 +135,14 @@ impl LanguagePackageLoader {
                     LanguageLoadError::Validation(issue)
                 }
             })?;
+        model.compiled_senses = model
+            .senses
+            .values()
+            .map(|sense| {
+                let compiled = compile_lexical_sense(sense, catalog)?;
+                Ok((compiled.id.clone(), compiled))
+            })
+            .collect::<Result<BTreeMap<_, _>, LanguageCompileError>>()?;
         Ok(model)
     }
 }

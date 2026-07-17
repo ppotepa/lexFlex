@@ -28,29 +28,41 @@ fn nested_closure_captures_outer_value() {
         entry: LinguaExpression::Call {
             callee: Box::new(LinguaExpression::Call {
                 callee: Box::new(LinguaExpression::Lambda {
-                    parameters: vec![LambdaParameter {
-                        name: outer_name.clone(),
-                        parameter_id: outer.clone(),
-                        value_type: SemanticType::Entity,
-                    }],
-                    body: Box::new(LinguaExpression::Lambda {
-                        parameters: vec![LambdaParameter {
-                            name: inner_name,
-                            parameter_id: inner.clone(),
+                    parameters: vec![
+                        LambdaParameter {
+                            name: outer_name.clone(),
+                            parameter_id: outer.clone(),
                             value_type: SemanticType::Entity,
-                        }],
+                        },
+                    ],
+                    body: Box::new(LinguaExpression::Lambda {
+                        parameters: vec![
+                            LambdaParameter {
+                                name: inner_name,
+                                parameter_id: inner.clone(),
+                                value_type: SemanticType::Entity,
+                            },
+                        ],
                         body: Box::new(LinguaExpression::Variable(outer_name)),
                     }),
                 }),
-                arguments: BTreeMap::from([(
-                    outer,
-                    LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
-                )]),
+                arguments: BTreeMap::from(
+                    [
+                        (
+                            outer,
+                            LinguaExpression::Entity(EntityId::new_unchecked("PARIS")),
+                        ),
+                    ],
+                ),
             }),
-            arguments: BTreeMap::from([(
-                inner,
-                LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
-            )]),
+            arguments: BTreeMap::from(
+                [
+                    (
+                        inner,
+                        LinguaExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                    ),
+                ],
+            ),
         },
     };
 

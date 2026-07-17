@@ -14,4 +14,4 @@ pub use catalog::{LanguageRegistry, LanguageRegistryError};
 pub use error::EngineErrorCode;
 pub use knowledge::{KnowledgeIndex, KnowledgeSnapshot, UpsertOutcome};
 pub use runtime::{EngineError, LexFlexRuntime, LinguaRuntime};
-pub use session::{EngineSessionState, RuntimeSession};
+pub use session::{EngineSessionState, RuntimeSession, SESSION_SCHEMA};

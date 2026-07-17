@@ -1,7 +1,7 @@
 #[path = "support/mod.rs"]
 mod support;
 
-use lexflex_lingua::normalize::expression_sha256;
+use lexflex_model::canonical_hash;
 
 #[test]
 fn compile_execute_and_hash_are_deterministic() {
@@ -9,7 +9,7 @@ fn compile_execute_and_hash_are_deterministic() {
 
     let first = support::compile_and_execute(program.clone()).expect("first");
     let expected_bytes = serde_json::to_vec(&first.value).expect("bytes");
-    let expected_hash = expression_sha256(&first.value).expect("hash");
+    let expected_hash = canonical_hash(&first.value).expect("hash");
 
     for _ in 0..100 {
         let result = support::compile_and_execute(program.clone()).expect("execute");
@@ -17,9 +17,6 @@ fn compile_execute_and_hash_are_deterministic() {
             serde_json::to_vec(&result.value).expect("bytes"),
             expected_bytes
         );
-        assert_eq!(
-            expression_sha256(&result.value).expect("hash"),
-            expected_hash
-        );
+        assert_eq!(canonical_hash(&result.value).expect("hash"), expected_hash);
     }
 }

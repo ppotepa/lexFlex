@@ -21,8 +21,8 @@ pub fn run(model_root: PathBuf, language_root: PathBuf) -> Result<(), String> {
 
     print_json(&LanguageValidationSummary {
         languages: registry.models.len(),
-        registry_hash: registry.registry_hash,
-        model_hash: package.model_hash,
+        registry_hash: registry.registry_hash.to_string(),
+        model_hash: package.model_hash.to_string(),
     })?;
     Ok(())
 }

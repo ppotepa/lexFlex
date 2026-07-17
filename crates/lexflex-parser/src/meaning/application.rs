@@ -18,8 +18,7 @@ pub(crate) fn apply_meaning(
     for (variable, incoming) in &argument.query_variables {
         if let Some(existing) = query_variables.get(variable) {
             if existing != incoming {
-                return Err(ParseError::ConflictingQueryVariableType {
-                    variable: variable.clone(),
+                return Err(ParseError::ConflictingQueryCategoryType {
                     existing: existing.clone(),
                     incoming: incoming.clone(),
                 });

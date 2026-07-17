@@ -15,15 +15,19 @@ pub use compiler::{
 };
 pub use error::LinguaError;
 pub use id::{DeclarationId, FunctionId, ModuleId, ProgramId, SymbolId, SymbolName};
-pub use normalize::{normalize_expression, ExpressionNormalizer, NormalizationReport};
+pub use normalize::{
+    normalize_expression, NormalizationBudget, NormalizationError, NormalizationReport,
+    SemanticNormalizer,
+};
 pub use runtime::{
     ExecutionBudget, ExecutionPolicy, ExecutionResult, ExecutionTrace, ExpansionMode,
-    LinguaInterpreter,
+    LinguaInterpreter, TypedExecutionResult,
 };
 pub use solve::unify;
 pub use solve::{
-    canonical_goal_hash, validate_goal, EvidencePolicy, GoalValidationError, LinguaGoal,
-    LinguaSolver, QuerySolution, SolveError, Substitution, UnificationContext, UnificationMode,
+    canonical_goal_request_hash, canonical_goal_semantic_hash, validate_goal, EvidencePolicy,
+    GoalValidationError, LinguaGoal, LinguaSolver, QuerySolution, SolveError, Substitution,
+    UnificationContext, UnificationMode,
 };
 pub use syntax::{
     ConceptDeclaration, ConceptSemantics, ExpansionPolicy, FunctionDeclaration, LambdaParameter,

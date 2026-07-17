@@ -35,7 +35,8 @@ pub fn normalize_surface(surface: &str) -> String {
 
 pub fn tokenize(input: &ParseInput) -> Result<TokenizationResult, ParseError> {
     let mut tokens = Vec::new();
-    let source_seed = canonical_hash(&(&input.source_id, &input.language, &input.text));
+    let source_seed = canonical_hash(&(&input.source_id, &input.language, &input.text))?;
+    let source_seed = source_seed.as_str().to_owned();
     let mut start = None;
     for (index, character) in input.text.char_indices() {
         if character.is_alphanumeric() || matches!(character, '\'' | '’' | '-') {

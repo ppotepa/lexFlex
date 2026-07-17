@@ -1,12 +1,20 @@
 mod budget;
+mod call;
+mod concept;
 mod environment;
+mod eval;
+mod expansion;
 mod interpreter;
+mod result;
+mod state;
 mod trace;
 mod value;
 
 pub use budget::{BudgetState, ExecutionBudget, RuntimeError};
 pub use budget::{ExecutionPolicy, ExpansionMode};
 pub use environment::RuntimeEnvironment;
-pub use interpreter::{ExecutionResult, LinguaInterpreter};
+pub use interpreter::LinguaInterpreter;
+pub use result::{ExecutionResult, TypedExecutionResult};
+pub(crate) use state::InterpreterState;
 pub use trace::{ExecutionTrace, ExecutionTraceEvent, TraceOperation};
 pub use value::{ClosureParameter, ClosureValue, RuntimeValue};

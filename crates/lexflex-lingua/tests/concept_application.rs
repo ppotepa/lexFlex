@@ -14,10 +14,14 @@ fn capital_scope_application_executes() {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked("PARIS"))),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from([(
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                )]),
+                bindings: BTreeMap::from(
+                    [
+                        (
+                            ParameterId::new_unchecked("scope"),
+                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                        ),
+                    ],
+                ),
             }),
         }
     );
@@ -32,10 +36,14 @@ fn capital_program_stays_canonical() {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked("PARIS"))),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from([(
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                )]),
+                bindings: BTreeMap::from(
+                    [
+                        (
+                            ParameterId::new_unchecked("scope"),
+                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                        ),
+                    ],
+                ),
             }),
         }
     );

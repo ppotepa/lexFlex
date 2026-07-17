@@ -65,32 +65,44 @@ impl Substitution {
                 SemanticExpression::Or(items.iter().map(|item| self.apply(item)).collect())
             }
             SemanticExpression::Not(inner) => SemanticExpression::Not(Box::new(self.apply(inner))),
-            SemanticExpression::Exists { variable, body } => {
+            SemanticExpression::Exists {
+                variable,
+                value_type,
+                body,
+            } => {
                 if self.bindings.contains_key(variable) {
                     let mut child = self.clone();
                     child.bindings.remove(variable);
                     SemanticExpression::Exists {
                         variable: variable.clone(),
+                        value_type: value_type.clone(),
                         body: Box::new(child.apply(body)),
                     }
                 } else {
                     SemanticExpression::Exists {
                         variable: variable.clone(),
+                        value_type: value_type.clone(),
                         body: Box::new(self.apply(body)),
                     }
                 }
             }
-            SemanticExpression::ForAll { variable, body } => {
+            SemanticExpression::ForAll {
+                variable,
+                value_type,
+                body,
+            } => {
                 if self.bindings.contains_key(variable) {
                     let mut child = self.clone();
                     child.bindings.remove(variable);
                     SemanticExpression::ForAll {
                         variable: variable.clone(),
+                        value_type: value_type.clone(),
                         body: Box::new(child.apply(body)),
                     }
                 } else {
                     SemanticExpression::ForAll {
                         variable: variable.clone(),
+                        value_type: value_type.clone(),
                         body: Box::new(self.apply(body)),
                     }
                 }
@@ -136,6 +148,7 @@ mod tests {
 
         let expression = SemanticExpression::Exists {
             variable: variable.clone(),
+            value_type: lexflex_model::SemanticType::Entity,
             body: Box::new(SemanticExpression::Satisfies {
                 subject: Box::new(SemanticExpression::Variable(variable.clone())),
                 predicate: Box::new(SemanticExpression::Variable(other.clone())),
@@ -148,6 +161,7 @@ mod tests {
             applied,
             SemanticExpression::Exists {
                 variable,
+                value_type: lexflex_model::SemanticType::Entity,
                 body: Box::new(SemanticExpression::Satisfies {
                     subject: Box::new(SemanticExpression::Variable(VariableId::new_unchecked("x"))),
                     predicate: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(
@@ -163,6 +177,7 @@ mod tests {
         let variable = VariableId::new_unchecked("x");
         let expression = SemanticExpression::ForAll {
             variable: variable.clone(),
+            value_type: lexflex_model::SemanticType::Entity,
             body: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("PREDICATE"),
                 bindings: BTreeMap::from([(

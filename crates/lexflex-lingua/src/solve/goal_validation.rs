@@ -1,4 +1,5 @@
 use crate::solve::goal::LinguaGoal;
+use crate::solve::free_variables::collect_free_variables;
 use crate::solve::type_inference::infer_expression_type;
 use lexflex_model::{ConceptCatalog, SemanticExpression, SemanticType, VariableId};
 use std::collections::BTreeSet;
@@ -84,72 +85,13 @@ pub fn validate_goal(
     }
     Ok(())
 }
-
-fn collect_free_variables(expression: &SemanticExpression) -> BTreeSet<VariableId> {
-    fn walk(
-        expression: &SemanticExpression,
-        bound: &mut Vec<VariableId>,
-        output: &mut BTreeSet<VariableId>,
-    ) {
-        match expression {
-            SemanticExpression::Variable(variable) => {
-                if !bound.contains(variable) {
-                    output.insert(variable.clone());
-                }
-            }
-            SemanticExpression::Apply { bindings, .. } => {
-                for value in bindings.values() {
-                    walk(value, bound, output);
-                }
-            }
-            SemanticExpression::Satisfies { subject, predicate } => {
-                walk(subject, bound, output);
-                walk(predicate, bound, output);
-            }
-            SemanticExpression::Equals { left, right } => {
-                walk(left, bound, output);
-                walk(right, bound, output);
-            }
-            SemanticExpression::And(items) | SemanticExpression::Or(items) => {
-                for item in items {
-                    walk(item, bound, output);
-                }
-            }
-            SemanticExpression::Not(inner) => walk(inner, bound, output),
-            SemanticExpression::Exists { variable, body }
-            | SemanticExpression::ForAll { variable, body } => {
-                bound.push(variable.clone());
-                walk(body, bound, output);
-                bound.pop();
-            }
-            SemanticExpression::Qualified {
-                expression,
-                qualifiers,
-            } => {
-                walk(expression, bound, output);
-                for value in qualifiers.values() {
-                    walk(value, bound, output);
-                }
-            }
-            SemanticExpression::Concept(_)
-            | SemanticExpression::Entity(_)
-            | SemanticExpression::Value(_) => {}
-        }
-    }
-
-    let mut bound = Vec::new();
-    let mut output = BTreeSet::new();
-    walk(expression, &mut bound, &mut output);
-    output
-}
-
 fn collect_bound_projection_conflicts(
     expression: &SemanticExpression,
     output: &mut BTreeSet<VariableId>,
 ) {
     match expression {
-        SemanticExpression::Exists { variable, body }
-        | SemanticExpression::ForAll { variable, body } => {
+        SemanticExpression::Exists { variable, body, .. }
+        | SemanticExpression::ForAll { variable, body, .. } => {
             output.insert(variable.clone());
             collect_bound_projection_conflicts(body, output);
         }

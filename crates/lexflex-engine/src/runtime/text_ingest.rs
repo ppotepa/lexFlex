@@ -1,4 +1,6 @@
 use super::*;
+use crate::runtime::formal_result::FormalExpressionError;
+use crate::runtime::ambiguity::ExpectedTextKind;
 use lexflex_parser::ParseError;
 use std::collections::BTreeMap;
 
@@ -11,25 +13,18 @@ impl LexFlexRuntime {
                     diagnostics: vec![ParseError::NoParse],
                 };
             }
-            Ok(ParseOutput::Ambiguous { alternatives }) => {
-                let mut lowered = Vec::new();
-                for alternative in alternatives {
-                    let semantic_expression = match self.evaluate_formal_expression(
-                        "ingest:ambiguous",
-                        alternative.expression.clone(),
-                        BTreeMap::new(),
-                    ) {
-                        Ok(value) => value,
-                        Err(_) => continue,
-                    };
-                    lowered.push(TextAnalysisAlternative::new(
-                        semantic_expression,
-                        Some(alternative.derivation),
-                        alternative.score,
-                    ));
-                }
-                return EngineResponse::TextAmbiguous {
-                    alternatives: lowered,
+            Ok(ParseOutput::Ambiguous { alternatives, .. }) => {
+                return match self.lower_ambiguous_alternatives(
+                    "ingest:ambiguous",
+                    alternatives,
+                    true,
+                    ExpectedTextKind::Assertion,
+                ) {
+                    Ok(alternatives) => EngineResponse::TextAmbiguous {
+                        alternatives,
+                        diagnostics: Vec::new(),
+                    },
+                    Err(response) => response,
                 };
             }
             Err(error) => {
@@ -48,27 +43,83 @@ impl LexFlexRuntime {
             Err(error) => {
                 return EngineResponse::Error {
                     code: EngineErrorCode::InvalidProgram,
-                    message: error,
+                    message: error.to_string(),
                     diagnostics: Vec::new(),
                 };
             }
         };
-        let analysis = self.assertion_analysis(&parse, semantic_expression.clone(), false);
-        let source_hash = canonical_hash(&input.text);
-        let evidence = Evidence {
-            id: EvidenceId::new_unchecked(format!("evidence:{source_hash}")),
-            source_id: input.source_id.clone(),
-            span: Some(SourceSpan {
-                start: 0,
-                end: input.text.len() as u64,
-            }),
-            source_hash: Some(source_hash),
+        if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
+            let error =
+                FormalExpressionError::NonBooleanAssertion(semantic_expression.entry_type.clone());
+            return EngineResponse::Error {
+                code: EngineErrorCode::InvalidProgram,
+                message: error.to_string(),
+                diagnostics: Vec::new(),
+            };
+        }
+        let analysis = self.assertion_analysis(
+            &parse,
+            semantic_expression.value.clone(),
+            semantic_expression.steps,
+            false,
+        );
+        let analysis = match analysis {
+            Ok(analysis) => analysis,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::Canonicalization,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
         };
-        let assertion = SemanticAssertion::create(
-            semantic_expression,
+        let source_hash = match canonical_hash(&input.text) {
+            Ok(value) => value,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::InternalInvariant,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
+        };
+        let evidence = match Evidence::create(
+            input.source_id.clone(),
+            Some(match SourceSpan::new(0, input.text.len() as u64) {
+                Ok(value) => value,
+                Err(error) => {
+                    return EngineResponse::Error {
+                        code: EngineErrorCode::InvalidEvidence,
+                        message: error.to_string(),
+                        diagnostics: Vec::new(),
+                    };
+                }
+            }),
+            Some(source_hash),
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::InternalInvariant,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
+        };
+        let assertion = match SemanticAssertion::create(
+            semantic_expression.value,
             vec![evidence],
             WorldId::new_unchecked("actual"),
-        );
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::InternalInvariant,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
+        };
         let (assertion, outcome) = match self.persist_assertion(assertion) {
             Ok(value) => value,
             Err(response) => return response,
@@ -101,8 +152,27 @@ impl LexFlexRuntime {
                 };
             }
         };
-        let assertion =
-            SemanticAssertion::create(result.value, evidence, WorldId::new_unchecked("actual"));
+        if result.entry_type != lexflex_model::SemanticType::Boolean {
+            return EngineResponse::Error {
+                code: EngineErrorCode::InvalidAssertion,
+                message: FormalExpressionError::NonBooleanAssertion(result.entry_type).to_string(),
+                diagnostics: Vec::new(),
+            };
+        }
+        let assertion = match SemanticAssertion::create(
+            result.execution.value,
+            evidence,
+            WorldId::new_unchecked("actual"),
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::InternalInvariant,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
+        };
         let (assertion, outcome) = match self.persist_assertion(assertion) {
             Ok(value) => value,
             Err(response) => return response,

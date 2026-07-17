@@ -12,6 +12,8 @@ struct ModelValidationSummary {
     entities: usize,
     parents: usize,
     programs: usize,
+    declarations: usize,
+    declaration_hash: String,
     validation_issues: usize,
     languages: usize,
     registry_hash: String,
@@ -30,11 +32,13 @@ pub fn run(model_root: PathBuf, language_root: PathBuf) -> Result<(), String> {
         concepts: package.catalog.concepts.len(),
         entities: package.catalog.entities.len(),
         parents: package.catalog.parents.len(),
-        programs: package.concept_programs.len(),
+        programs: package.programs.program_count(),
+        declarations: package.programs.declaration_count(),
+        declaration_hash: package.programs.declaration_hash().to_string(),
         validation_issues: package.validation.issues.len(),
         languages: registry.models.len(),
-        registry_hash: registry.registry_hash,
-        model_hash: package.model_hash,
+        registry_hash: registry.registry_hash.to_string(),
+        model_hash: package.model_hash.to_string(),
     })?;
     Ok(())
 }

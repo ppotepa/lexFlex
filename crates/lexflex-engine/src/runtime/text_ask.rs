@@ -1,6 +1,7 @@
 use super::*;
+use crate::runtime::formal_result::FormalExpressionError;
+use crate::runtime::ambiguity::ExpectedTextKind;
 use lexflex_parser::ParseError;
-use std::collections::BTreeMap;
 
 impl LexFlexRuntime {
     pub(crate) fn handle_ask_text(
@@ -16,25 +17,18 @@ impl LexFlexRuntime {
                     diagnostics: vec![ParseError::QuestionWithoutProjection],
                 };
             }
-            Ok(ParseOutput::Ambiguous { alternatives }) => {
-                let mut lowered = Vec::new();
-                for alternative in alternatives {
-                    let semantic_expression = match self.evaluate_formal_expression(
-                        "ask:ambiguous",
-                        alternative.expression.clone(),
-                        BTreeMap::new(),
-                    ) {
-                        Ok(value) => value,
-                        Err(_) => continue,
-                    };
-                    lowered.push(TextAnalysisAlternative::new(
-                        semantic_expression,
-                        Some(alternative.derivation),
-                        alternative.score,
-                    ));
-                }
-                return EngineResponse::TextAmbiguous {
-                    alternatives: lowered,
+            Ok(ParseOutput::Ambiguous { alternatives, .. }) => {
+                return match self.lower_ambiguous_alternatives(
+                    "ask:ambiguous",
+                    alternatives,
+                    true,
+                    ExpectedTextKind::Goal,
+                ) {
+                    Ok(alternatives) => EngineResponse::TextAmbiguous {
+                        alternatives,
+                        diagnostics: Vec::new(),
+                    },
+                    Err(response) => response,
                 };
             }
             Err(error) => {
@@ -53,14 +47,38 @@ impl LexFlexRuntime {
             Err(error) => {
                 return EngineResponse::Error {
                     code: EngineErrorCode::InvalidProgram,
-                    message: error,
+                    message: error.to_string(),
                     diagnostics: Vec::new(),
                 };
             }
         };
-        let analysis = self.goal_analysis(&parse, semantic_expression.clone(), false);
+        if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
+            let error =
+                FormalExpressionError::NonBooleanGoal(semantic_expression.entry_type.clone());
+            return EngineResponse::Error {
+                code: EngineErrorCode::InvalidProgram,
+                message: error.to_string(),
+                diagnostics: Vec::new(),
+            };
+        }
+        let analysis = self.goal_analysis(
+            &parse,
+            semantic_expression.value.clone(),
+            semantic_expression.steps,
+            false,
+        );
+        let analysis = match analysis {
+            Ok(analysis) => analysis,
+            Err(error) => {
+                return EngineResponse::Error {
+                    code: EngineErrorCode::Canonicalization,
+                    message: error.to_string(),
+                    diagnostics: Vec::new(),
+                };
+            }
+        };
         let goal = LinguaGoal {
-            expression: semantic_expression,
+            expression: semantic_expression.value,
             variables: parse.variables.clone(),
             projection: parse.projection.clone(),
             evidence_policy,

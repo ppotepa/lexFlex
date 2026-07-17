@@ -9,7 +9,6 @@ use std::{collections::BTreeMap, sync::Arc};
 pub enum RuntimeValue {
     Semantic(SemanticExpression),
     Closure(ClosureValue),
-    Boolean(bool),
 }
 
 #[derive(Debug, Clone)]

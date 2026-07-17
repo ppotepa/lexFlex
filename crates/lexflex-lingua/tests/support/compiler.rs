@@ -8,7 +8,11 @@ pub fn compile_and_execute(
     program: lexflex_lingua::LinguaProgram,
 ) -> Result<lexflex_lingua::ExecutionResult, lexflex_lingua::runtime::RuntimeError> {
     let compiled = test_compiler().compile(&program).expect("compile");
-    LinguaInterpreter::default().execute(&compiled)
+    LinguaInterpreter::default().execute(&compiled).map(
+        |result| {
+            result.execution
+        },
+    )
 }
 
 pub fn compile_and_execute_with_policy(
@@ -16,5 +20,7 @@ pub fn compile_and_execute_with_policy(
     policy: ExecutionPolicy,
 ) -> Result<lexflex_lingua::ExecutionResult, lexflex_lingua::runtime::RuntimeError> {
     let compiled = test_compiler().compile(&program).expect("compile");
-    LinguaInterpreter::with_policy(Default::default(), policy).execute(&compiled)
+    LinguaInterpreter::with_policy(Default::default(), policy)
+        .execute(&compiled)
+        .map(|result| result.execution)
 }

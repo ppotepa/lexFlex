@@ -45,16 +45,19 @@ impl TextInputArgs {
         if text.trim().is_empty() {
             return Err("text input is empty".into());
         }
-        let source_id = source_id.unwrap_or_else(|| {
-            let digest = canonical_hash(&text);
-            if let Some(file) = file {
-                format!("file:{}", file.display())
-            } else if has_inline_text {
-                format!("inline:{digest}")
-            } else {
-                format!("stdin:{digest}")
+        let source_id = match source_id {
+            Some(source_id) => source_id,
+            None => {
+                let digest = canonical_hash(&text).map_err(|error| error.to_string())?;
+                if let Some(file) = file {
+                    format!("file:{}", file.display())
+                } else if has_inline_text {
+                    format!("inline:{}", digest.as_str())
+                } else {
+                    format!("stdin:{}", digest.as_str())
+                }
             }
-        });
+        };
         Ok(TextInput {
             source_id,
             language: LanguageId::new(language).map_err(|error| error.to_string())?,

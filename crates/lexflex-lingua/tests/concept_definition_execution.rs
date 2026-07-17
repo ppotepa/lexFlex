@@ -1,16 +1,15 @@
 #[path = "support/mod.rs"]
 mod support;
 
-use lexflex_lingua::{
-    ConceptSemantics, ExecutionPolicy, ExpansionMode, ExpansionPolicy, LinguaDeclaration,
-    LinguaExpression, LinguaProgram, ProgramId,
-};
+use lexflex_lingua::{ConceptSemantics, ExecutionPolicy, ExpansionMode, ExpansionPolicy,
+                     LinguaDeclaration, LinguaExpression, LinguaProgram, ProgramId};
 use lexflex_model::{ConceptId, SemanticExpression};
 use std::collections::BTreeMap;
 
 #[test]
 fn transparent_definition_expands_into_its_body() {
     let mut capital = support::model::capital_declaration();
+    capital.self_parameter = None;
     capital.semantics = ConceptSemantics::Defined {
         body: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CITY"),
@@ -24,20 +23,21 @@ fn transparent_definition_expands_into_its_body() {
         declarations: vec![LinguaDeclaration::Concept(capital)],
         entry: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CAPITAL"),
-            bindings: BTreeMap::from([(
-                lexflex_model::ParameterId::new_unchecked("scope"),
-                LinguaExpression::Entity(lexflex_model::EntityId::new_unchecked("FRANCE")),
-            )]),
+            bindings: BTreeMap::from(
+                [
+                    (
+                        lexflex_model::ParameterId::new_unchecked("scope"),
+                        LinguaExpression::Entity(lexflex_model::EntityId::new_unchecked("FRANCE")),
+                    ),
+                ],
+            ),
         },
     };
 
     let result = support::compile_and_execute_with_policy(
         program,
-        ExecutionPolicy {
-            expansion: ExpansionMode::ExpandTransparent,
-        },
-    )
-    .expect("execute");
+        ExecutionPolicy { expansion: ExpansionMode::ExpandTransparent },
+    ).expect("execute");
 
     assert_eq!(
         result.value,
@@ -51,6 +51,7 @@ fn transparent_definition_expands_into_its_body() {
 #[test]
 fn on_demand_definition_expands_only_in_expand_all_defined() {
     let mut capital = support::model::capital_declaration();
+    capital.self_parameter = None;
     capital.semantics = ConceptSemantics::Defined {
         body: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CITY"),
@@ -64,20 +65,21 @@ fn on_demand_definition_expands_only_in_expand_all_defined() {
         declarations: vec![LinguaDeclaration::Concept(capital)],
         entry: LinguaExpression::ApplyConcept {
             concept: ConceptId::new_unchecked("CAPITAL"),
-            bindings: BTreeMap::from([(
-                lexflex_model::ParameterId::new_unchecked("scope"),
-                LinguaExpression::Entity(lexflex_model::EntityId::new_unchecked("FRANCE")),
-            )]),
+            bindings: BTreeMap::from(
+                [
+                    (
+                        lexflex_model::ParameterId::new_unchecked("scope"),
+                        LinguaExpression::Entity(lexflex_model::EntityId::new_unchecked("FRANCE")),
+                    ),
+                ],
+            ),
         },
     };
 
     let transparent = support::compile_and_execute_with_policy(
         program.clone(),
-        ExecutionPolicy {
-            expansion: ExpansionMode::ExpandTransparent,
-        },
-    )
-    .expect("execute");
+        ExecutionPolicy { expansion: ExpansionMode::ExpandTransparent },
+    ).expect("execute");
 
     assert!(matches!(
         transparent.value,
@@ -86,11 +88,8 @@ fn on_demand_definition_expands_only_in_expand_all_defined() {
 
     let expanded = support::compile_and_execute_with_policy(
         program,
-        ExecutionPolicy {
-            expansion: ExpansionMode::ExpandAllDefined,
-        },
-    )
-    .expect("execute");
+        ExecutionPolicy { expansion: ExpansionMode::ExpandAllDefined },
+    ).expect("execute");
 
     assert_eq!(
         expanded.value,
@@ -99,4 +98,43 @@ fn on_demand_definition_expands_only_in_expand_all_defined() {
             bindings: BTreeMap::new(),
         }
     );
+}
+
+#[test]
+fn defined_concept_with_self_parameter_requires_subject_for_expansion() {
+    let mut capital = support::model::capital_declaration();
+    capital.semantics = ConceptSemantics::Defined {
+        body: LinguaExpression::ApplyConcept {
+            concept: ConceptId::new_unchecked("CITY"),
+            bindings: BTreeMap::new(),
+        },
+    };
+    capital.expansion = ExpansionPolicy::Transparent;
+
+    let program = LinguaProgram {
+        id: ProgramId::new_unchecked("test:missing-self-subject"),
+        declarations: vec![LinguaDeclaration::Concept(capital)],
+        entry: LinguaExpression::ApplyConcept {
+            concept: ConceptId::new_unchecked("CAPITAL"),
+            bindings: BTreeMap::from(
+                [
+                    (
+                        lexflex_model::ParameterId::new_unchecked("scope"),
+                        LinguaExpression::Entity(lexflex_model::EntityId::new_unchecked("FRANCE")),
+                    ),
+                ],
+            ),
+        },
+    };
+
+    let error = support::compile_and_execute_with_policy(
+        program,
+        ExecutionPolicy { expansion: ExpansionMode::ExpandTransparent },
+    ).expect_err("missing self subject must fail");
+
+    assert!(matches!(
+        error,
+        lexflex_lingua::runtime::RuntimeError::MissingSelfSubject { concept }
+            if concept == ConceptId::new_unchecked("CAPITAL")
+    ));
 }

@@ -24,8 +24,7 @@ fn catalog() -> ConceptCatalog {
 fn no_whole_sentence_templates_exist() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/languages/en");
     let en = LanguagePackageLoader.load(&root, &catalog()).expect("load");
-    assert!(en
-        .senses
-        .values()
-        .all(|sense| !sense.base_category.is_sentence() || !sense.valency.is_empty()));
+    assert!(en.senses.values().all(|sense| {
+        !sense.base_category.is_sentence() || !sense.valency.is_empty()
+    }));
 }

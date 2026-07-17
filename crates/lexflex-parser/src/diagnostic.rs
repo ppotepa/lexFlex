@@ -1,6 +1,6 @@
 use crate::token::Token;
-use lexflex_language::{FormId, LanguageId};
-use lexflex_model::{SemanticType, SourceSpan, VariableId};
+use lexflex_language::{CategoryType, FormId, LanguageId};
+use lexflex_model::{CanonicalHashError, SemanticType, SourceSpan, VariableId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -47,20 +47,37 @@ pub enum ParseError {
     UnsupportedPunctuationLayout { token: Token },
     #[error("unresolved query type for variable {0}")]
     UnresolvedQueryType(VariableId),
+    #[error("unresolved query category type")]
+    UnresolvedQueryCategoryType,
     #[error("conflicting query variable type for {variable}: existing {existing:?}, incoming {incoming:?}")]
     ConflictingQueryVariableType {
         variable: VariableId,
         existing: SemanticType,
         incoming: SemanticType,
     },
+    #[error("conflicting query category type: existing {existing:?}, incoming {incoming:?}")]
+    ConflictingQueryCategoryType {
+        existing: CategoryType,
+        incoming: CategoryType,
+    },
     #[error("meaning freshening error: {0}")]
     MeaningFreshening(String),
+    #[error("canonical hash error: {0}")]
+    CanonicalHash(String),
+    #[error("category error: {0}")]
+    Category(String),
     #[error("no complete parse")]
     NoParse,
     #[error("ambiguous parse")]
     Ambiguous,
     #[error("invalid source span {start_byte}..{end_byte}")]
     InvalidSpan { start_byte: u64, end_byte: u64 },
+}
+
+impl From<CanonicalHashError> for ParseError {
+    fn from(value: CanonicalHashError) -> Self {
+        Self::CanonicalHash(value.to_string())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -18,6 +18,16 @@ impl fmt::Display for IdError {
 
 impl std::error::Error for IdError {}
 
+impl IdError {
+    pub fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    pub fn value(&self) -> Option<&str> {
+        self.value.as_deref()
+    }
+}
+
 pub fn validate_identifier(kind: &'static str, value: &str) -> Result<(), IdError> {
     if value.is_empty() {
         return Err(IdError { kind, value: None });
@@ -40,7 +50,7 @@ pub fn validate_identifier(kind: &'static str, value: &str) -> Result<(), IdErro
 macro_rules! string_id {
     ($name:ident) => {
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-        #[serde(transparent)]
+        #[serde(try_from = "String", into = "String")]
         pub struct $name(String);
 
         impl $name {
@@ -65,9 +75,17 @@ macro_rules! string_id {
             }
         }
 
-        impl From<&str> for $name {
-            fn from(value: &str) -> Self {
-                Self::new_unchecked(value)
+        impl TryFrom<String> for $name {
+            type Error = IdError;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                Self::new(value)
+            }
+        }
+
+        impl From<$name> for String {
+            fn from(value: $name) -> Self {
+                value.0
             }
         }
     };

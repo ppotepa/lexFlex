@@ -1,13 +1,13 @@
 use crate::fixtures;
+use crate::report::{BenchmarkReport, BenchmarkResult, ParserMetricsSnapshot};
 use clap::ValueEnum;
-use lexflex_engine::api::input::TextInput;
+use lexflex_engine::api::{input::TextInput, text::TextAnalysis};
 use lexflex_engine::{EngineRequest, EngineResponse, LexFlexRuntime};
 use lexflex_lingua::solve::LinguaSolver;
 use lexflex_lingua::{
     ExecutionPolicy, ExpansionMode, LinguaCompiler, LinguaInterpreter, LinguaProgram,
 };
 use lexflex_model::{canonical_hash, ConceptCatalog, SemanticAssertion};
-use serde::Serialize;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Instant;
@@ -65,31 +65,6 @@ impl BenchmarkCase {
             Self::AskEvent => "ask-event",
         }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct BenchmarkReport {
-    pub cases: Vec<BenchmarkResult>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct BenchmarkResult {
-    pub case: String,
-    pub iterations: usize,
-    pub total_ns: u128,
-    pub avg_ns: u128,
-    pub min_ns: u128,
-    pub median_ns: u128,
-    pub p95_ns: u128,
-    pub max_ns: u128,
-    pub output_hash: String,
-    pub parser_metrics: Option<ParserMetricsSnapshot>,
-    pub steps: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ParserMetricsSnapshot {
-    pub derivation_depth: usize,
 }
 
 pub struct BenchmarkSuite {
@@ -251,11 +226,20 @@ impl BenchmarkSuite {
             .expect("benchmark program compiles");
         let interpreter = LinguaInterpreter::with_policy(Default::default(), policy);
         let mut last_hash = None;
+        warmup(10, || {
+            black_box(
+                interpreter
+                    .execute(&compiled)
+                    .expect("benchmark warmup executes"),
+            );
+        });
         let samples = measure(iterations, || {
             let result = interpreter
                 .execute(&compiled)
                 .expect("benchmark program executes");
-            let hash = canonical_hash(&result.value);
+            let hash = canonical_hash(&result.execution.value)
+                .expect("benchmark value hash")
+                .to_string();
             if let Some(existing) = &last_hash {
                 assert_eq!(existing, &hash, "nondeterministic benchmark output");
             }
@@ -282,11 +266,20 @@ impl BenchmarkSuite {
     ) -> BenchmarkResult {
         let solver = LinguaSolver::default();
         let mut last_hash = None;
+        warmup(10, || {
+            black_box(
+                solver
+                    .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
+                    .expect("benchmark warmup solves"),
+            );
+        });
         let samples = measure(iterations, || {
             let results = solver
                 .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
                 .expect("benchmark goal solves");
-            let hash = canonical_hash(&results);
+            let hash = canonical_hash(&results)
+                .expect("benchmark result hash")
+                .to_string();
             if let Some(existing) = &last_hash {
                 assert_eq!(existing, &hash, "nondeterministic benchmark output");
             }
@@ -313,6 +306,12 @@ impl BenchmarkSuite {
         let mut runtime = fixtures::runtime(case.label());
         let mut last_hash = None;
         let mut parser_metrics = None;
+        warmup(10, || {
+            black_box(runtime.handle(EngineRequest::AnalyzeText {
+                input: input.clone(),
+                include_derivation: true,
+            }));
+        });
         let samples = measure(iterations, || {
             let response = runtime.handle(EngineRequest::AnalyzeText {
                 input: input.clone(),
@@ -346,6 +345,10 @@ impl BenchmarkSuite {
         mut f: impl FnMut(&mut LexFlexRuntime) -> EngineResponse,
     ) -> BenchmarkResult {
         let mut last_hash = None;
+        warmup(10, || {
+            let mut runtime = fixtures::runtime(case.label());
+            black_box(f(&mut runtime));
+        });
         let samples = measure(iterations, || {
             let mut runtime = fixtures::runtime(case.label());
             let response = f(&mut runtime);
@@ -367,53 +370,42 @@ impl BenchmarkSuite {
     }
 }
 
-impl BenchmarkResult {
-    fn from_samples(
-        case: BenchmarkCase,
-        iterations: usize,
-        mut samples: Vec<u128>,
-        steps: Vec<&'static str>,
-        output_hash: String,
-        parser_metrics: Option<ParserMetricsSnapshot>,
-    ) -> Self {
-        samples.sort_unstable();
-        let total_ns = samples.iter().copied().sum();
-        let min_ns = *samples.first().unwrap_or(&0);
-        let max_ns = *samples.last().unwrap_or(&0);
-        let median_ns = samples[samples.len() / 2];
-        let p95_ns = samples[((samples.len().saturating_sub(1)) * 95) / 100];
-        let avg_ns = total_ns / iterations as u128;
-        Self {
-            case: case.label().to_string(),
-            iterations,
-            total_ns,
-            avg_ns,
-            min_ns,
-            median_ns,
-            p95_ns,
-            max_ns,
-            output_hash,
-            parser_metrics,
-            steps: steps.into_iter().map(str::to_string).collect(),
-        }
-    }
-}
-
 fn response_hash(response: &EngineResponse) -> String {
     canonical_hash(response)
+        .expect("benchmark response hash")
+        .to_string()
 }
 
 fn extract_parser_metrics(response: &EngineResponse) -> Option<ParserMetricsSnapshot> {
     match response {
-        EngineResponse::TextAnalyzed { analysis } => {
-            analysis
-                .derivation
-                .as_ref()
-                .map(|derivation| ParserMetricsSnapshot {
-                    derivation_depth: derivation.depth(),
-                })
-        }
+        EngineResponse::TextAnalyzed { analysis } => Some(snapshot_metrics(analysis)),
         _ => None,
+    }
+}
+
+fn snapshot_metrics(analysis: &TextAnalysis) -> ParserMetricsSnapshot {
+    ParserMetricsSnapshot {
+        token_count: analysis.parser_metrics.token_count,
+        lexical_candidate_count: analysis.parser_metrics.lexical_candidate_count,
+        chart_item_count: analysis.parser_metrics.chart_item_count,
+        chart_replacement_count: analysis.parser_metrics.chart_replacement_count,
+        semantic_duplicate_count: analysis.parser_metrics.semantic_duplicate_count,
+        rejected_application_count: analysis.parser_metrics.rejected_application_count,
+        complete_semantic_count: analysis.parser_metrics.complete_semantic_count,
+        max_cell_size: analysis.parser_metrics.max_cell_size,
+        derivation_depth: analysis
+            .derivation
+            .as_ref()
+            .map(|derivation| derivation.depth())
+            .unwrap_or_default(),
+        max_semantic_nodes: analysis.parser_metrics.max_semantic_nodes,
+    }
+}
+
+fn warmup(mut iterations: usize, mut f: impl FnMut()) {
+    while iterations > 0 {
+        f();
+        iterations -= 1;
     }
 }
 

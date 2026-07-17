@@ -299,13 +299,8 @@ pub(crate) fn instantiate_meaning(
                     original
                 ))
             })?;
-        let semantic_type = match freshener.fresh_category_type(category_type) {
-            CategoryType::Concrete(value) => value,
-            CategoryType::Variable(_) => {
-                return Err(ParseError::UnresolvedQueryType(fresh_variable))
-            }
-        };
-        query_variables.insert(fresh_variable, semantic_type);
+        let category_type = freshener.fresh_category_type(category_type);
+        query_variables.insert(fresh_variable, category_type);
     }
 
     let semantic_nodes = count_lingua_nodes(&expression);

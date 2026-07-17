@@ -1,7 +1,7 @@
 mod support;
 
 use lexflex_lingua::{unify, Substitution, UnificationContext, UnificationMode};
-use lexflex_model::{ConceptId, EntityId, ParameterId, SemanticExpression};
+use lexflex_model::{ConceptId, EntityId, ParameterId, SemanticExpression, SemanticType};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use support::model::kernel_catalog;
@@ -11,31 +11,41 @@ fn alpha_equivalent_exists_unifies() {
     let catalog = Arc::new(kernel_catalog());
     let pattern = SemanticExpression::Exists {
         variable: lexflex_model::VariableId::new_unchecked("x"),
+        value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         body: Box::new(SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Variable(
                 lexflex_model::VariableId::new_unchecked("x"),
             )),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from([(
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                )]),
+                bindings: BTreeMap::from(
+                    [
+                        (
+                            ParameterId::new_unchecked("scope"),
+                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                        ),
+                    ],
+                ),
             }),
         }),
     };
     let candidate = SemanticExpression::Exists {
         variable: lexflex_model::VariableId::new_unchecked("y"),
+        value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         body: Box::new(SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Variable(
                 lexflex_model::VariableId::new_unchecked("y"),
             )),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from([(
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                )]),
+                bindings: BTreeMap::from(
+                    [
+                        (
+                            ParameterId::new_unchecked("scope"),
+                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                        ),
+                    ],
+                ),
             }),
         }),
     };
@@ -55,6 +65,7 @@ fn different_quantifier_kinds_do_not_unify() {
     let catalog = Arc::new(kernel_catalog());
     let pattern = SemanticExpression::Exists {
         variable: lexflex_model::VariableId::new_unchecked("x"),
+        value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         body: Box::new(SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Variable(
                 lexflex_model::VariableId::new_unchecked("x"),
@@ -67,6 +78,7 @@ fn different_quantifier_kinds_do_not_unify() {
     };
     let candidate = SemanticExpression::ForAll {
         variable: lexflex_model::VariableId::new_unchecked("y"),
+        value_type: SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
         body: Box::new(SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Variable(
                 lexflex_model::VariableId::new_unchecked("y"),

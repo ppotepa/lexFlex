@@ -3,10 +3,9 @@ use lexflex_lingua::LinguaGoal;
 use lexflex_model::{
     AssertionId, ConceptId, EntityId, SemanticAssertion, SemanticExpression, WorldId,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct KnowledgeIndex {
     pub by_root_concept: BTreeMap<ConceptId, BTreeSet<AssertionId>>,
     pub by_entity: BTreeMap<EntityId, BTreeSet<AssertionId>>,

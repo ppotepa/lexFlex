@@ -1,7 +1,8 @@
 use crate::{
     AtomicCategoryKind, CompiledLexicalSense, FeatureStructure, LanguageCompileError, LexicalSense,
-    SyntacticCategory, ValencySlot,
+    SemanticAnchor, SyntacticCategory, ValencySlot,
 };
+use lexflex_model::ConceptCatalog;
 use std::collections::BTreeSet;
 
 const MAX_COMPILED_CATEGORY_DEPTH: usize = 64;
@@ -35,6 +36,7 @@ fn compile_argument_category(
 
 pub fn compile_lexical_sense(
     sense: &LexicalSense,
+    catalog: &ConceptCatalog,
 ) -> Result<CompiledLexicalSense, LanguageCompileError> {
     let mut valency = sense.valency.clone();
     valency.sort_by(|left, right| {
@@ -50,6 +52,20 @@ pub fn compile_lexical_sense(
                 sense_id: sense.id.clone(),
                 rank: slot.application_rank,
             });
+        }
+    }
+
+    if let Some(SemanticAnchor::Concept(concept_id)) = &sense.anchor {
+        if let Some(schema) = catalog.concept(concept_id) {
+            for (parameter_id, parameter) in &schema.parameters {
+                if parameter.required && !valency.iter().any(|slot| &slot.parameter == parameter_id)
+                {
+                    return Err(LanguageCompileError::MissingRequiredParameter {
+                        sense_id: sense.id.clone(),
+                        parameter: parameter_id.clone(),
+                    });
+                }
+            }
         }
     }
 

@@ -31,7 +31,7 @@ fn main() {
 
     println!(
         "canonical_hash: {}",
-        lexflex_model::canonical_hash(&expression)
+        lexflex_model::canonical_hash(&expression).expect("canonical hash")
     );
     println!(
         "{}",

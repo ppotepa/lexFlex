@@ -1,5 +1,4 @@
-mod canonical;
-mod normalizer;
-
-pub use canonical::expression_sha256;
-pub use normalizer::{normalize_expression, ExpressionNormalizer, NormalizationReport};
+pub use lexflex_model::{
+    normalize_expression, NormalizationBudget, NormalizationError, NormalizationReport,
+    SemanticNormalizer,
+};

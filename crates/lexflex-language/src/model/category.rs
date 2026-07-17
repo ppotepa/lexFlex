@@ -144,6 +144,36 @@ impl SyntacticCategory {
         }
     }
 
+    pub fn try_map_types<E>(
+        &self,
+        mapper: &mut impl FnMut(&CategoryType) -> Result<CategoryType, E>,
+    ) -> Result<Self, E> {
+        match self {
+            Self::Atom {
+                kind,
+                semantic_type,
+                features,
+            } => Ok(Self::Atom {
+                kind: kind.clone(),
+                semantic_type: mapper(semantic_type)?,
+                features: features.clone(),
+            }),
+            Self::Function {
+                result,
+                argument,
+                direction,
+                semantic_parameter,
+                features,
+            } => Ok(Self::Function {
+                result: Box::new(result.try_map_types(mapper)?),
+                argument: Box::new(argument.try_map_types(mapper)?),
+                direction: *direction,
+                semantic_parameter: semantic_parameter.clone(),
+                features: features.clone(),
+            }),
+        }
+    }
+
     pub fn with_root_features(
         &self,
         additional: &FeatureStructure,

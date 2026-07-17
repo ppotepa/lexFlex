@@ -1,5 +1,5 @@
 use lexflex_language::{LanguageId, LanguageLoadError, LanguageModel, LanguagePackageLoader};
-use lexflex_model::ConceptCatalog;
+use lexflex_model::{CanonicalDigest, CanonicalHashError, ConceptCatalog};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use thiserror::Error;
 #[derive(Debug, Clone)]
 pub struct LanguageRegistry {
     pub models: BTreeMap<LanguageId, Arc<LanguageModel>>,
-    pub registry_hash: String,
+    pub registry_hash: CanonicalDigest,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -27,6 +27,8 @@ pub enum LanguageRegistryError {
     DuplicateLanguage(LanguageId),
     #[error("duplicate package id: {0}")]
     DuplicatePackageId(String),
+    #[error("canonical hash error: {0}")]
+    CanonicalHash(#[from] CanonicalHashError),
 }
 
 impl LanguageRegistry {
@@ -70,7 +72,7 @@ impl LanguageRegistry {
             });
         }
 
-        let registry_hash = registry_hash_for(&models);
+        let registry_hash = registry_hash_for(&models)?;
 
         Ok(Self {
             models,
@@ -113,7 +115,9 @@ fn discover_language_roots(root: &Path) -> Result<Vec<PathBuf>, LanguageRegistry
     Ok(roots)
 }
 
-fn registry_hash_for(models: &BTreeMap<LanguageId, Arc<LanguageModel>>) -> String {
+fn registry_hash_for(
+    models: &BTreeMap<LanguageId, Arc<LanguageModel>>,
+) -> Result<CanonicalDigest, CanonicalHashError> {
     lexflex_model::canonical_hash(
         &models
             .iter()
@@ -290,7 +294,10 @@ mod tests {
                 paradigms: BTreeMap::new(),
                 form_index: Default::default(),
                 sense_index: Default::default(),
-                model_hash: String::new(),
+                model_hash: CanonicalDigest::new(
+                    "0000000000000000000000000000000000000000000000000000000000000000",
+                )
+                .expect("valid digest"),
             }),
         );
         let first = registry_hash_for(&models);
@@ -305,7 +312,10 @@ mod tests {
                 paradigms: BTreeMap::new(),
                 form_index: Default::default(),
                 sense_index: Default::default(),
-                model_hash: String::new(),
+                model_hash: CanonicalDigest::new(
+                    "0000000000000000000000000000000000000000000000000000000000000000",
+                )
+                .expect("valid digest"),
             }),
         );
         let second = registry_hash_for(&models);

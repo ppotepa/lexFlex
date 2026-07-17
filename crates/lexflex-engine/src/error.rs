@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 pub enum EngineErrorCode {
     InvalidProgram,
     InvalidGoal,
+    InvalidAssertion,
+    InvalidEvidence,
+    Canonicalization,
+    Integrity,
     ModelError,
     RuntimeBudget,
     StoreError,
