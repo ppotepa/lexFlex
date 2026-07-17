@@ -1,6 +1,7 @@
 use super::*;
 use crate::runtime::formal_result::FormalExpressionError;
 use crate::runtime::ambiguity::ExpectedTextKind;
+use lexflex_parser::ClauseMode;
 use std::collections::BTreeMap;
 
 impl LexFlexRuntime {
@@ -96,14 +97,10 @@ impl LexFlexRuntime {
                 };
                 EngineResponse::TextAnalyzed { analysis }
             }
-            Ok(ParseOutput::Ambiguous { alternatives, .. }) => {
-                let expected = if alternatives
-                    .iter()
-                    .any(|alternative| !alternative.query_variables.is_empty())
-                {
-                    ExpectedTextKind::Goal
-                } else {
-                    ExpectedTextKind::Assertion
+            Ok(ParseOutput::Ambiguous { alternatives, mode, .. }) => {
+                let expected = match mode {
+                    ClauseMode::Declarative => ExpectedTextKind::Assertion,
+                    ClauseMode::Interrogative => ExpectedTextKind::Goal,
                 };
                 match self.lower_ambiguous_alternatives(
                     &input.source_id,

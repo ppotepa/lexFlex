@@ -11,6 +11,7 @@ pub enum ParseOutput {
     Assertion(AssertionDraft),
     Goal(GoalDraft),
     Ambiguous {
+        mode: ClauseMode,
         alternatives: Vec<ParseAlternative>,
         metrics: ParseMetrics,
     },

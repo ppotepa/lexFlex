@@ -43,6 +43,7 @@ pub fn finish_stage(
 
     if best.len() > 1 {
         return Ok(ParseOutput::Ambiguous {
+            mode: ctx.tokenization.mode,
             alternatives: best
                 .into_iter()
                 .map(|(_, item)| {

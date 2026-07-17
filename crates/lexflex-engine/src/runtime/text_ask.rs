@@ -17,12 +17,16 @@ impl LexFlexRuntime {
                     diagnostics: vec![ParseError::QuestionWithoutProjection],
                 };
             }
-            Ok(ParseOutput::Ambiguous { alternatives, .. }) => {
+            Ok(ParseOutput::Ambiguous { mode, alternatives, .. }) => {
+                let expected = match mode {
+                    lexflex_parser::ClauseMode::Declarative => ExpectedTextKind::Assertion,
+                    lexflex_parser::ClauseMode::Interrogative => ExpectedTextKind::Goal,
+                };
                 return match self.lower_ambiguous_alternatives(
-                    "ask:ambiguous",
+                    &input.source_id,
                     alternatives,
                     true,
-                    ExpectedTextKind::Goal,
+                    expected,
                 ) {
                     Ok(alternatives) => EngineResponse::TextAmbiguous {
                         alternatives,
