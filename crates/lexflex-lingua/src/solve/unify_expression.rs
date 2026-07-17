@@ -13,9 +13,8 @@ pub(crate) fn unify_inner(
     bound: &mut BoundVariableScope,
 ) -> Result<(), UnifyError> {
     if depth > context.max_depth {
-        return Err(UnifyError::ValueMismatch {
-            pattern: pattern.clone(),
-            candidate: candidate.clone(),
+        return Err(UnifyError::DepthLimitExceeded {
+            depth: context.max_depth,
         });
     }
     match (pattern, candidate) {

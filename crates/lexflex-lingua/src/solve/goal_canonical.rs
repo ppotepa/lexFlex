@@ -178,19 +178,19 @@ impl GoalCanonicalizer {
     }
 }
 
-pub(crate) fn canonical_semantic_goal(goal: &LinguaGoal) -> CanonicalSemanticGoal {
-    let expression = normalize_expression(goal.expression.clone())
-        .expect("goal canonicalization requires normalizable semantic expression")
-        .expression;
+pub(crate) fn canonical_semantic_goal(
+    goal: &LinguaGoal,
+) -> Result<CanonicalSemanticGoal, crate::normalize::NormalizationError> {
+    let expression = normalize_expression(goal.expression.clone())?.expression;
     let mut canonicalizer = GoalCanonicalizer::default();
     let expression = canonicalizer.canonicalize_expression(&expression);
     let variables = canonicalizer.canonicalize_variables(&goal.variables);
     let projection = canonicalizer.canonicalize_projection(&goal.projection);
 
-    CanonicalSemanticGoal {
+    Ok(CanonicalSemanticGoal {
         expression,
         variables,
         projection,
         world: goal.world.clone(),
-    }
+    })
 }

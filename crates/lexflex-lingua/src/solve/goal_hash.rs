@@ -10,7 +10,10 @@ pub fn canonical_goal_semantic_hash(
     validate_goal(goal, catalog).map_err(|error| CanonicalHashError::Serialization {
         message: error.to_string(),
     })?;
-    canonical_hash(&canonical_semantic_goal(goal))
+    let canonical = canonical_semantic_goal(goal).map_err(|error| CanonicalHashError::Serialization {
+        message: error.to_string(),
+    })?;
+    canonical_hash(&canonical)
 }
 
 pub fn canonical_goal_request_hash(
@@ -20,8 +23,11 @@ pub fn canonical_goal_request_hash(
     validate_goal(goal, catalog).map_err(|error| CanonicalHashError::Serialization {
         message: error.to_string(),
     })?;
+    let canonical = canonical_semantic_goal(goal).map_err(|error| CanonicalHashError::Serialization {
+        message: error.to_string(),
+    })?;
     canonical_hash(&CanonicalRequestGoal {
-        semantic: canonical_semantic_goal(goal),
+        semantic: canonical,
         evidence_policy: goal.evidence_policy,
         limit: goal.limit,
     })

@@ -1,5 +1,5 @@
 use crate::types::SemanticType;
-use lexflex_model::{SemanticExpression, VariableId};
+use lexflex_model::{ConceptId, EntityId, SemanticExpression, VariableId};
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -34,6 +34,12 @@ pub enum UnifyError {
         expected: SemanticType,
         actual: SemanticType,
     },
+    #[error("unification depth limit exceeded (max {depth})")]
+    DepthLimitExceeded { depth: usize },
+    #[error("unknown concept {0}")]
+    UnknownConcept(ConceptId),
+    #[error("unknown entity {0}")]
+    UnknownEntity(EntityId),
 }
 
 impl UnifyError {
@@ -46,6 +52,15 @@ impl UnifyError {
                 | Self::ValueMismatch { .. }
                 | Self::OccursCheck { .. }
                 | Self::VariableTypeMismatch { .. }
+        )
+    }
+
+    pub fn is_fatal(&self) -> bool {
+        matches!(
+            self,
+            Self::DepthLimitExceeded { .. }
+                | Self::UnknownConcept(_)
+                | Self::UnknownEntity(_)
         )
     }
 }

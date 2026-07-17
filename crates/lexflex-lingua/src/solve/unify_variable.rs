@@ -22,14 +22,8 @@ pub(crate) fn bind_variable(
     let actual =
         infer_expression_type(candidate, context.catalog.as_ref(), &context.variable_types)
             .map_err(|error| match error {
-                SolveTypeError::Concept(concept) => UnifyError::ValueMismatch {
-                    pattern: SemanticExpression::Concept(concept),
-                    candidate: candidate.clone(),
-                },
-                SolveTypeError::Entity(entity) => UnifyError::ValueMismatch {
-                    pattern: SemanticExpression::Entity(entity),
-                    candidate: candidate.clone(),
-                },
+        SolveTypeError::Concept(concept) => UnifyError::UnknownConcept(concept),
+        SolveTypeError::Entity(entity) => UnifyError::UnknownEntity(entity),
                 SolveTypeError::Variable(variable) => UnifyError::UnknownVariableType(variable),
             })?;
 
