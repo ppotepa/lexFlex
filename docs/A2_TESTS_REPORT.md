@@ -12,6 +12,11 @@ Executed translations: 100
 
 ## Result
 
+Szczegółowa tabela każdego przypadku (źródło, oczekiwany tekst, rzeczywisty tekst,
+hash semantyczny i status) znajduje się w [A2_TEST_CASES.md](A2_TEST_CASES.md).
+Raport generowany bezpośrednio przez test jest zapisywany w
+`target/lexflex-reports/a2.md` oraz `target/lexflex-reports/a2.json`.
+
 | Check | Result |
 | --- | ---: |
 | English source cases | 50 / 50 |
