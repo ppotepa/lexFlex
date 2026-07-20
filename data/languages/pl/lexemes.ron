@@ -36,6 +36,12 @@
         normalized_lemma: "byc",
     ),
     (
+        id: "lexeme:pl:czy:question",
+        language: "pl",
+        lemma: "czy",
+        normalized_lemma: "czy",
+    ),
+    (
         id: "lexeme:pl:jaki:question",
         language: "pl",
         lemma: "jaki",

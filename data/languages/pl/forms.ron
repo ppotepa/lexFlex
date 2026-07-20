@@ -77,6 +77,13 @@
         features: (values: { "interrogative": "true" }),
     ),
     (
+        id: "form:pl:Czy",
+        lexeme_id: "lexeme:pl:czy:question",
+        surface: "Czy",
+        normalized: "czy",
+        features: (values: { "interrogative": "true" }),
+    ),
+    (
         id: "form:pl:Tomek",
         lexeme_id: "lexeme:pl:tomek:proper",
         surface: "Tomek",

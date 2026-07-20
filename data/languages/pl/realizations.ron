@@ -6,6 +6,8 @@
     universal_prefix: "dla każdego ",
     equality_separator: " jest ",
     question_prefix: "Jaka jest ",
+    boolean_question_prefix: "Czy ",
+    boolean_question_separator: " jest ",
     question_subject_prefix: "Kto ",
     question_object_prefix: "Kogo ",
     question_argument_prefixes: {

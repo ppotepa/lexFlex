@@ -949,14 +949,51 @@ fn apply_question_realization(
 
     if let SemanticExpression::Equals { left, right } = &request.expression {
         if matches!(left.as_ref(), SemanticExpression::Variable(_)) {
-            if let Ok(value) = generate_basic(
+            if let SemanticExpression::Satisfies { subject, .. } = right.as_ref() {
+                if let Some(clause) = category::plan_satisfies(right.as_ref()) {
+                    if let (Ok(subject_text), Ok(predicate_text)) = (
+                        generate_with_style_unchecked(
+                            &GenerationRequest {
+                                expression: subject.as_ref().clone(),
+                                include_trace: request.include_trace,
+                            },
+                            language,
+                            &GenerationStyle::from_language(language),
+                        ),
+                        generate_predicate(
+                            clause.predicate,
+                            request.include_trace,
+                            language,
+                            &GenerationStyle::from_language(language),
+                        ),
+                    ) {
+                        result.text = format!(
+                            "{}{}{}{}{}?",
+                            language.realizations.boolean_question_prefix,
+                            subject_text.text,
+                            language.realizations.boolean_question_separator,
+                            language.realizations.predicate_prefix,
+                            predicate_text.text,
+                        );
+                        result.trace = merge_traces(subject_text.trace, predicate_text.trace);
+                        return result;
+                    }
+                }
+            }
+            if let Ok(value) = generate_with_style_unchecked(
                 &GenerationRequest {
                     expression: right.as_ref().clone(),
                     include_trace: request.include_trace,
                 },
                 language,
+                &GenerationStyle::from_language(language),
             ) {
-                result.text = format!("{}{}?", language.realizations.question_prefix, value.text);
+                let prefix = if is_boolean_question_expression(right.as_ref()) {
+                    &language.realizations.boolean_question_prefix
+                } else {
+                    &language.realizations.question_prefix
+                };
+                result.text = format!("{}{}?", prefix, value.text);
                 result.trace = value.trace;
                 return result;
             }
@@ -1058,6 +1095,17 @@ fn apply_question_realization(
 
     result.text = format!("{}{}?", language.realizations.question_prefix, result.text);
     result
+}
+
+fn is_boolean_question_expression(expression: &SemanticExpression) -> bool {
+    matches!(
+        expression,
+        SemanticExpression::Apply { .. }
+            | SemanticExpression::Satisfies { .. }
+            | SemanticExpression::And(_)
+            | SemanticExpression::Or(_)
+            | SemanticExpression::Not(_)
+    )
 }
 
 fn predicate_is_sentence(expression: &SemanticExpression, language: &LanguageModel) -> bool {

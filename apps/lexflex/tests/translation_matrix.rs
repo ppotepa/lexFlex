@@ -534,6 +534,28 @@ fn nested_boolean_scope_preserves_semantics_in_both_languages() {
     command_support::assert_level_passed("nested-boolean-scope", &results);
 }
 
+#[test]
+fn boolean_questions_preserve_kind_and_semantics_in_both_languages() {
+    let results = vec![
+        assert_b1_translation(
+            0,
+            "en",
+            "pl",
+            "Is Paris the capital of France?",
+            "Czy Paryż jest stolicą Francji?",
+        ),
+        assert_b1_translation(
+            1,
+            "pl",
+            "en",
+            "Czy Paryż jest stolicą Francji?",
+            "Is Paris the capital of France?",
+        ),
+    ];
+    command_support::write_level_report("boolean-questions", &results);
+    command_support::assert_level_passed("boolean-questions", &results);
+}
+
 fn canonical_english_subject(source: &str) -> &str {
     match source {
         "Thomas" | "Tommy" => "Tom",

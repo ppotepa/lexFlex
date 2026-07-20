@@ -6,6 +6,8 @@
     universal_prefix: "for all ",
     equality_separator: " is ",
     question_prefix: "What is ",
+    boolean_question_prefix: "Is ",
+    boolean_question_separator: " ",
     question_subject_prefix: "Who ",
     question_object_prefix: "Who ",
     question_argument_prefixes: {

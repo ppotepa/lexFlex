@@ -279,6 +279,48 @@
         priority: 0,
     ),
     (
+        id: "sense:pl:czy:yes-no-question",
+        lexeme_id: "lexeme:pl:czy:question",
+        anchor: None,
+        base_category: Function(
+            result: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "value",
+            features: (values: { "interrogative": "true" }),
+        ),
+        meaning: (
+            id: "meaning:pl:czy:yes-no-question",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "value",
+                        parameter_id: "value",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Equals(
+                    left: QueryVariable("answer"),
+                    right: Variable("value"),
+                ),
+            ),
+            query_variables: {
+                "answer": Concrete(Boolean),
+            },
+        ),
+        features: (values: { "part_of_speech": "interrogative" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
         id: "sense:pl:jaki:question",
         lexeme_id: "lexeme:pl:jaki:question",
         anchor: None,

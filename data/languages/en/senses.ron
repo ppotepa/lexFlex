@@ -277,6 +277,66 @@
         priority: 0,
     ),
     (
+        id: "sense:en:is:yes-no-question",
+        lexeme_id: "lexeme:en:be:verb",
+        anchor: Some(Concept("ENTITY")),
+        base_category: Function(
+            result: Function(
+                result: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                argument: Atom(
+                    kind: Predicate,
+                    semantic_type: Variable("T"),
+                    features: (values: {}),
+                ),
+                direction: Forward,
+                semantic_parameter: "predicate",
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: NounPhrase,
+                semantic_type: Variable("T"),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "subject",
+            features: (values: { "interrogative": "true" }),
+        ),
+        meaning: (
+            id: "meaning:en:is:yes-no-question",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "subject",
+                        parameter_id: "subject",
+                        value_type: Entity,
+                    ),
+                    (
+                        name: "predicate",
+                        parameter_id: "predicate",
+                        value_type: Predicate(Entity),
+                    ),
+                ],
+                body: Equals(
+                    left: QueryVariable("answer"),
+                    right: Satisfies(
+                        subject: Variable("subject"),
+                        concept: Variable("predicate"),
+                    ),
+                ),
+            ),
+            query_variables: {
+                "answer": Concrete(Boolean),
+            },
+        ),
+        features: (values: { "part_of_speech": "verb", "interrogative": "true" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
         id: "sense:en:the:identity",
         lexeme_id: "lexeme:en:the:article",
         anchor: Some(

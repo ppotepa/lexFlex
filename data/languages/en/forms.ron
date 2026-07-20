@@ -42,6 +42,14 @@
         features: (values: { "tense": "present", "number": "singular" }),
     ),
     (
+        id: "form:en:Is",
+        lexeme_id: "lexeme:en:be:verb",
+        surface: "Is",
+        normalized: "is",
+        features: (values: { "interrogative": "true" }),
+        priority: -1,
+    ),
+    (
         id: "form:en:the",
         lexeme_id: "lexeme:en:the:article",
         surface: "the",

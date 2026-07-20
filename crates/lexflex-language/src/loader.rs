@@ -39,6 +39,10 @@ pub struct LanguageRealizationModel {
     pub equality_separator: String,
     pub question_prefix: String,
     #[serde(default)]
+    pub boolean_question_prefix: String,
+    #[serde(default)]
+    pub boolean_question_separator: String,
+    #[serde(default)]
     pub question_subject_prefix: String,
     #[serde(default)]
     pub question_object_prefix: String,
