@@ -1,7 +1,10 @@
 use super::*;
 use crate::api::response::EngineDiagnostic;
+use crate::api::text::TextAnalysisAlternativeInput;
+use crate::runtime::alternative_failure::{classify_alternative_failure, AlternativeFailure};
+use crate::runtime::diagnostics::with_diagnostics;
+use crate::runtime::formal_identity::{formal_alternative_key, FormalAlternativeKey};
 use crate::runtime::formal_result::FormalExpressionError;
-use lexflex_model::{canonical_hash, CanonicalDigest};
 use lexflex_parser::ParseScore;
 use std::collections::BTreeMap;
 
@@ -11,16 +14,10 @@ pub(crate) enum ExpectedTextKind {
     Goal,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct FormalAlternativeKey {
-    expression_hash: CanonicalDigest,
-    variable_hash: CanonicalDigest,
-    projection_hash: CanonicalDigest,
-}
-
 #[derive(Debug, Clone)]
 struct LoweredAlternative {
     analysis: TextAnalysisAlternative,
+    internal_derivations: lexflex_parser::DerivationSet,
     score: ParseScore,
 }
 
@@ -32,6 +29,18 @@ impl LexFlexRuntime {
         include_derivation: bool,
         expected: ExpectedTextKind,
     ) -> Result<(Vec<TextAnalysisAlternative>, Vec<EngineDiagnostic>), EngineResponse> {
+        let observed_alternatives = alternatives.len();
+        let max_alternatives = self.text_budget.max_formal_alternatives();
+        if observed_alternatives > max_alternatives {
+            return Err(EngineResponse::Error {
+                code: EngineErrorCode::RuntimeBudget,
+                message: format!(
+                    "formal alternative limit exceeded: observed={observed_alternatives}, max={max_alternatives}"
+                ),
+                diagnostics: Vec::new(),
+            });
+        }
+
         let mut lowered = BTreeMap::<FormalAlternativeKey, LoweredAlternative>::new();
         let mut failures = Vec::new();
 
@@ -39,41 +48,53 @@ impl LexFlexRuntime {
             let result = match expected {
                 ExpectedTextKind::Assertion => {
                     if !alternative.query_variables.is_empty() {
-                        Err("assertion alternative contains query variables".to_owned())
+                        failures.push(EngineDiagnostic::InvalidAlternative {
+                            index,
+                            message: "assertion alternative contains query variables".into(),
+                        });
+                        continue;
                     } else {
                         self.evaluate_formal_expression(
                             source_id,
                             alternative.expression.clone(),
                             BTreeMap::new(),
                         )
-                        .map_err(|error| error.to_string())
                     }
                 }
                 ExpectedTextKind::Goal => {
                     if alternative.query_variables.is_empty() {
-                        Err("goal alternative does not declare query variables".to_owned())
+                        failures.push(EngineDiagnostic::InvalidAlternative {
+                            index,
+                            message: "goal alternative does not declare query variables".into(),
+                        });
+                        continue;
                     } else if alternative.projection.is_empty() {
-                        Err("goal alternative does not declare projection".to_owned())
+                        failures.push(EngineDiagnostic::InvalidAlternative {
+                            index,
+                            message: "goal alternative does not declare projection".into(),
+                        });
+                        continue;
                     } else {
                         self.evaluate_formal_expression(
                             source_id,
                             alternative.expression.clone(),
                             alternative.query_variables.clone(),
                         )
-                        .map_err(|error| error.to_string())
                     }
                 }
             };
 
             let semantic_expression = match result {
                 Ok(value) => value,
-                Err(error) => {
-                    failures.push(EngineDiagnostic::InvalidAlternative {
-                        index,
-                        message: error.to_string(),
-                    });
-                    continue;
-                }
+                Err(error) => match classify_alternative_failure(error) {
+                    AlternativeFailure::Rejected { message } => {
+                        failures.push(EngineDiagnostic::InvalidAlternative { index, message });
+                        continue;
+                    }
+                    AlternativeFailure::Fatal { response } => {
+                        return Err(with_diagnostics(response, failures));
+                    }
+                },
             };
 
             let formal_steps = semantic_expression.steps;
@@ -102,76 +123,84 @@ impl LexFlexRuntime {
                 _ => {}
             }
 
-            let expression_hash = match canonical_hash(&semantic_value) {
-                Ok(value) => value,
-                Err(error) => {
-                    failures.push(EngineDiagnostic::InvalidAlternative {
-                        index,
-                        message: error.to_string(),
-                    });
-                    continue;
-                }
-            };
-            let variable_hash = match canonical_hash(&alternative.query_variables) {
-                Ok(value) => value,
-                Err(error) => {
-                    failures.push(EngineDiagnostic::InvalidAlternative {
-                        index,
-                        message: error.to_string(),
-                    });
-                    continue;
-                }
-            };
-            let projection_hash = match canonical_hash(&alternative.projection) {
-                Ok(value) => value,
-                Err(error) => {
-                    failures.push(EngineDiagnostic::InvalidAlternative {
-                        index,
-                        message: error.to_string(),
-                    });
-                    continue;
-                }
-            };
-
             let analysis = match TextAnalysisAlternative::new(
-                semantic_value,
-                alternative.query_variables,
-                alternative.projection,
-                formal_steps,
-                alternative.metrics,
-                if include_derivation {
-                    alternative.derivations.primary().cloned()
-                } else {
-                    None
+                match expected {
+                    ExpectedTextKind::Assertion => TextAnalysisKind::Assertion,
+                    ExpectedTextKind::Goal => TextAnalysisKind::Goal,
                 },
-                alternative.score,
+                TextAnalysisAlternativeInput {
+                    canonical_expression: semantic_value.clone(),
+                    variables: alternative.query_variables,
+                    projection: alternative.projection,
+                    formal_steps,
+                    parser_metrics: alternative.metrics,
+                    derivations: None,
+                    score: alternative.score,
+                },
             ) {
                 Ok(value) => value,
                 Err(error) => {
-                    failures.push(EngineDiagnostic::InvalidAlternative {
-                        index,
-                        message: error.to_string(),
-                    });
-                    continue;
+                    if !matches!(error, crate::api::text::TextAnalysisError::CanonicalHash(_)) {
+                        failures.push(EngineDiagnostic::InvalidAlternative {
+                            index,
+                            message: error.to_string(),
+                        });
+                        continue;
+                    }
+                    return Err(with_diagnostics(
+                        EngineResponse::Error {
+                            code: EngineErrorCode::Canonicalization,
+                            message: error.to_string(),
+                            diagnostics: Vec::new(),
+                        },
+                        failures,
+                    ));
                 }
             };
 
-            let key = FormalAlternativeKey {
-                expression_hash,
-                variable_hash,
-                projection_hash,
+            let key = match formal_alternative_key(
+                analysis.canonical_hash().clone(),
+                analysis.variables(),
+                analysis.projection(),
+            ) {
+                Ok(key) => key,
+                Err(error) => {
+                    return Err(with_diagnostics(
+                        EngineResponse::Error {
+                            code: EngineErrorCode::Canonicalization,
+                            message: error.to_string(),
+                            diagnostics: Vec::new(),
+                        },
+                        failures,
+                    ));
+                }
             };
+
             let lowered_alternative = LoweredAlternative {
                 analysis,
+                internal_derivations: alternative.derivations,
                 score: alternative.score,
             };
 
-            match lowered.get(&key) {
+            match lowered.get_mut(&key) {
                 None => {
                     lowered.insert(key, lowered_alternative);
                 }
                 Some(existing) if lowered_alternative.score < existing.score => {
                     lowered.insert(key, lowered_alternative);
+                }
+                Some(existing) if lowered_alternative.score == existing.score => {
+                    existing
+                        .internal_derivations
+                        .try_merge(
+                            &lowered_alternative.internal_derivations,
+                            self.text_budget.max_formal_derivations(),
+                        )
+                        .map_err(|error| EngineResponse::Error {
+                            code: EngineErrorCode::RuntimeBudget,
+                            message: error.to_string(),
+                            diagnostics: failures.clone(),
+                        })?;
                 }
                 Some(_) => {}
             }
@@ -179,7 +208,10 @@ impl LexFlexRuntime {
 
         if lowered.is_empty() {
             return Err(EngineResponse::Error {
-                code: EngineErrorCode::InvalidProgram,
+                code: match expected {
+                    ExpectedTextKind::Assertion => EngineErrorCode::InvalidAssertion,
+                    ExpectedTextKind::Goal => EngineErrorCode::InvalidGoal,
+                },
                 message: "all ambiguous alternatives failed formal lowering".into(),
                 diagnostics: failures,
             });
@@ -198,7 +230,14 @@ impl LexFlexRuntime {
         let alternatives = lowered
             .into_values()
             .filter(|value| value.score == best_score)
-            .map(|value| value.analysis)
+            .map(|mut value| {
+                if include_derivation {
+                    value
+                        .analysis
+                        .set_derivations(Some(value.internal_derivations));
+                }
+                value.analysis
+            })
             .collect::<Vec<_>>();
 
         Ok((alternatives, failures))

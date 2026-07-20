@@ -8,3 +8,7 @@ description = "Deterministic learner overlays for the lexFlex rebuild"
 
 [dependencies]
 serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -44,34 +44,28 @@ impl<'a> ExpressionTypeChecker<'a> {
         expression: &SemanticExpression,
         environment: &mut ExpressionTypeEnvironment<'_>,
     ) -> Result<SemanticType, ExpressionTypeError> {
-        self.infer_inner(expression, environment, 0, 0)
+        let mut state = ExpressionTypeState::default();
+        self.infer_inner(expression, environment, &mut state, 0)
     }
 
     fn infer_inner(
         &self,
         expression: &SemanticExpression,
         environment: &mut ExpressionTypeEnvironment<'_>,
-        nodes: usize,
+        state: &mut ExpressionTypeState,
         depth: usize,
     ) -> Result<SemanticType, ExpressionTypeError> {
-        if nodes > self.budget.max_nodes {
-            return Err(ExpressionTypeError::NodeBudgetExceeded {
-                max: self.budget.max_nodes,
-            });
-        }
+        state.consume(&self.budget)?;
         if depth > self.budget.max_depth {
             return Err(ExpressionTypeError::DepthBudgetExceeded {
                 max: self.budget.max_depth,
             });
         }
-
-        let next_nodes = nodes + 1;
-
         match expression {
             SemanticExpression::Concept(concept) => environment
                 .catalog
                 .concept(concept)
-                .map(|schema| schema.result_type.clone())
+                .map(|schema| SemanticType::ConceptOf(schema.kind))
                 .ok_or_else(|| ExpressionTypeError::UnknownConcept(concept.clone())),
             SemanticExpression::Entity(entity) => {
                 let definition = environment
@@ -108,7 +102,7 @@ impl<'a> ExpressionTypeChecker<'a> {
                             parameter: parameter_id.clone(),
                         }
                     })?;
-                    let actual = self.infer_inner(value, environment, next_nodes, depth + 1)?;
+                    let actual = self.infer_inner(value, environment, state, depth + 1)?;
                     if !self.relation.accepts(&parameter.value_type, &actual) {
                         return Err(ExpressionTypeError::ParameterTypeMismatch {
                             concept: concept.clone(),
@@ -122,9 +116,8 @@ impl<'a> ExpressionTypeChecker<'a> {
                 Ok(schema.result_type.clone())
             }
             SemanticExpression::Satisfies { subject, predicate } => {
-                let subject_type = self.infer_inner(subject, environment, next_nodes, depth + 1)?;
-                let predicate_type =
-                    self.infer_inner(predicate, environment, next_nodes, depth + 1)?;
+                let subject_type = self.infer_inner(subject, environment, state, depth + 1)?;
+                let predicate_type = self.infer_inner(predicate, environment, state, depth + 1)?;
                 match predicate_type {
                     SemanticType::Predicate(expected_subject) => {
                         if self.relation.accepts(&expected_subject, &subject_type) {
@@ -140,8 +133,8 @@ impl<'a> ExpressionTypeChecker<'a> {
                 }
             }
             SemanticExpression::Equals { left, right } => {
-                let left_type = self.infer_inner(left, environment, next_nodes, depth + 1)?;
-                let right_type = self.infer_inner(right, environment, next_nodes, depth + 1)?;
+                let left_type = self.infer_inner(left, environment, state, depth + 1)?;
+                let right_type = self.infer_inner(right, environment, state, depth + 1)?;
                 if self.relation.accepts(&left_type, &right_type)
                     || self.relation.accepts(&right_type, &left_type)
                 {
@@ -155,7 +148,7 @@ impl<'a> ExpressionTypeChecker<'a> {
             }
             SemanticExpression::And(items) | SemanticExpression::Or(items) => {
                 for item in items {
-                    let value_type = self.infer_inner(item, environment, next_nodes, depth + 1)?;
+                    let value_type = self.infer_inner(item, environment, state, depth + 1)?;
                     if value_type != SemanticType::Boolean {
                         return Err(ExpressionTypeError::ExpectedBoolean(value_type));
                     }
@@ -163,7 +156,7 @@ impl<'a> ExpressionTypeChecker<'a> {
                 Ok(SemanticType::Boolean)
             }
             SemanticExpression::Not(inner) => {
-                let value_type = self.infer_inner(inner, environment, next_nodes, depth + 1)?;
+                let value_type = self.infer_inner(inner, environment, state, depth + 1)?;
                 if value_type != SemanticType::Boolean {
                     return Err(ExpressionTypeError::ExpectedBoolean(value_type));
                 }
@@ -180,7 +173,7 @@ impl<'a> ExpressionTypeChecker<'a> {
                 body,
             } => {
                 environment.push_bound(variable.clone(), value_type.clone());
-                let body_result = self.infer_inner(body, environment, next_nodes, depth + 1);
+                let body_result = self.infer_inner(body, environment, state, depth + 1);
                 if !environment.pop_bound() {
                     return Err(ExpressionTypeError::BoundScopeUnderflow);
                 }
@@ -194,9 +187,9 @@ impl<'a> ExpressionTypeChecker<'a> {
                 expression,
                 qualifiers,
             } => {
-                let base_type = self.infer_inner(expression, environment, next_nodes, depth + 1)?;
+                let base_type = self.infer_inner(expression, environment, state, depth + 1)?;
                 for (qualifier, value) in qualifiers {
-                    self.infer_inner(value, environment, next_nodes, depth + 1)
+                    self.infer_inner(value, environment, state, depth + 1)
                         .map_err(|error| ExpressionTypeError::InvalidQualifier {
                             qualifier: qualifier.clone(),
                             message: error.to_string(),
@@ -205,5 +198,29 @@ impl<'a> ExpressionTypeChecker<'a> {
                 Ok(base_type)
             }
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct ExpressionTypeState {
+    visited_nodes: usize,
+}
+
+impl ExpressionTypeState {
+    fn consume(&mut self, budget: &ExpressionTypeBudget) -> Result<(), ExpressionTypeError> {
+        self.visited_nodes =
+            self.visited_nodes
+                .checked_add(1)
+                .ok_or(ExpressionTypeError::NodeBudgetExceeded {
+                    max: budget.max_nodes,
+                })?;
+
+        if self.visited_nodes > budget.max_nodes {
+            return Err(ExpressionTypeError::NodeBudgetExceeded {
+                max: budget.max_nodes,
+            });
+        }
+
+        Ok(())
     }
 }

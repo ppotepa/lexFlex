@@ -1,8 +1,10 @@
 use crate::id::{FunctionId, SymbolId};
 use crate::syntax::{ConceptDeclaration, ExpansionPolicy, FunctionDeclaration};
 use crate::types::SemanticType;
+use crate::verifier::VerificationReport;
 use lexflex_model::{ConceptId, EntityId, ParameterId, SemanticValue, VariableId};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedExpression {
@@ -67,24 +69,100 @@ pub enum CompiledConceptSemantics {
 
 #[derive(Debug, Clone)]
 pub struct CompiledConcept {
-    pub declaration: ConceptDeclaration,
-    pub self_parameter: Option<ResolvedParameter>,
-    pub parameters: Vec<ResolvedParameter>,
-    pub semantics: CompiledConceptSemantics,
-    pub expansion: ExpansionPolicy,
+    pub(crate) declaration: ConceptDeclaration,
+    pub(crate) self_parameter: Option<ResolvedParameter>,
+    pub(crate) parameters: Vec<ResolvedParameter>,
+    pub(crate) semantics: CompiledConceptSemantics,
+    pub(crate) expansion: ExpansionPolicy,
 }
 
 #[derive(Debug, Clone)]
 pub struct CompiledFunction {
-    pub declaration: FunctionDeclaration,
-    pub parameters: Vec<ResolvedParameter>,
-    pub body: ResolvedExpression,
+    pub(crate) declaration: FunctionDeclaration,
+    pub(crate) parameters: Vec<ResolvedParameter>,
+    pub(crate) body: ResolvedExpression,
 }
 
 #[derive(Debug, Clone)]
-pub struct CompiledProgram {
-    pub concepts: BTreeMap<ConceptId, CompiledConcept>,
-    pub functions: BTreeMap<FunctionId, CompiledFunction>,
-    pub entry: ResolvedExpression,
-    pub entry_type: SemanticType,
+pub(crate) struct CompiledProgram {
+    pub(crate) concepts: Arc<BTreeMap<ConceptId, CompiledConcept>>,
+    pub(crate) functions: Arc<BTreeMap<FunctionId, CompiledFunction>>,
+    pub(crate) entry: ResolvedExpression,
+    pub(crate) entry_type: SemanticType,
+}
+
+#[derive(Debug, Clone)]
+pub struct VerifiedCompiledEntry {
+    model: Arc<super::VerifiedCompiledModel>,
+    entry: ResolvedExpression,
+    entry_type: SemanticType,
+    verification: VerificationReport,
+}
+
+#[derive(Debug, Clone)]
+pub struct VerifiedStandaloneProgram {
+    concepts: Arc<BTreeMap<ConceptId, CompiledConcept>>,
+    functions: Arc<BTreeMap<FunctionId, CompiledFunction>>,
+    entry: ResolvedExpression,
+    entry_type: SemanticType,
+    verification: VerificationReport,
+}
+
+impl VerifiedStandaloneProgram {
+    pub(crate) fn new(program: CompiledProgram, verification: VerificationReport) -> Self {
+        Self {
+            concepts: program.concepts,
+            functions: program.functions,
+            entry: program.entry,
+            entry_type: program.entry_type,
+            verification,
+        }
+    }
+
+    pub fn entry(&self) -> &ResolvedExpression {
+        &self.entry
+    }
+    pub fn entry_type(&self) -> &SemanticType {
+        &self.entry_type
+    }
+    pub fn verification(&self) -> &VerificationReport {
+        &self.verification
+    }
+    pub(crate) fn concepts(&self) -> &BTreeMap<ConceptId, CompiledConcept> {
+        &self.concepts
+    }
+    pub(crate) fn functions(&self) -> &BTreeMap<FunctionId, CompiledFunction> {
+        &self.functions
+    }
+}
+
+impl VerifiedCompiledEntry {
+    pub(crate) fn new(
+        model: Arc<super::VerifiedCompiledModel>,
+        program: CompiledProgram,
+        verification: VerificationReport,
+    ) -> Self {
+        Self {
+            model,
+            entry: program.entry,
+            entry_type: program.entry_type,
+            verification,
+        }
+    }
+
+    pub fn model(&self) -> &Arc<super::VerifiedCompiledModel> {
+        &self.model
+    }
+
+    pub fn entry(&self) -> &ResolvedExpression {
+        &self.entry
+    }
+
+    pub fn entry_type(&self) -> &SemanticType {
+        &self.entry_type
+    }
+
+    pub fn verification(&self) -> &VerificationReport {
+        &self.verification
+    }
 }

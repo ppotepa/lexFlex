@@ -21,16 +21,21 @@ fn temp_text_file(prefix: &str, contents: &str) -> std::path::PathBuf {
     path
 }
 
+fn app_command() -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_lexflex-app"));
+    command.current_dir(workspace_root());
+    command
+}
+
 fn run_command(args: &[&str]) -> Value {
     run_command_with_stdin(args, None)
 }
 
 fn run_command_with_stdin(args: &[&str], stdin: Option<&str>) -> Value {
     if let Some(stdin) = stdin {
-        let mut child = Command::new("cargo")
-            .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+        let mut command = app_command();
+        let mut child = command
             .args(args)
-            .current_dir(workspace_root())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -52,10 +57,8 @@ fn run_command_with_stdin(args: &[&str], stdin: Option<&str>) -> Value {
         );
         return serde_json::from_slice(&output.stdout).expect("stdout should be JSON");
     }
-    let output = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let output = app_command()
         .args(args)
-        .current_dir(workspace_root())
         .stdin(Stdio::piped())
         .output()
         .expect("command should launch");
@@ -70,12 +73,10 @@ fn run_command_with_stdin(args: &[&str], stdin: Option<&str>) -> Value {
 }
 
 fn run_stateful_command(state_dir: &std::path::Path, args: &[&str]) -> Value {
-    let output = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let output = app_command()
         .args(["--session", "cli-stateful", "--state-dir"])
         .arg(state_dir)
         .args(args)
-        .current_dir(workspace_root())
         .output()
         .expect("command should launch");
     assert!(
@@ -170,11 +171,42 @@ fn text_analyze_command_reads_file() {
 }
 
 #[test]
+fn text_translate_text_uses_source_analysis_and_target_generation() {
+    let json = run_command(&[
+        "text-translate-text",
+        "--language",
+        "en",
+        "--target-language",
+        "pl",
+        "--text",
+        "Paris is the capital of France.",
+    ]);
+    assert!(json["text"].as_str().is_some(), "unexpected JSON: {json}");
+    assert!(!json["text"].as_str().unwrap_or_default().is_empty());
+}
+
+#[test]
+fn text_translate_text_supports_polish_source() {
+    let json = run_command(&[
+        "text-translate-text",
+        "--language",
+        "pl",
+        "--target-language",
+        "en",
+        "--text",
+        "Paryż jest stolicą Francji.",
+    ]);
+    let text = json["text"].as_str().expect("translated text");
+    assert!(!text.is_empty(), "translation must not be empty");
+    assert!(text.contains("Paris"), "unexpected translation: {text}");
+    assert!(text.contains("France"), "unexpected translation: {text}");
+}
+
+#[test]
 fn text_ingest_and_ask_commands_emit_json() {
     let state_dir = temp_state_dir("cli-text");
 
-    let ingest = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let ingest = app_command()
         .args([
             "--session",
             "cli-text",
@@ -188,7 +220,6 @@ fn text_ingest_and_ask_commands_emit_json() {
             "--text",
             "Paris is the capital of France.",
         ])
-        .current_dir(workspace_root())
         .output()
         .expect("text ingest command should launch");
     assert!(
@@ -203,8 +234,7 @@ fn text_ingest_and_ask_commands_emit_json() {
         "unexpected JSON: {ingest_json}"
     );
 
-    let ask = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let ask = app_command()
         .args([
             "--session",
             "cli-text",
@@ -218,7 +248,6 @@ fn text_ingest_and_ask_commands_emit_json() {
             "--text",
             "What is the capital of France?",
         ])
-        .current_dir(workspace_root())
         .output()
         .expect("text ask command should launch");
     assert!(
@@ -255,8 +284,7 @@ fn text_ingest_and_ask_commands_read_file_input() {
         .expect("temp path should be utf-8")
         .to_string();
 
-    let ingest = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let ingest = app_command()
         .args([
             "--session",
             "cli-text-file",
@@ -268,7 +296,6 @@ fn text_ingest_and_ask_commands_read_file_input() {
             "--file",
             &ingest_file_arg,
         ])
-        .current_dir(workspace_root())
         .output()
         .expect("text ingest command should launch");
     assert!(
@@ -290,8 +317,7 @@ fn text_ingest_and_ask_commands_read_file_input() {
         "unexpected source id: {ingest_analysis}"
     );
 
-    let ask = Command::new("cargo")
-        .args(["run", "-p", "lexflex-app", "--quiet", "--"])
+    let ask = app_command()
         .args([
             "--session",
             "cli-text-file",
@@ -303,7 +329,6 @@ fn text_ingest_and_ask_commands_read_file_input() {
             "--file",
             &question_file_arg,
         ])
-        .current_dir(workspace_root())
         .output()
         .expect("text ask command should launch");
     assert!(

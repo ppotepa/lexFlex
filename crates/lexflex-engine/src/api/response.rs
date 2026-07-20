@@ -56,10 +56,6 @@ pub enum EngineResponse {
     SessionCleared {
         snapshot_hash: String,
     },
-    Unsupported {
-        capability: String,
-        message: String,
-    },
     Error {
         code: EngineErrorCode,
         message: String,
@@ -67,7 +63,7 @@ pub enum EngineResponse {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineDiagnostic {
     MissingAssertion { assertion_id: AssertionId },
     InvalidAlternative { index: usize, message: String },

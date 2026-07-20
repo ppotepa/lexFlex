@@ -15,10 +15,7 @@ pub struct LanguageRegistry {
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum LanguageRegistryError {
     #[error("language load error: {0}")]
-    Load(
-        #[from]
-        LanguageLoadError
-    ),
+    Load(#[from] LanguageLoadError),
     #[error("missing language package: {root}")]
     MissingPackage { root: PathBuf },
     #[error("language directory mismatch: directory={directory}, manifest={manifest}")]
@@ -31,10 +28,7 @@ pub enum LanguageRegistryError {
     #[error("duplicate package id: {0}")]
     DuplicatePackageId(String),
     #[error("canonical hash error: {0}")]
-    CanonicalHash(
-        #[from]
-        CanonicalHashError
-    ),
+    CanonicalHash(#[from] CanonicalHashError),
 }
 
 impl LanguageRegistry {
@@ -43,9 +37,9 @@ impl LanguageRegistry {
         let mut models: BTreeMap<LanguageId, Arc<LanguageModel>> = BTreeMap::new();
 
         for language_root in discover_language_roots(root)? {
-            let model = loader.load(&language_root, catalog.as_ref()).map_err(
-                LanguageRegistryError::from,
-            )?;
+            let model = loader
+                .load(&language_root, catalog.as_ref())
+                .map_err(LanguageRegistryError::from)?;
             let language = model.manifest.language.clone();
             let directory = language_root
                 .file_name()
@@ -124,29 +118,35 @@ fn discover_language_roots(root: &Path) -> Result<Vec<PathBuf>, LanguageRegistry
 fn registry_hash_for(
     models: &BTreeMap<LanguageId, Arc<LanguageModel>>,
 ) -> Result<CanonicalDigest, CanonicalHashError> {
-    lexflex_model::canonical_hash(&models
-        .iter()
-        .map(|(id, model)| {
-            (id, (
-                &model.manifest.package_id,
-                &model.manifest.language,
-                &model.model_hash,
-                model.lexemes.len(),
-                model.senses.len(),
-                model.compiled_senses.len(),
-                model.forms.len(),
-                model.paradigms.len(),
-            ))
-        })
-        .collect::<BTreeMap<_, _>>())
+    lexflex_model::canonical_hash(
+        &models
+            .iter()
+            .map(|(id, model)| {
+                (
+                    id,
+                    (
+                        &model.manifest.package_id,
+                        &model.manifest.language,
+                        &model.model_hash,
+                        model.lexemes.len(),
+                        model.senses.len(),
+                        model.compiled_senses.len(),
+                        model.forms.len(),
+                        model.paradigms.len(),
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use lexflex_language::{LanguagePackageManifest, Lexeme};
-    use lexflex_model::{ConceptCatalog, ConceptId, ConceptKind, ConceptSchema, LanguageId,
-                        SemanticType};
+    use lexflex_model::{
+        ConceptCatalog, ConceptId, ConceptKind, ConceptSchema, LanguageId, SemanticType,
+    };
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -166,9 +166,9 @@ mod tests {
                 id: ConceptId::new_unchecked("CITY"),
                 kind: ConceptKind::EntityType,
                 parameters: BTreeMap::new(),
-                result_type: SemanticType::Predicate(Box::new(
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                )),
+                result_type: SemanticType::Predicate(Box::new(SemanticType::EntityOf(
+                    ConceptId::new_unchecked("CITY"),
+                ))),
             },
         );
         Arc::new(ConceptCatalog {
@@ -195,8 +195,10 @@ mod tests {
                 senses: "senses.ron",
                 forms: "forms.ron",
                 paradigms: "paradigms.ron",
+                realizations: Some("realizations.ron"),
             )"#,
-        ).expect("write en manifest");
+        )
+        .expect("write en manifest");
         std::fs::write(
             pl.join("manifest.ron"),
             r#"(
@@ -208,13 +210,27 @@ mod tests {
                 forms: "forms.ron",
                 paradigms: "paradigms.ron",
             )"#,
-        ).expect("write pl manifest");
+        )
+        .expect("write pl manifest");
 
         for dir in [&en, &pl] {
             std::fs::write(dir.join("lexemes.ron"), "[]").expect("write lexemes");
             std::fs::write(dir.join("senses.ron"), "[]").expect("write senses");
             std::fs::write(dir.join("forms.ron"), "[]").expect("write forms");
             std::fs::write(dir.join("paradigms.ron"), "[]").expect("write paradigms");
+            std::fs::write(
+                dir.join("realizations.ron"),
+                r#"(
+                    conjunction: " and ",
+                    disjunction: " or ",
+                    negation_prefix: "not ",
+                    existential_prefix: "there exists ",
+                    universal_prefix: "for all ",
+                    equality_separator: " is ",
+                    question_prefix: "what is ",
+                )"#,
+            )
+            .expect("write realizations");
         }
 
         let registry = LanguageRegistry::load(&root, catalog()).expect("load registry");
@@ -246,11 +262,25 @@ mod tests {
                 paradigms: "paradigms.ron",
             )"#
                 ),
-            ).expect("write manifest");
+            )
+            .expect("write manifest");
             std::fs::write(dir.join("lexemes.ron"), "[]").expect("write lexemes");
             std::fs::write(dir.join("senses.ron"), "[]").expect("write senses");
             std::fs::write(dir.join("forms.ron"), "[]").expect("write forms");
             std::fs::write(dir.join("paradigms.ron"), "[]").expect("write paradigms");
+            std::fs::write(
+                dir.join("realizations.ron"),
+                r#"(
+                    conjunction: " and ",
+                    disjunction: " or ",
+                    negation_prefix: "not ",
+                    existential_prefix: "there exists ",
+                    universal_prefix: "for all ",
+                    equality_separator: " is ",
+                    question_prefix: "what is ",
+                )"#,
+            )
+            .expect("write realizations");
         }
 
         let err = LanguageRegistry::load(&root, catalog()).expect_err("duplicate package id");
@@ -271,24 +301,21 @@ mod tests {
             senses: "senses.ron".into(),
             forms: "forms.ron".into(),
             paradigms: "paradigms.ron".into(),
+            realizations: Some("realizations.ron".into()),
         };
         models.insert(
             en.clone(),
             Arc::new(LanguageModel {
                 manifest: base_manifest.clone(),
-                lexemes: BTreeMap::from(
-                    [
-                        (
-                            lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
-                            Lexeme {
-                                id: lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
-                                language: en.clone(),
-                                lemma: "alpha".into(),
-                                normalized_lemma: "alpha".into(),
-                            },
-                        ),
-                    ],
-                ),
+                lexemes: BTreeMap::from([(
+                    lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
+                    Lexeme {
+                        id: lexflex_language::LexemeId::new_unchecked("lexeme:test:one"),
+                        language: en.clone(),
+                        lemma: "alpha".into(),
+                        normalized_lemma: "alpha".into(),
+                    },
+                )]),
                 senses: BTreeMap::new(),
                 compiled_senses: BTreeMap::new(),
                 forms: BTreeMap::new(),
@@ -297,7 +324,18 @@ mod tests {
                 sense_index: Default::default(),
                 model_hash: CanonicalDigest::new(
                     "0000000000000000000000000000000000000000000000000000000000000000",
-                ).expect("valid digest"),
+                )
+                .expect("valid digest"),
+                realizations: lexflex_language::LanguageRealizationModel {
+                    conjunction: " and ".into(),
+                    disjunction: " or ".into(),
+                    negation_prefix: "not ".into(),
+                    existential_prefix: "there exists ".into(),
+                    universal_prefix: "for all ".into(),
+                    equality_separator: " is ".into(),
+                    question_prefix: "what is ".into(),
+                    ..Default::default()
+                },
             }),
         );
         let first = registry_hash_for(&models);
@@ -314,7 +352,18 @@ mod tests {
                 sense_index: Default::default(),
                 model_hash: CanonicalDigest::new(
                     "0000000000000000000000000000000000000000000000000000000000000000",
-                ).expect("valid digest"),
+                )
+                .expect("valid digest"),
+                realizations: lexflex_language::LanguageRealizationModel {
+                    conjunction: " and ".into(),
+                    disjunction: " or ".into(),
+                    negation_prefix: "not ".into(),
+                    existential_prefix: "there exists ".into(),
+                    universal_prefix: "for all ".into(),
+                    equality_separator: " is ".into(),
+                    question_prefix: "what is ".into(),
+                    ..Default::default()
+                },
             }),
         );
         let second = registry_hash_for(&models);
@@ -337,11 +386,24 @@ mod tests {
                 forms: "forms.ron",
                 paradigms: "paradigms.ron",
             )"#,
-        ).expect("write manifest");
+        )
+        .expect("write manifest");
         std::fs::write(en.join("lexemes.ron"), "[]").expect("write lexemes");
         std::fs::write(en.join("senses.ron"), "[]").expect("write senses");
         std::fs::write(en.join("forms.ron"), "[]").expect("write forms");
         std::fs::write(en.join("paradigms.ron"), "[]").expect("write paradigms");
+        std::fs::write(
+            en.join("realizations.ron"),
+            r#"(
+                conjunction: " and ",
+                disjunction: " or ",
+                negation_prefix: "not ",
+                existential_prefix: "there exists ",
+                universal_prefix: "for all ",
+                equality_separator: " is ",
+            )"#,
+        )
+        .expect("write realizations");
 
         let err = LanguageRegistry::load(&root, catalog()).expect_err("directory mismatch");
         assert!(matches!(

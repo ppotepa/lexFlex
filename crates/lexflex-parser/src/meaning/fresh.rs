@@ -129,7 +129,9 @@ impl Freshener {
                     let fresh_name = self.allocate_symbol_name(&parameter.name);
                     self.local_scopes
                         .last_mut()
-                        .expect("local scope exists")
+                        .ok_or_else(|| {
+                            ParseError::MeaningFreshening("missing lambda local scope".into())
+                        })?
                         .insert(parameter.name.clone(), fresh_name.clone());
                     fresh_parameters.push(LambdaParameter {
                         name: fresh_name,

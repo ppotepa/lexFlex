@@ -1,3 +1,5 @@
+use crate::cli::input_error::CliLocalError;
+use crate::cli::internal_error::CliInternalError;
 use crate::cli::output::CliExit;
 use lexflex_engine::{
     api::request::EngineRequest, api::response::EngineResponse, runtime::LexFlexRuntime,
@@ -11,9 +13,13 @@ pub fn run(
     expansion: ExpansionMode,
     include_trace: bool,
 ) -> Result<(), CliExit> {
-    let text = std::fs::read_to_string(path).map_err(|error| CliExit::Command(error.to_string()))?;
-    let program: LinguaProgram =
-        ron::from_str(&text).map_err(|error| CliExit::Command(error.to_string()))?;
+    let text = crate::cli::input::read_file_bounded(path)?;
+    let program: LinguaProgram = ron::from_str(&text).map_err(|error| {
+        CliExit::Local(CliLocalError::Ron {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        })
+    })?;
     let response = runtime.handle(EngineRequest::EvaluateLingua {
         program,
         policy: ExecutionPolicy { expansion },
@@ -21,24 +27,27 @@ pub fn run(
     });
     match response {
         EngineResponse::LinguaEvaluated { result } => {
-            let value = serde_json::to_string_pretty(&result.value)
-                .map_err(|error| CliExit::Command(error.to_string()))?;
-            println!("{value}");
-        }
-        EngineResponse::Unsupported {
-            capability,
-            message,
-        } => {
-            return Err(CliExit::Command(format!("{capability}: {message}")));
+            let payload = if include_trace {
+                serde_json::to_string_pretty(&result)
+            } else {
+                serde_json::to_string_pretty(&result.value)
+            }
+            .map_err(|error| {
+                CliExit::Internal(CliInternalError::JsonSerialization {
+                    message: error.to_string(),
+                })
+            })?;
+            println!("{payload}");
         }
         EngineResponse::Error { code, message, .. } => {
-            return Err(CliExit::Engine {
-                code,
-                message,
-            });
+            return Err(CliExit::Engine { code, message });
         }
         other => {
-            return Err(CliExit::Command(format!("unexpected engine response: {other:?}")));
+            return Err(CliExit::Internal(
+                CliInternalError::UnexpectedEngineResponse {
+                    message: format!("unexpected engine response: {other:?}"),
+                },
+            ));
         }
     }
     Ok(())

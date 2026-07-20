@@ -1,9 +1,9 @@
 use crate::catalog::ModelPackageLoader;
 use lexflex_lingua::runtime::RuntimeError;
 use lexflex_lingua::{
-    compiler::CompileError, CompileContext, ExecutionPolicy, ExecutionResult, ExpansionMode,
-    LinguaCompiler, LinguaDeclaration, LinguaGoal, LinguaInterpreter, LinguaProgram, LinguaSolver,
-    LinguaVerifier, TypedExecutionResult,
+    compiler::CompileError, CompileContext, CompiledModelContext, ExecutionPolicy, ExecutionResult,
+    ExpansionMode, LinguaCompiler, LinguaGoal, LinguaInterpreter, LinguaProgram, LinguaSolver,
+    TypedExecutionResult,
 };
 use lexflex_model::{ConceptCatalog, SemanticAssertion};
 use std::path::Path;
@@ -12,9 +12,8 @@ use thiserror::Error;
 
 pub struct LinguaRuntime {
     catalog: Arc<ConceptCatalog>,
-    base_declarations: Arc<Vec<LinguaDeclaration>>,
+    compiled_model: Arc<CompiledModelContext>,
     compiler: LinguaCompiler,
-    verifier: LinguaVerifier,
     interpreter: LinguaInterpreter,
     solver: LinguaSolver,
 }
@@ -25,8 +24,6 @@ pub enum EngineError {
     ModelLoad(#[from] crate::catalog::ModelLoadError),
     #[error("compile: {0}")]
     Compile(#[from] CompileError),
-    #[error("verify: {0}")]
-    Verify(CompileError),
     #[error("runtime: {0}")]
     Runtime(#[from] RuntimeError),
     #[error("normalize: {0:?}")]
@@ -40,32 +37,35 @@ impl LinguaRuntime {
         let model = ModelPackageLoader
             .load(model_root.as_ref())
             .map_err(EngineError::ModelLoad)?;
-        Ok(Self::from_model(&model))
+        Ok(Self::try_from_model(&model)?)
     }
 
-    pub fn from_model(model: &crate::catalog::LoadedModelPackage) -> Self {
-        let catalog = Arc::new(model.catalog.clone());
-        let compiler = LinguaCompiler::new(catalog.clone());
-        let base_declarations = model.programs.declarations().to_vec();
+    pub fn try_from_model(
+        model: &crate::catalog::LoadedModelPackage,
+    ) -> Result<Self, CompileError> {
+        let catalog = model.catalog.clone();
+        let compiler = LinguaCompiler::try_new(catalog.clone())?;
 
-        Self {
+        Ok(Self {
             catalog,
-            base_declarations: Arc::new(base_declarations),
+            compiled_model: model.compiled_model.clone(),
             compiler,
-            verifier: LinguaVerifier::default(),
             interpreter: LinguaInterpreter::default(),
             solver: LinguaSolver::default(),
-        }
+        })
     }
 
     #[cfg(test)]
     pub fn from_catalog(catalog: Arc<ConceptCatalog>) -> Self {
-        let compiler = LinguaCompiler::new(catalog.clone());
+        let compiler = LinguaCompiler::try_new(catalog.clone()).expect("test catalog hash");
         Self {
             catalog,
-            base_declarations: Arc::new(Vec::new()),
+            compiled_model: Arc::new(
+                compiler
+                    .compile_model_declarations(&[])
+                    .expect("empty model context"),
+            ),
             compiler,
-            verifier: LinguaVerifier::default(),
             interpreter: LinguaInterpreter::default(),
             solver: LinguaSolver::default(),
         }
@@ -87,11 +87,22 @@ impl LinguaRuntime {
         policy: ExecutionPolicy,
     ) -> Result<TypedExecutionResult, EngineError> {
         let compiled = self.compiler.compile(program)?;
-        self.verifier
-            .verify_compiled(&compiled)
-            .map_err(EngineError::Verify)?;
         self.interpreter
-            .execute_with_policy(&compiled, policy)
+            .execute_program(&compiled, policy)
+            .map_err(EngineError::Runtime)
+    }
+
+    pub fn evaluate_entry_with_context(
+        &self,
+        entry: &lexflex_lingua::LinguaExpression,
+        context: &CompileContext,
+        policy: ExecutionPolicy,
+    ) -> Result<TypedExecutionResult, EngineError> {
+        let compiled =
+            self.compiler
+                .compile_verified_entry(entry, self.compiled_model.clone(), context)?;
+        self.interpreter
+            .execute_entry(&compiled, policy)
             .map_err(EngineError::Runtime)
     }
 
@@ -101,13 +112,14 @@ impl LinguaRuntime {
         context: &CompileContext,
         policy: ExecutionPolicy,
     ) -> Result<TypedExecutionResult, EngineError> {
-        let compiled = self.compiler.compile_with_context(program, context)?;
-        self.verifier
-            .verify_compiled(&compiled)
-            .map_err(EngineError::Verify)?;
-        self.interpreter
-            .execute_with_policy(&compiled, policy)
-            .map_err(EngineError::Runtime)
+        if !program.declarations.is_empty() {
+            return Err(EngineError::Compile(
+                CompileError::UnexpectedEntryDeclarations {
+                    count: program.declarations.len(),
+                },
+            ));
+        }
+        self.evaluate_entry_with_context(&program.entry, context, policy)
     }
 
     pub fn solve<'a>(
@@ -124,7 +136,7 @@ impl LinguaRuntime {
         &self.catalog
     }
 
-    pub fn base_declarations(&self) -> &[LinguaDeclaration] {
-        self.base_declarations.as_slice()
+    pub fn declaration_hash(&self) -> &lexflex_model::CanonicalDigest {
+        self.compiled_model.declaration_hash()
     }
 }

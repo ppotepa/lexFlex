@@ -38,8 +38,13 @@ impl ChartCell {
     ) -> Result<InsertOutcome, ParseError> {
         if let Some(existing) = self.items.get_mut(&key) {
             if item.score < existing.score {
+                let removed_derivations = existing.derivations.len();
+                let inserted_derivations = item.derivations.len();
                 *existing = item;
-                return Ok(InsertOutcome::ReplacedBetter);
+                return Ok(InsertOutcome::ReplacedBetter {
+                    removed_derivations,
+                    inserted_derivations,
+                });
             }
             if item.score > existing.score {
                 return Ok(InsertOutcome::IgnoredWorse);
@@ -48,18 +53,19 @@ impl ChartCell {
                 .derivations
                 .try_merge(&item.derivations, derivation_limit)?;
             if added == 0 {
-                Ok(InsertOutcome::IgnoredDuplicateDerivation)
+                Ok(InsertOutcome::IgnoredDuplicateDerivations {
+                    duplicate: item.derivations.len(),
+                })
             } else {
                 Ok(InsertOutcome::AddedEquivalentDerivations { added })
             }
         } else {
             if self.items.len() >= cell_limit {
-                return Err(ParseError::BudgetExceeded(
-                    ParseBudgetLimit::CellItemLimit,
-                ));
+                return Err(ParseError::BudgetExceeded(ParseBudgetLimit::CellItemLimit));
             }
+            let derivations = item.derivations.len();
             self.items.insert(key, item);
-            Ok(InsertOutcome::Inserted)
+            Ok(InsertOutcome::Inserted { derivations })
         }
     }
 }
@@ -87,12 +93,8 @@ impl Chart {
     }
 
     pub fn cell_mut(&mut self, start: usize, end: usize) -> &mut ChartCell {
-        self.cells
-            .entry(SpanKey { start, end })
-            .or_default()
+        self.cells.entry(SpanKey { start, end }).or_default()
     }
-
-
 }
 
 impl Default for Chart {

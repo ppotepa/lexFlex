@@ -103,6 +103,7 @@ pub fn compile_lexical_sense(
         category,
         meaning: sense.meaning.clone(),
         lexical_features: sense.features.clone(),
+        valency,
         priority: sense.priority,
     })
 }

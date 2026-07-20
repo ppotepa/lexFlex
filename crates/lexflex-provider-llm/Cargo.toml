@@ -8,3 +8,7 @@ description = "Optional LLM-backed learner provider for the lexFlex rebuild"
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+lexflex-documents = { path = "../lexflex-documents" }

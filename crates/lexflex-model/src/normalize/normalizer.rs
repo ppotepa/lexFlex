@@ -99,13 +99,17 @@ impl NormalizationState {
                 concept,
                 bindings: bindings
                     .into_iter()
-                    .map(|(parameter, value)| self.normalize(value, depth + 1).map(|v| (parameter, v)))
+                    .map(|(parameter, value)| {
+                        self.normalize(value, depth + 1).map(|v| (parameter, v))
+                    })
                     .collect::<Result<BTreeMap<_, _>, _>>()?,
             }),
-            SemanticExpression::Satisfies { subject, predicate } => Ok(SemanticExpression::Satisfies {
-                subject: Box::new(self.normalize(*subject, depth + 1)?),
-                predicate: Box::new(self.normalize(*predicate, depth + 1)?),
-            }),
+            SemanticExpression::Satisfies { subject, predicate } => {
+                Ok(SemanticExpression::Satisfies {
+                    subject: Box::new(self.normalize(*subject, depth + 1)?),
+                    predicate: Box::new(self.normalize(*predicate, depth + 1)?),
+                })
+            }
             SemanticExpression::Equals { left, right } => Ok(SemanticExpression::Equals {
                 left: Box::new(self.normalize(*left, depth + 1)?),
                 right: Box::new(self.normalize(*right, depth + 1)?),
@@ -179,12 +183,14 @@ impl NormalizationState {
                 expression: Box::new(self.normalize(*expression, depth + 1)?),
                 qualifiers: qualifiers
                     .into_iter()
-                    .map(|(qualifier, value)| self.normalize(value, depth + 1).map(|v| (qualifier, v)))
+                    .map(|(qualifier, value)| {
+                        self.normalize(value, depth + 1).map(|v| (qualifier, v))
+                    })
                     .collect::<Result<BTreeMap<_, _>, _>>()?,
             }),
-            SemanticExpression::Variable(variable) => Ok(SemanticExpression::Variable(
-                self.alpha.resolve(&variable),
-            )),
+            SemanticExpression::Variable(variable) => {
+                Ok(SemanticExpression::Variable(self.alpha.resolve(&variable)))
+            }
             SemanticExpression::Concept(id) => Ok(SemanticExpression::Concept(id)),
             SemanticExpression::Entity(id) => Ok(SemanticExpression::Entity(id)),
             SemanticExpression::Value(value) => Ok(SemanticExpression::Value(value)),

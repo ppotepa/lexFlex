@@ -13,11 +13,11 @@ fn english_language_contains_compiled_function_category() {
 
     assert!(model.compiled_senses.values().any(|sense| {
         matches!(
-        sense.category,
-        SyntacticCategory::Function {
-            direction: SlashDirection::Forward | SlashDirection::Backward,
-            ..
-        }
-    )
+            sense.category,
+            SyntacticCategory::Function {
+                direction: SlashDirection::Forward | SlashDirection::Backward,
+                ..
+            }
+        )
     }));
 }

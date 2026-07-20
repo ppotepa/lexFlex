@@ -1,5 +1,8 @@
-use crate::diagnostic::ParseError;
-use lexflex_language::{AtomicCategoryKind, CategoryType, CategoryTypeVariableId, FeatureName, FeatureValue, SlashDirection};
+use crate::diagnostic::{CategoryInvariantDiagnostic, ParseError};
+use lexflex_language::{
+    AtomicCategoryKind, CategoryType, CategoryTypeVariableId, FeatureName, FeatureValue,
+    SlashDirection,
+};
 use lexflex_model::{CanonicalHashError, ParameterId, SemanticType};
 use thiserror::Error;
 
@@ -18,6 +21,15 @@ pub enum CategoryMismatch {
         expected: ParameterId,
         actual: ParameterId,
     },
+    MissingFeature {
+        name: FeatureName,
+        expected: FeatureValue,
+    },
+    FeatureValue {
+        name: FeatureName,
+        expected: FeatureValue,
+        actual: FeatureValue,
+    },
     SemanticType {
         expected: SemanticType,
         actual: SemanticType,
@@ -34,8 +46,6 @@ pub enum CategoryInvariantError {
     AliasCycle {
         variables: Vec<CategoryTypeVariableId>,
     },
-    #[error("category alias invariant: {0}")]
-    AliasInvariant(CategoryTypeVariableId),
     #[error("canonical hash failed: {0}")]
     CanonicalHash(#[from] CanonicalHashError),
 }
@@ -43,8 +53,14 @@ pub enum CategoryInvariantError {
 impl From<CategoryInvariantError> for ParseError {
     fn from(value: CategoryInvariantError) -> Self {
         match value {
-            CategoryInvariantError::CanonicalHash(error) => Self::CanonicalHash(error.to_string()),
-            other => Self::Category(other.to_string()),
+            CategoryInvariantError::AliasCycle { variables } => {
+                Self::CategoryInvariant(CategoryInvariantDiagnostic::AliasCycle { variables })
+            }
+            CategoryInvariantError::CanonicalHash(error) => {
+                Self::CategoryInvariant(CategoryInvariantDiagnostic::CanonicalHash {
+                    message: error.to_string(),
+                })
+            }
         }
     }
 }
@@ -54,3 +70,5 @@ pub enum CategoryOutcome<T> {
     Applied(T),
     NotApplicable(CategoryMismatch),
 }
+
+pub type CategoryResult<T> = Result<CategoryOutcome<T>, CategoryInvariantError>;

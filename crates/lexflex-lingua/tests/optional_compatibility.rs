@@ -1,6 +1,6 @@
 use lexflex_lingua::solve::TypeRelation;
-use lexflex_model::{ConceptCatalog, SemanticType};
 use lexflex_lingua::ValueType;
+use lexflex_model::{ConceptCatalog, SemanticType};
 
 #[test]
 fn optional_expected_matches_plain_actual() {

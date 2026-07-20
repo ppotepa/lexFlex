@@ -1,15 +1,26 @@
-use crate::compiler::{CompiledConcept, CompiledConceptSemantics, CompiledProgram};
+use crate::compiler::{
+    CompiledConcept, CompiledConceptSemantics, CompiledFunction, ResolvedExpression,
+};
 use crate::runtime::{
     BudgetState, ExecutionBudget, ExecutionPolicy, ExecutionTrace, ExecutionTraceEvent,
     ExpansionMode, RuntimeEnvironment, RuntimeError, TraceOperation,
 };
 use crate::syntax::ExpansionPolicy;
+use crate::types::SemanticType;
 use lexflex_model::ConceptId;
 use std::collections::BTreeMap;
 
+#[derive(Debug)]
+pub(crate) struct InterpreterProgram<'a> {
+    pub(crate) concepts: &'a BTreeMap<lexflex_model::ConceptId, CompiledConcept>,
+    pub(crate) functions: &'a BTreeMap<crate::id::FunctionId, CompiledFunction>,
+    pub(crate) entry: &'a ResolvedExpression,
+    pub(crate) entry_type: &'a SemanticType,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct InterpreterState<'a> {
-    pub(crate) program: &'a CompiledProgram,
+    pub(crate) program: &'a InterpreterProgram<'a>,
     pub(crate) budget: ExecutionBudget,
     pub(crate) policy: ExecutionPolicy,
     pub(crate) state: BudgetState,
@@ -20,7 +31,7 @@ pub(crate) struct InterpreterState<'a> {
 
 impl<'a> InterpreterState<'a> {
     pub(super) fn new(
-        program: &'a CompiledProgram,
+        program: &'a InterpreterProgram<'a>,
         budget: ExecutionBudget,
         policy: ExecutionPolicy,
     ) -> Self {

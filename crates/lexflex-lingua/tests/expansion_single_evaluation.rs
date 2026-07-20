@@ -10,6 +10,7 @@ fn defined_expansion_executes_with_stable_step_count() {
         lexflex_lingua::ExecutionPolicy {
             expansion: lexflex_lingua::ExpansionMode::PreserveApplications,
         },
-    ).expect("execute");
+    )
+    .expect("execute");
     assert!(result.steps > 0);
 }

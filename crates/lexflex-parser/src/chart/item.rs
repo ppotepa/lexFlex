@@ -1,8 +1,7 @@
-use super::derivation_set::DerivationSet;
 use crate::category::CategorySubstitution;
-use crate::explain::DerivationNode;
-use crate::metrics::ParseScore;
+use crate::explain::{DerivationNode, DerivationSet};
 use crate::meaning::MeaningInstance;
+use crate::metrics::ParseScore;
 use lexflex_language::SyntacticCategory;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,8 +24,11 @@ impl ChartItem {
         meaning: MeaningInstance,
         score: ParseScore,
         derivations: DerivationSet,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, crate::diagnostic::ParseError> {
+        if derivations.is_empty() {
+            return Err(crate::diagnostic::ParseError::EmptyDerivationSet);
+        }
+        Ok(Self {
             start,
             end,
             category,
@@ -34,7 +36,7 @@ impl ChartItem {
             meaning,
             score,
             derivations,
-        }
+        })
     }
 
     pub fn lexical(
@@ -60,9 +62,18 @@ impl ChartItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InsertOutcome {
-    Inserted,
-    ReplacedBetter,
-    AddedEquivalentDerivations { added: usize },
-    IgnoredDuplicateDerivation,
+    Inserted {
+        derivations: usize,
+    },
+    ReplacedBetter {
+        removed_derivations: usize,
+        inserted_derivations: usize,
+    },
+    AddedEquivalentDerivations {
+        added: usize,
+    },
+    IgnoredDuplicateDerivations {
+        duplicate: usize,
+    },
     IgnoredWorse,
 }

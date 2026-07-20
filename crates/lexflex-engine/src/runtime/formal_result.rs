@@ -1,3 +1,4 @@
+use crate::api::text::TextAnalysisError;
 use crate::runtime::lingua::EngineError;
 use lexflex_model::{CanonicalHashError, SemanticExpression, SemanticType};
 use thiserror::Error;
@@ -13,6 +14,8 @@ pub struct FormalExpressionResult {
 pub enum FormalExpressionError {
     #[error("canonicalization failed: {0}")]
     CanonicalHash(#[from] CanonicalHashError),
+    #[error("text analysis invalid: {0}")]
+    Analysis(#[from] TextAnalysisError),
     #[error("Lingua execution failed: {0}")]
     Lingua(#[from] EngineError),
     #[error("natural-language assertion must evaluate to Boolean, found {0:?}")]

@@ -3,10 +3,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssertionWriteOutcome {
-    Inserted { assertion_id: AssertionId },
+    Inserted {
+        assertion_id: AssertionId,
+    },
     EvidenceMerged {
         assertion_id: AssertionId,
         added_evidence: usize,
     },
-    Unchanged { assertion_id: AssertionId },
+    Unchanged {
+        assertion_id: AssertionId,
+    },
 }

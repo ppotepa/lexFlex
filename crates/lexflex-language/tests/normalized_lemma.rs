@@ -17,7 +17,8 @@ fn invalid_normalized_lemma_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("manifest");
+    )
+    .expect("manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -28,7 +29,8 @@ fn invalid_normalized_lemma_is_rejected() {
         normalized_lemma: "wrong",
     ),
 ]"#,
-    ).expect("lexemes");
+    )
+    .expect("lexemes");
     std::fs::write(root.join("senses.ron"), "[]").expect("senses");
     std::fs::write(root.join("forms.ron"), "[]").expect("forms");
     std::fs::write(root.join("paradigms.ron"), "[]").expect("paradigms");

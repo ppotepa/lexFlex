@@ -6,25 +6,24 @@ use lexflex_language::{LanguageLoadError, LanguagePackageLoader};
 fn unsafe_package_paths_are_rejected() {
     let root = support::temp_root("lexflex-language");
     std::fs::create_dir_all(&root).expect("create root");
-    for (field, unsafe_path) in
-        [
-            ("lexemes", "../escape.ron"),
-            ("senses", "../escape.ron"),
-            ("forms", "../escape.ron"),
-            ("paradigms", "../escape.ron"),
-            ("lexemes", "/escape.ron"),
-            ("senses", "/escape.ron"),
-            ("forms", "/escape.ron"),
-            ("paradigms", "/escape.ron"),
-        ]
-    {
+    for (field, unsafe_path) in [
+        ("lexemes", "../escape.ron"),
+        ("senses", "../escape.ron"),
+        ("forms", "../escape.ron"),
+        ("paradigms", "../escape.ron"),
+        ("lexemes", "/escape.ron"),
+        ("senses", "/escape.ron"),
+        ("forms", "/escape.ron"),
+        ("paradigms", "/escape.ron"),
+    ] {
         for file in ["lexemes.ron", "senses.ron", "forms.ron", "paradigms.ron"] {
             std::fs::copy(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../../data/languages/en")
                     .join(file),
                 root.join(file),
-            ).expect("copy baseline");
+            )
+            .expect("copy baseline");
         }
         std::fs::write(
             root.join("manifest.ron"),
@@ -59,7 +58,8 @@ fn unsafe_package_paths_are_rejected() {
                     "paradigms.ron"
                 }
             ),
-        ).expect("write manifest");
+        )
+        .expect("write manifest");
 
         let err = LanguagePackageLoader
             .load(&root, &support::catalog())
@@ -84,7 +84,8 @@ fn unsupported_manifest_schema_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(root.join("lexemes.ron"), "[]").expect("write lexemes");
     std::fs::write(root.join("senses.ron"), "[]").expect("write senses");
     std::fs::write(root.join("forms.ron"), "[]").expect("write forms");

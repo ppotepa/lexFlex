@@ -1,6 +1,6 @@
 use crate::{
     canonical_hash, normalize_expression, CanonicalDigest, CanonicalHashError, ConceptId, EntityId,
-    NormalizationError, ParameterId, QualifierId, SemanticValue, SemanticType, VariableId,
+    NormalizationError, ParameterId, QualifierId, SemanticType, SemanticValue, VariableId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -48,8 +48,12 @@ impl SemanticExpression {
     }
 
     pub fn canonical_hash(&self) -> Result<CanonicalDigest, CanonicalHashError> {
-        canonical_hash(&self.normalized().map_err(|error| CanonicalHashError::Serialization {
-            message: error.to_string(),
-        })?)
+        canonical_hash(
+            &self
+                .normalized()
+                .map_err(|error| CanonicalHashError::Serialization {
+                    message: error.to_string(),
+                })?,
+        )
     }
 }

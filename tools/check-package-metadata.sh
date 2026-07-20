@@ -3,6 +3,11 @@ set -euo pipefail
 
 failed=0
 
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "ERROR: cargo is required"
+  exit 1
+fi
+
 while IFS= read -r file; do
   if ! rg -q 'version\.workspace = true' "$file"; then
     echo "ERROR: $file does not inherit version"
@@ -27,9 +32,7 @@ done < <(find apps crates tools -name Cargo.toml -type f | sort)
 
 # Use subshell grouping so || true doesn't break the pipe
 versions="$(
-  (
-    cargo tree -d 2>/dev/null || true
-  ) \
+  cargo tree -d 2>/dev/null \
     | awk '/^thiserror v/ { print }' \
     | sort -u \
     | wc -l

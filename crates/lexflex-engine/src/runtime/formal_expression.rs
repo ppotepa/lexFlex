@@ -16,12 +16,12 @@ impl LexFlexRuntime {
                 "text:{}",
                 source_digest.as_str()
             )),
-            declarations: self.lingua.base_declarations().to_vec(),
+            declarations: Vec::new(),
             entry: expression,
         };
         self.lingua
-            .evaluate_with_context(
-                &program,
+            .evaluate_entry_with_context(
+                &program.entry,
                 &CompileContext { query_variables },
                 ExecutionPolicy {
                     expansion: ExpansionMode::PreserveApplications,
@@ -52,9 +52,9 @@ impl LexFlexRuntime {
             projection: Vec::new(),
             formal_steps,
             parser_metrics: draft.metrics.clone(),
-            derivation: include_derivation.then(|| draft.derivation.clone()),
+            derivations: include_derivation.then(|| draft.derivations.clone()),
         })
-        .map_err(FormalExpressionError::CanonicalHash)
+        .map_err(FormalExpressionError::Analysis)
     }
 
     pub(crate) fn goal_analysis(
@@ -74,8 +74,8 @@ impl LexFlexRuntime {
             projection: draft.projection.clone(),
             formal_steps,
             parser_metrics: draft.metrics.clone(),
-            derivation: include_derivation.then(|| draft.derivation.clone()),
+            derivations: include_derivation.then(|| draft.derivations.clone()),
         })
-        .map_err(FormalExpressionError::CanonicalHash)
+        .map_err(FormalExpressionError::Analysis)
     }
 }

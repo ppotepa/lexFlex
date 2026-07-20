@@ -12,6 +12,6 @@ pub use api::request::EngineRequest;
 pub use api::response::EngineResponse;
 pub use catalog::{LanguageRegistry, LanguageRegistryError};
 pub use error::EngineErrorCode;
-pub use knowledge::{KnowledgeIndex, KnowledgeSnapshot, UpsertOutcome};
+pub use knowledge::{KnowledgeSnapshot, UpsertOutcome};
 pub use runtime::{EngineError, LexFlexRuntime, LinguaRuntime};
-pub use session::{EngineSessionState, RuntimeSession, SESSION_SCHEMA};
+pub use session::{EngineSessionState, ENGINE_SESSION_SCHEMA, SESSION_RECORD_SCHEMA};

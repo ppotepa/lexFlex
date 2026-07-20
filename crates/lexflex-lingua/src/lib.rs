@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 pub mod compiler;
-pub mod error;
 pub mod id;
 pub mod normalize;
 pub mod runtime;
@@ -11,9 +10,9 @@ pub mod types;
 pub mod verifier;
 
 pub use compiler::{
-    CompileContext, CompiledConcept, CompiledFunction, CompiledProgram, LinguaCompiler,
+    CompileContext, CompiledConcept, CompiledFunction, CompiledModelContext, LinguaCompiler,
+    ModelContextIdentity, VerifiedCompiledEntry, VerifiedCompiledModel, VerifiedStandaloneProgram,
 };
-pub use error::LinguaError;
 pub use id::{DeclarationId, FunctionId, ModuleId, ProgramId, SymbolId, SymbolName};
 pub use normalize::{
     normalize_expression, NormalizationBudget, NormalizationError, NormalizationReport,
@@ -27,7 +26,7 @@ pub use solve::unify;
 pub use solve::{
     canonical_goal_request_hash, canonical_goal_semantic_hash, validate_goal, EvidencePolicy,
     GoalValidationError, LinguaGoal, LinguaSolver, QuerySolution, SolveError, Substitution,
-    UnificationContext, UnificationMode,
+    UnificationContext, UnificationMode, UnifyMismatch, UnifyOutcome,
 };
 pub use syntax::{
     ConceptDeclaration, ConceptSemantics, ExpansionPolicy, FunctionDeclaration, LambdaParameter,

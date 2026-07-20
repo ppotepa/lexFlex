@@ -1,36 +1,153 @@
+use super::resolved::CompiledProgram;
 use crate::compiler::{
-    CompileContext, CompileError, CompiledConcept, CompiledConceptSemantics, CompiledFunction,
-    CompiledProgram, ResolvedParameter, SymbolResolver,
+    type_reference_validation::validate_expression_type_references, CompileContext, CompileError,
+    CompileTypeReferenceError, CompileTypeReferenceLocation, CompiledConcept,
+    CompiledConceptSemantics, CompiledFunction, CompiledModelContext, ModelContextIdentity,
+    ResolvedParameter, SymbolResolver, VerifiedCompiledEntry, VerifiedStandaloneProgram,
 };
 use crate::syntax::{ConceptDeclaration, ConceptSemantics, LinguaDeclaration, LinguaProgram};
 use crate::types::{FunctionType, TypeChecker, TypeEnvironment};
 use crate::verifier::LinguaVerifier;
-use lexflex_model::{ConceptCatalog, ConceptId};
+use lexflex_model::{canonical_hash, validate_semantic_type_references, ConceptCatalog, ConceptId};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub struct LinguaCompiler {
     catalog: Arc<ConceptCatalog>,
+    catalog_hash: lexflex_model::CanonicalDigest,
 }
 
 impl LinguaCompiler {
-    pub fn new(catalog: Arc<ConceptCatalog>) -> Self {
-        Self { catalog }
+    pub fn try_new(catalog: Arc<ConceptCatalog>) -> Result<Self, CompileError> {
+        let catalog_hash = canonical_hash(catalog.as_ref())?;
+        Ok(Self {
+            catalog,
+            catalog_hash,
+        })
     }
 
-    pub fn compile(&self, program: &LinguaProgram) -> Result<CompiledProgram, CompileError> {
+    pub fn compile(
+        &self,
+        program: &LinguaProgram,
+    ) -> Result<VerifiedStandaloneProgram, CompileError> {
         self.compile_with_context(program, &CompileContext::default())
+    }
+
+    pub fn compile_model_declarations(
+        &self,
+        declarations: &[LinguaDeclaration],
+    ) -> Result<CompiledModelContext, CompileError> {
+        let entry = crate::syntax::LinguaExpression::Value(true.into());
+        let program = LinguaProgram {
+            id: crate::id::ProgramId::new_unchecked("model-context"),
+            declarations: declarations.to_vec(),
+            entry,
+        };
+        let verification = LinguaVerifier::default().verify_program(&program)?;
+        self.validate_declaration_type_references(declarations)?;
+        let concepts = self.compile_concepts(declarations)?;
+        let functions = self.compile_functions(declarations)?;
+        let environment = self.environment_for_functions(&functions);
+        self.validate_compiled_units(&environment, &concepts, &functions)?;
+        Ok(CompiledModelContext {
+            concepts: Arc::new(concepts),
+            functions: Arc::new(functions),
+            environment: Arc::new(environment),
+            identity: ModelContextIdentity::new(
+                self.catalog_hash.clone(),
+                canonical_hash(declarations)?,
+            )?,
+            verification,
+        })
+    }
+
+    fn compile_entry_internal(
+        &self,
+        entry: &crate::syntax::LinguaExpression,
+        model: &CompiledModelContext,
+        context: &CompileContext,
+    ) -> Result<CompiledProgram, CompileError> {
+        if &self.catalog_hash != model.catalog_hash() {
+            return Err(CompileError::ModelContextMismatch {
+                compiler_catalog: self.catalog_hash.clone(),
+                model_catalog: model.catalog_hash().clone(),
+            });
+        }
+        context.validate(&self.catalog)?;
+        validate_expression_type_references(entry, &self.catalog)?;
+        let mut resolver = SymbolResolver::new();
+        resolver.push_scope();
+        let resolved = resolver.resolve_expression(entry)?;
+        let mut environment = (*model.environment).clone();
+        environment.variables = context.query_variables.clone();
+        let entry_type = TypeChecker::new(&environment).infer(&resolved)?;
+        Ok(CompiledProgram {
+            concepts: model.concepts.clone(),
+            functions: model.functions.clone(),
+            entry: resolved,
+            entry_type,
+        })
+    }
+
+    pub fn compile_entry_with_context(
+        &self,
+        entry: &crate::syntax::LinguaExpression,
+        model: &CompiledModelContext,
+        context: &CompileContext,
+    ) -> Result<VerifiedStandaloneProgram, CompileError> {
+        let program = self.compile_entry_internal(entry, model, context)?;
+        let verification = LinguaVerifier::default().verify_resolved_entry(&program.entry)?;
+        Ok(VerifiedStandaloneProgram::new(program, verification))
+    }
+
+    pub fn compile_verified_entry(
+        &self,
+        entry: &crate::syntax::LinguaExpression,
+        model: Arc<CompiledModelContext>,
+        context: &CompileContext,
+    ) -> Result<VerifiedCompiledEntry, CompileError> {
+        let program = self.compile_entry_internal(entry, &model, context)?;
+        let verification = LinguaVerifier::default().verify_resolved_entry(&program.entry)?;
+        Ok(VerifiedCompiledEntry::new(model, program, verification))
     }
 
     pub fn compile_with_context(
         &self,
         program: &LinguaProgram,
         context: &CompileContext,
-    ) -> Result<CompiledProgram, CompileError> {
-        LinguaVerifier::default().verify_program(program)?;
+    ) -> Result<VerifiedStandaloneProgram, CompileError> {
+        let verification = LinguaVerifier::default().verify_program(program)?;
+        context.validate(&self.catalog)?;
+        self.validate_declaration_type_references(&program.declarations)?;
+        validate_expression_type_references(&program.entry, &self.catalog)?;
         let concepts = self.compile_concepts(&program.declarations)?;
         let functions = self.compile_functions(&program.declarations)?;
-        let mut environment = TypeEnvironment::new(
+        let mut environment = self.environment_for_functions(&functions);
+        environment.variables = context.query_variables.clone();
+
+        self.validate_compiled_units(&environment, &concepts, &functions)?;
+
+        let mut resolver = SymbolResolver::new();
+        resolver.push_scope();
+        let entry = resolver.resolve_expression(&program.entry)?;
+        let checker = TypeChecker::new(&environment);
+        let entry_type = checker.infer(&entry)?;
+        Ok(VerifiedStandaloneProgram::new(
+            CompiledProgram {
+                concepts: Arc::new(concepts),
+                functions: Arc::new(functions),
+                entry,
+                entry_type,
+            },
+            verification,
+        ))
+    }
+
+    fn environment_for_functions(
+        &self,
+        functions: &BTreeMap<crate::id::FunctionId, CompiledFunction>,
+    ) -> TypeEnvironment {
+        TypeEnvironment::new(
             self.catalog.clone(),
             functions
                 .iter()
@@ -50,26 +167,75 @@ impl LinguaCompiler {
                     )
                 })
                 .collect(),
-        );
-        environment.variables = context.query_variables.clone();
-
-        self.validate_compiled_units(&environment, &concepts, &functions)?;
-
-        let mut resolver = SymbolResolver::new();
-        resolver.push_scope();
-        let entry = resolver.resolve_expression(&program.entry)?;
-        let checker = TypeChecker::new(&environment);
-        let entry_type = checker.infer(&entry)?;
-        Ok(CompiledProgram {
-            concepts,
-            functions,
-            entry,
-            entry_type,
-        })
+        )
     }
 }
 
 impl LinguaCompiler {
+    fn validate_declaration_type_references(
+        &self,
+        declarations: &[LinguaDeclaration],
+    ) -> Result<(), CompileError> {
+        for declaration in declarations {
+            match declaration {
+                LinguaDeclaration::Concept(concept) => {
+                    if let Some(parameter) = &concept.self_parameter {
+                        validate_semantic_type_references(&parameter.value_type, &self.catalog)
+                            .map_err(|source| {
+                                CompileError::TypeReference(CompileTypeReferenceError {
+                                    location: CompileTypeReferenceLocation::ConceptSelfParameter {
+                                        concept: concept.concept_id.clone(),
+                                        parameter: parameter.parameter_id.clone(),
+                                    },
+                                    source,
+                                })
+                            })?;
+                    }
+                    for parameter in &concept.parameters {
+                        validate_semantic_type_references(&parameter.value_type, &self.catalog)
+                            .map_err(|source| {
+                                CompileError::TypeReference(CompileTypeReferenceError {
+                                    location: CompileTypeReferenceLocation::ConceptParameter {
+                                        concept: concept.concept_id.clone(),
+                                        parameter: parameter.parameter_id.clone(),
+                                    },
+                                    source,
+                                })
+                            })?;
+                    }
+                    if let ConceptSemantics::Defined { body } = &concept.semantics {
+                        validate_expression_type_references(body, &self.catalog)?;
+                    }
+                }
+                LinguaDeclaration::Function(function) => {
+                    for parameter in &function.parameters {
+                        validate_semantic_type_references(&parameter.value_type, &self.catalog)
+                            .map_err(|source| {
+                                CompileError::TypeReference(CompileTypeReferenceError {
+                                    location: CompileTypeReferenceLocation::FunctionParameter {
+                                        function: function.function_id.clone(),
+                                        parameter: parameter.parameter_id.clone(),
+                                    },
+                                    source,
+                                })
+                            })?;
+                    }
+                    validate_semantic_type_references(&function.result_type, &self.catalog)
+                        .map_err(|source| {
+                            CompileError::TypeReference(CompileTypeReferenceError {
+                                location: CompileTypeReferenceLocation::FunctionResult {
+                                    function: function.function_id.clone(),
+                                },
+                                source,
+                            })
+                        })?;
+                    validate_expression_type_references(&function.body, &self.catalog)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn compile_concepts(
         &self,
         declarations: &[LinguaDeclaration],

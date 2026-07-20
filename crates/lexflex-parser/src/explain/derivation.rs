@@ -5,12 +5,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApplicationRule {
-    Forward {
-        semantic_parameter: ParameterId,
-    },
-    Backward {
-        semantic_parameter: ParameterId,
-    },
+    Forward { semantic_parameter: ParameterId },
+    Backward { semantic_parameter: ParameterId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

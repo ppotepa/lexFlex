@@ -1,5 +1,7 @@
-use lexflex_model::{AssertionId, ConceptId, EntityId, EvidenceId, LanguageId, ModelPackageId,
-                    ParameterId, QualifierId, VariableId, WorldId};
+use lexflex_model::{
+    AssertionId, ConceptId, EntityId, EvidenceId, LanguageId, ModelPackageId, ParameterId,
+    QualifierId, VariableId, WorldId,
+};
 use serde::de::DeserializeOwned;
 
 fn assert_invalid_json<T>()

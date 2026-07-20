@@ -1,3 +1,4 @@
+use crate::compiler::{CompileContextError, CompileTypeReferenceError};
 use crate::types::TypeError;
 use thiserror::Error;
 
@@ -33,4 +34,17 @@ pub enum CompileError {
     Diagnostic(#[from] CompileDiagnostic),
     #[error(transparent)]
     Type(#[from] TypeError),
+    #[error(transparent)]
+    Context(#[from] CompileContextError),
+    #[error(transparent)]
+    TypeReference(#[from] CompileTypeReferenceError),
+    #[error("canonical hash: {0}")]
+    CanonicalHash(#[from] lexflex_model::CanonicalHashError),
+    #[error("compiled model context catalog does not match compiler catalog")]
+    ModelContextMismatch {
+        compiler_catalog: lexflex_model::CanonicalDigest,
+        model_catalog: lexflex_model::CanonicalDigest,
+    },
+    #[error("entry-only evaluation received {count} declarations")]
+    UnexpectedEntryDeclarations { count: usize },
 }

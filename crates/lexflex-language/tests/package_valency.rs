@@ -1,7 +1,8 @@
 mod support;
 
-use lexflex_language::{CategoryType, LanguageModelValidator, LanguagePackageLoader,
-                       SyntacticCategory, ValencySlot};
+use lexflex_language::{
+    CategoryType, LanguageModelValidator, LanguagePackageLoader, SyntacticCategory, ValencySlot,
+};
 
 #[test]
 fn unknown_valency_parameter_is_rejected() {
@@ -17,24 +18,22 @@ fn unknown_valency_parameter_is_rejected() {
         .values_mut()
         .find(|sense| sense.id.as_str() == "sense:en:capital:city")
         .expect("capital sense");
-    capital.valency = vec![
-        ValencySlot {
-            id: lexflex_language::ValencySlotId::new_unchecked("valency:test:invalid"),
-            parameter: lexflex_model::ParameterId::new_unchecked("missing"),
-            argument_category: SyntacticCategory::noun_phrase(
-                CategoryType::Concrete(lexflex_model::SemanticType::EntityOf(
-                    lexflex_model::ConceptId::new_unchecked("POLITY"),
-                )),
-                Default::default()
-            ),
-            surface_relation: Some(lexflex_language::SurfaceRelationId::new_unchecked(
-                "of-complement",
+    capital.valency = vec![ValencySlot {
+        id: lexflex_language::ValencySlotId::new_unchecked("valency:test:invalid"),
+        parameter: lexflex_model::ParameterId::new_unchecked("missing"),
+        argument_category: SyntacticCategory::noun_phrase(
+            CategoryType::Concrete(lexflex_model::SemanticType::EntityOf(
+                lexflex_model::ConceptId::new_unchecked("POLITY"),
             )),
-            direction: lexflex_language::SlashDirection::Forward,
-            application_rank: 0,
-            required: true,
-        },
-    ];
+            Default::default(),
+        ),
+        surface_relation: Some(lexflex_language::SurfaceRelationId::new_unchecked(
+            "of-complement",
+        )),
+        direction: lexflex_language::SlashDirection::Forward,
+        application_rank: 0,
+        required: true,
+    }];
 
     let err = LanguageModelValidator
         .validate(&model, &support::catalog())

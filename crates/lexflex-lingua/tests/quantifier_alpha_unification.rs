@@ -1,6 +1,6 @@
 mod support;
 
-use lexflex_lingua::{unify, Substitution, UnificationContext, UnificationMode};
+use lexflex_lingua::{unify, Substitution, UnificationContext, UnificationMode, UnifyOutcome};
 use lexflex_model::{ConceptId, EntityId, ParameterId, SemanticExpression, SemanticType};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -18,14 +18,10 @@ fn alpha_equivalent_exists_unifies() {
             )),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from(
-                    [
-                        (
-                            ParameterId::new_unchecked("scope"),
-                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                        ),
-                    ],
-                ),
+                bindings: BTreeMap::from([(
+                    ParameterId::new_unchecked("scope"),
+                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                )]),
             }),
         }),
     };
@@ -38,14 +34,10 @@ fn alpha_equivalent_exists_unifies() {
             )),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from(
-                    [
-                        (
-                            ParameterId::new_unchecked("scope"),
-                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                        ),
-                    ],
-                ),
+                bindings: BTreeMap::from([(
+                    ParameterId::new_unchecked("scope"),
+                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                )]),
             }),
         }),
     };
@@ -97,5 +89,8 @@ fn different_quantifier_kinds_do_not_unify() {
         max_depth: 128,
     };
     let mut substitution = Substitution::default();
-    assert!(unify(&pattern, &candidate, &context, &mut substitution).is_err());
+    assert!(matches!(
+        unify(&pattern, &candidate, &context, &mut substitution),
+        Ok(UnifyOutcome::Mismatch(_))
+    ));
 }

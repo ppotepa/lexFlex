@@ -1,6 +1,8 @@
 mod support;
 
-use lexflex_lingua::{validate_goal, EvidencePolicy, GoalValidationError, LinguaGoal, SemanticType};
+use lexflex_lingua::{
+    validate_goal, EvidencePolicy, GoalValidationError, LinguaGoal, SemanticType,
+};
 use lexflex_model::{ConceptId, EntityId, SemanticExpression, VariableId};
 use std::collections::BTreeMap;
 use support::model::kernel_catalog;
@@ -12,24 +14,16 @@ fn valid_goal() -> LinguaGoal {
             subject: Box::new(SemanticExpression::Variable(answer.clone())),
             predicate: Box::new(SemanticExpression::Apply {
                 concept: ConceptId::new_unchecked("CAPITAL"),
-                bindings: BTreeMap::from(
-                    [
-                        (
-                            lexflex_model::ParameterId::new_unchecked("scope"),
-                            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                        ),
-                    ],
-                ),
+                bindings: BTreeMap::from([(
+                    lexflex_model::ParameterId::new_unchecked("scope"),
+                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+                )]),
             }),
         },
-        variables: BTreeMap::from(
-            [
-                (
-                    answer.clone(),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                ),
-            ],
-        ),
+        variables: BTreeMap::from([(
+            answer.clone(),
+            SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
+        )]),
         projection: vec![answer],
         evidence_policy: EvidencePolicy::Ignore,
         world: None,
@@ -100,14 +94,10 @@ fn non_boolean_expression_is_rejected() {
     let answer = VariableId::new_unchecked("answer");
     let goal = LinguaGoal {
         expression: SemanticExpression::Variable(answer.clone()),
-        variables: BTreeMap::from(
-            [
-                (
-                    answer.clone(),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                ),
-            ],
-        ),
+        variables: BTreeMap::from([(
+            answer.clone(),
+            SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
+        )]),
         projection: vec![answer],
         evidence_policy: EvidencePolicy::Ignore,
         world: None,
@@ -137,14 +127,10 @@ fn bound_projection_is_rejected() {
                 }),
             }),
         },
-        variables: BTreeMap::from(
-            [
-                (
-                    answer.clone(),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                ),
-            ],
-        ),
+        variables: BTreeMap::from([(
+            answer.clone(),
+            SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
+        )]),
         projection: vec![answer.clone()],
         evidence_policy: EvidencePolicy::Ignore,
         world: None,
@@ -152,6 +138,6 @@ fn bound_projection_is_rejected() {
     };
     assert_eq!(
         validate_goal(&goal, &catalog),
-        Err(GoalValidationError::ProjectionVariableBound(answer))
+        Err(GoalValidationError::ProjectionVariableNotFree(answer))
     );
 }

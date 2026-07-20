@@ -1,7 +1,7 @@
 use crate::validation::{LanguageModelValidator, LanguageValidationIssue};
 use crate::{
-    compile_lexical_sense, CompiledLexicalSense, Form, FormId, FormIndex, LanguageCompileError,
-    Lexeme, LexemeId, LexicalSense, LexicalSenseId, SenseIndex,
+    compile_lexical_sense, CompiledLexicalSense, FeatureStructure, Form, FormId, FormIndex,
+    LanguageCompileError, Lexeme, LexemeId, LexicalSense, LexicalSenseId, SenseIndex,
 };
 use lexflex_model::{
     canonical_hash, CanonicalDigest, CanonicalHashError, ConceptCatalog, LanguageId,
@@ -9,10 +9,12 @@ use lexflex_model::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
 const SUPPORTED_MANIFEST_SCHEMA: u32 = 1;
+const MAX_PACKAGE_FILE_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LanguagePackageManifest {
@@ -23,6 +25,29 @@ pub struct LanguagePackageManifest {
     pub senses: String,
     pub forms: String,
     pub paradigms: String,
+    #[serde(default)]
+    pub realizations: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LanguageRealizationModel {
+    pub conjunction: String,
+    pub disjunction: String,
+    pub negation_prefix: String,
+    pub existential_prefix: String,
+    pub universal_prefix: String,
+    pub equality_separator: String,
+    pub question_prefix: String,
+    #[serde(default)]
+    pub predicate_prefix: String,
+    #[serde(default)]
+    pub argument_orders: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub head_positions: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub predicate_features: FeatureStructure,
+    #[serde(default)]
+    pub surface_relations: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +61,7 @@ pub struct LanguageModel {
     pub form_index: FormIndex,
     pub sense_index: SenseIndex,
     pub model_hash: CanonicalDigest,
+    pub realizations: LanguageRealizationModel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +115,8 @@ pub enum LanguageLoadError {
     Compile(#[from] LanguageCompileError),
     #[error("canonical hash error: {0}")]
     CanonicalHash(#[from] CanonicalHashError),
+    #[error("language package file exceeds resource limit")]
+    ResourceLimit,
 }
 
 pub struct LanguagePackageLoader;
@@ -110,13 +138,28 @@ impl LanguagePackageLoader {
         let forms: Vec<Form> = read_ron(&safe_package_path(root, &manifest.forms)?)?;
         let paradigms: Vec<MorphologyParadigm> =
             read_ron(&safe_package_path(root, &manifest.paradigms)?)?;
+        let realizations = manifest
+            .realizations
+            .as_deref()
+            .map(|path| safe_package_path(root, path))
+            .transpose()?
+            .map(|path| read_ron(&path))
+            .transpose()?
+            .unwrap_or_default();
         let lexemes = collect_unique("lexeme", lexemes, |lexeme| lexeme.id.clone())?;
         let senses = collect_unique("sense", senses, |sense| sense.id.clone())?;
         let forms = collect_unique("form", forms, |form| form.id.clone())?;
         let paradigms = collect_unique("paradigm", paradigms, |paradigm| paradigm.id.clone())?;
         let form_index = FormIndex::build(forms.values().cloned());
         let sense_index = SenseIndex::build(senses.values().cloned());
-        let model_hash = canonical_hash(&(&manifest, &lexemes, &senses, &forms, &paradigms))?;
+        let model_hash = canonical_hash(&(
+            &manifest,
+            &lexemes,
+            &senses,
+            &forms,
+            &paradigms,
+            &realizations,
+        ))?;
         let mut model = LanguageModel {
             manifest,
             lexemes,
@@ -127,6 +170,7 @@ impl LanguagePackageLoader {
             form_index,
             sense_index,
             model_hash,
+            realizations,
         };
         LanguageModelValidator
             .validate(&model, catalog)
@@ -186,9 +230,23 @@ where
 }
 
 fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, LanguageLoadError> {
-    let source = fs::read_to_string(path).map_err(|error| LanguageLoadError::Io {
+    let file = fs::File::open(path).map_err(|error| LanguageLoadError::Io {
         path: path.to_path_buf(),
         kind: error.kind(),
+    })?;
+    let mut bytes = Vec::new();
+    file.take((MAX_PACKAGE_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| LanguageLoadError::Io {
+            path: path.to_path_buf(),
+            kind: error.kind(),
+        })?;
+    if bytes.len() > MAX_PACKAGE_FILE_BYTES {
+        return Err(LanguageLoadError::ResourceLimit);
+    }
+    let source = String::from_utf8(bytes).map_err(|error| LanguageLoadError::Parse {
+        path: path.to_path_buf(),
+        message: error.to_string(),
     })?;
     ron::from_str(&source).map_err(|error| LanguageLoadError::Parse {
         path: path.to_path_buf(),

@@ -11,6 +11,21 @@ use lexflex_model::{canonical_hash, ConceptCatalog, SemanticAssertion};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Instant;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum BenchmarkError {
+    #[error("benchmark operation failed: {0}")]
+    Operation(String),
+    #[error("benchmark output was not deterministic")]
+    Nondeterministic,
+}
+
+impl From<Box<dyn std::error::Error>> for BenchmarkError {
+    fn from(error: Box<dyn std::error::Error>) -> Self {
+        Self::Operation(error.to_string())
+    }
+}
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum BenchmarkCase {
@@ -76,21 +91,29 @@ impl BenchmarkSuite {
         Self { catalog }
     }
 
-    pub fn run_all(&self, cases: &[BenchmarkCase], iterations: usize) -> BenchmarkReport {
+    pub fn run_all(
+        &self,
+        cases: &[BenchmarkCase],
+        iterations: usize,
+    ) -> Result<BenchmarkReport, BenchmarkError> {
         let cases = if cases.is_empty() {
             BenchmarkCase::all()
         } else {
             cases.to_vec()
         };
-        BenchmarkReport {
+        Ok(BenchmarkReport {
             cases: cases
                 .into_iter()
                 .map(|case| self.run(case, iterations))
-                .collect(),
-        }
+                .collect::<Result<_, _>>()?,
+        })
     }
 
-    pub fn run(&self, case: BenchmarkCase, iterations: usize) -> BenchmarkResult {
+    pub fn run(
+        &self,
+        case: BenchmarkCase,
+        iterations: usize,
+    ) -> Result<BenchmarkResult, BenchmarkError> {
         match case {
             BenchmarkCase::Entity => self.run_compiled_case(
                 case,
@@ -134,14 +157,14 @@ impl BenchmarkSuite {
                 iterations,
                 vec!["build goal", "solve against one assertion"],
                 fixtures::solver_single_goal(),
-                fixtures::solver_single_assertions(),
+                fixtures::solver_single_assertions()?,
             ),
             BenchmarkCase::SolverThousand => self.run_solver_case(
                 case,
                 iterations,
                 vec!["build goal", "solve against 1000 assertions"],
                 fixtures::solver_single_goal(),
-                fixtures::solver_thousand_assertions(),
+                fixtures::solver_thousand_assertions()?,
             ),
             BenchmarkCase::AnalyzeCapitalEn => self.run_runtime_case(
                 case,
@@ -151,25 +174,25 @@ impl BenchmarkSuite {
                     "bench:capital:en",
                     "en",
                     "Paris is the capital of France.",
-                ),
+                )?,
             ),
             BenchmarkCase::AnalyzeCapitalPl => self.run_runtime_case(
                 case,
                 iterations,
                 vec!["parse", "compile", "execute"],
-                fixtures::analyze_input("bench:capital:pl", "pl", "Paryż jest stolicą Francji."),
+                fixtures::analyze_input("bench:capital:pl", "pl", "Paryż jest stolicą Francji.")?,
             ),
             BenchmarkCase::AnalyzeEventEn => self.run_runtime_case(
                 case,
                 iterations,
                 vec!["parse", "compile", "execute"],
-                fixtures::analyze_input("bench:event:en", "en", "Tom sees Iza."),
+                fixtures::analyze_input("bench:event:en", "en", "Tom sees Iza.")?,
             ),
             BenchmarkCase::AnalyzeEventPl => self.run_runtime_case(
                 case,
                 iterations,
                 vec!["parse", "compile", "execute"],
-                fixtures::analyze_input("bench:event:pl", "pl", "Tomek widzi Izę."),
+                fixtures::analyze_input("bench:event:pl", "pl", "Tomek widzi Izę.")?,
             ),
             BenchmarkCase::AskCapital => self.run_stateful_runtime_case(
                 case,
@@ -181,17 +204,17 @@ impl BenchmarkSuite {
                             "bench:capital:ingest",
                             "en",
                             "Paris is the capital of France.",
-                        ),
+                        )?,
                     }));
-                    runtime.handle(EngineRequest::AskText {
+                    Ok(runtime.handle(EngineRequest::AskText {
                         input: fixtures::analyze_input(
                             "bench:capital:ask",
                             "en",
                             "What is the capital of France?",
-                        ),
+                        )?,
                         evidence_policy: lexflex_lingua::EvidencePolicy::Required,
                         limit: Some(1),
-                    })
+                    }))
                 },
             ),
             BenchmarkCase::AskEvent => self.run_stateful_runtime_case(
@@ -200,13 +223,17 @@ impl BenchmarkSuite {
                 vec!["ingest", "ask", "solve"],
                 |runtime| {
                     black_box(runtime.handle(EngineRequest::IngestText {
-                        input: fixtures::analyze_input("bench:event:ingest", "en", "Tom sees Iza."),
+                        input: fixtures::analyze_input(
+                            "bench:event:ingest",
+                            "en",
+                            "Tom sees Iza.",
+                        )?,
                     }));
-                    runtime.handle(EngineRequest::AskText {
-                        input: fixtures::analyze_input("bench:event:ask", "pl", "Kto widzi Izę?"),
+                    Ok(runtime.handle(EngineRequest::AskText {
+                        input: fixtures::analyze_input("bench:event:ask", "pl", "Kto widzi Izę?")?,
                         evidence_policy: lexflex_lingua::EvidencePolicy::Required,
                         limit: Some(1),
-                    })
+                    }))
                 },
             ),
         }
@@ -219,41 +246,47 @@ impl BenchmarkSuite {
         steps: Vec<&'static str>,
         program: LinguaProgram,
         policy: ExecutionPolicy,
-    ) -> BenchmarkResult {
-        let compiler = LinguaCompiler::new(Arc::clone(&self.catalog));
+    ) -> Result<BenchmarkResult, BenchmarkError> {
+        let compiler = LinguaCompiler::try_new(Arc::clone(&self.catalog))
+            .map_err(|error| BenchmarkError::Operation(error.to_string()))?;
         let compiled = compiler
             .compile(&program)
-            .expect("benchmark program compiles");
+            .map_err(|error| BenchmarkError::Operation(error.to_string()))?;
         let interpreter = LinguaInterpreter::with_policy(Default::default(), policy);
         let mut last_hash = None;
         warmup(10, || {
-            black_box(
-                interpreter
-                    .execute(&compiled)
-                    .expect("benchmark warmup executes"),
-            );
-        });
+            interpreter
+                .execute(&compiled)
+                .map(|result| {
+                    black_box(result);
+                })
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))
+                .map(|_| ())
+        })?;
         let samples = measure(iterations, || {
             let result = interpreter
                 .execute(&compiled)
-                .expect("benchmark program executes");
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))?;
             let hash = canonical_hash(&result.execution.value)
-                .expect("benchmark value hash")
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))?
                 .to_string();
             if let Some(existing) = &last_hash {
-                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+                if existing != &hash {
+                    return Err(BenchmarkError::Nondeterministic);
+                }
             }
             last_hash = Some(hash);
             black_box(result);
-        });
-        BenchmarkResult::from_samples(
+            Ok(())
+        })?;
+        Ok(BenchmarkResult::from_samples(
             case,
             iterations,
             samples,
             steps,
             last_hash.unwrap_or_default(),
             None,
-        )
+        ))
     }
 
     fn run_solver_case(
@@ -263,37 +296,42 @@ impl BenchmarkSuite {
         steps: Vec<&'static str>,
         goal: lexflex_lingua::LinguaGoal,
         assertions: Vec<SemanticAssertion>,
-    ) -> BenchmarkResult {
+    ) -> Result<BenchmarkResult, BenchmarkError> {
         let solver = LinguaSolver::default();
         let mut last_hash = None;
         warmup(10, || {
-            black_box(
-                solver
-                    .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
-                    .expect("benchmark warmup solves"),
-            );
-        });
+            solver
+                .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
+                .map(|result| {
+                    black_box(result);
+                })
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))
+                .map(|_| ())
+        })?;
         let samples = measure(iterations, || {
             let results = solver
                 .solve(&goal, assertions.iter(), Arc::clone(&self.catalog))
-                .expect("benchmark goal solves");
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))?;
             let hash = canonical_hash(&results)
-                .expect("benchmark result hash")
+                .map_err(|error| BenchmarkError::Operation(error.to_string()))?
                 .to_string();
             if let Some(existing) = &last_hash {
-                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+                if existing != &hash {
+                    return Err(BenchmarkError::Nondeterministic);
+                }
             }
             last_hash = Some(hash);
             black_box(results.len());
-        });
-        BenchmarkResult::from_samples(
+            Ok(())
+        })?;
+        Ok(BenchmarkResult::from_samples(
             case,
             iterations,
             samples,
             steps,
             last_hash.unwrap_or_default(),
             None,
-        )
+        ))
     }
 
     fn run_runtime_case(
@@ -302,8 +340,8 @@ impl BenchmarkSuite {
         iterations: usize,
         steps: Vec<&'static str>,
         input: TextInput,
-    ) -> BenchmarkResult {
-        let mut runtime = fixtures::runtime(case.label());
+    ) -> Result<BenchmarkResult, BenchmarkError> {
+        let mut runtime = fixtures::runtime(case.label())?;
         let mut last_hash = None;
         let mut parser_metrics = None;
         warmup(10, || {
@@ -311,30 +349,34 @@ impl BenchmarkSuite {
                 input: input.clone(),
                 include_derivation: true,
             }));
-        });
+            Ok(())
+        })?;
         let samples = measure(iterations, || {
             let response = runtime.handle(EngineRequest::AnalyzeText {
                 input: input.clone(),
                 include_derivation: true,
             });
-            let hash = response_hash(&response);
+            let hash = response_hash(&response)?;
             if let Some(existing) = &last_hash {
-                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+                if existing != &hash {
+                    return Err(BenchmarkError::Nondeterministic);
+                }
             }
             if parser_metrics.is_none() {
                 parser_metrics = extract_parser_metrics(&response);
             }
             last_hash = Some(hash);
             black_box(response);
-        });
-        BenchmarkResult::from_samples(
+            Ok(())
+        })?;
+        Ok(BenchmarkResult::from_samples(
             case,
             iterations,
             samples,
             steps,
             last_hash.unwrap_or_default(),
             parser_metrics,
-        )
+        ))
     }
 
     fn run_stateful_runtime_case(
@@ -342,38 +384,43 @@ impl BenchmarkSuite {
         case: BenchmarkCase,
         iterations: usize,
         steps: Vec<&'static str>,
-        mut f: impl FnMut(&mut LexFlexRuntime) -> EngineResponse,
-    ) -> BenchmarkResult {
+        mut f: impl FnMut(&mut LexFlexRuntime) -> Result<EngineResponse, Box<dyn std::error::Error>>,
+    ) -> Result<BenchmarkResult, BenchmarkError> {
         let mut last_hash = None;
         warmup(10, || {
-            let mut runtime = fixtures::runtime(case.label());
-            black_box(f(&mut runtime));
-        });
+            let mut runtime = fixtures::runtime(case.label())?;
+            black_box(f(&mut runtime)?);
+            Ok(())
+        })?;
         let samples = measure(iterations, || {
-            let mut runtime = fixtures::runtime(case.label());
-            let response = f(&mut runtime);
-            let hash = response_hash(&response);
+            let mut runtime = fixtures::runtime(case.label())?;
+            let response =
+                f(&mut runtime).map_err(|error| BenchmarkError::Operation(error.to_string()))?;
+            let hash = response_hash(&response)?;
             if let Some(existing) = &last_hash {
-                assert_eq!(existing, &hash, "nondeterministic benchmark output");
+                if existing != &hash {
+                    return Err(BenchmarkError::Nondeterministic);
+                }
             }
             last_hash = Some(hash);
             black_box(response);
-        });
-        BenchmarkResult::from_samples(
+            Ok(())
+        })?;
+        Ok(BenchmarkResult::from_samples(
             case,
             iterations,
             samples,
             steps,
             last_hash.unwrap_or_default(),
             None,
-        )
+        ))
     }
 }
 
-fn response_hash(response: &EngineResponse) -> String {
+fn response_hash(response: &EngineResponse) -> Result<String, BenchmarkError> {
     canonical_hash(response)
-        .expect("benchmark response hash")
-        .to_string()
+        .map(|hash| hash.to_string())
+        .map_err(|error| BenchmarkError::Operation(error.to_string()))
 }
 
 fn extract_parser_metrics(response: &EngineResponse) -> Option<ParserMetricsSnapshot> {
@@ -385,63 +432,47 @@ fn extract_parser_metrics(response: &EngineResponse) -> Option<ParserMetricsSnap
 
 fn snapshot_metrics(analysis: &TextAnalysis) -> ParserMetricsSnapshot {
     ParserMetricsSnapshot {
-        token_count: analysis.parser_metrics.token_count,
-        lexical_candidate_count: analysis.parser_metrics.lexical_candidate_count,
-        chart_item_count: analysis.parser_metrics.chart_item_count,
-        chart_replacement_count: analysis.parser_metrics.chart_replacement_count,
-        semantic_duplicate_count: analysis.parser_metrics.semantic_duplicate_count,
-        rejected_application_count: analysis.parser_metrics.rejected_application_count,
-        complete_semantic_count: analysis.parser_metrics.complete_semantic_count,
-        max_cell_size: analysis.parser_metrics.max_cell_size,
+        token_count: analysis.parser_metrics().token_count,
+        lexical_candidate_count: analysis.parser_metrics().lexical_candidate_count,
+        chart_item_count: analysis.parser_metrics().chart_item_count,
+        chart_replacement_count: analysis.parser_metrics().chart_replacement_count,
+        semantic_duplicate_count: analysis.parser_metrics().semantic_duplicate_count,
+        rejected_application_count: analysis.parser_metrics().rejected_application_count,
+        complete_semantic_count: analysis.parser_metrics().complete_semantic_count,
+        max_cell_size: analysis.parser_metrics().max_cell_size,
         derivation_depth: analysis
-            .derivation
+            .derivations()
             .as_ref()
-            .map(|derivation| derivation.depth())
+            .map(|derivations| derivations.primary().depth())
             .unwrap_or_default(),
-        max_semantic_nodes: analysis.parser_metrics.max_semantic_nodes,
+        max_semantic_nodes: analysis.parser_metrics().max_semantic_nodes,
     }
 }
 
-fn warmup(mut iterations: usize, mut f: impl FnMut()) {
+fn warmup(
+    mut iterations: usize,
+    mut f: impl FnMut() -> Result<(), BenchmarkError>,
+) -> Result<(), BenchmarkError> {
     while iterations > 0 {
-        f();
+        f()?;
         iterations -= 1;
     }
+    Ok(())
 }
 
-fn measure(mut iterations: usize, mut f: impl FnMut()) -> Vec<u128> {
+fn measure(
+    mut iterations: usize,
+    mut f: impl FnMut() -> Result<(), BenchmarkError>,
+) -> Result<Vec<u128>, BenchmarkError> {
     let mut samples = Vec::with_capacity(iterations);
     while iterations > 0 {
         let start = Instant::now();
-        f();
+        f()?;
         samples.push(start.elapsed().as_nanos());
         iterations -= 1;
     }
-    samples
+    Ok(samples)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn benchmark_report_serializes() {
-        let report = BenchmarkReport {
-            cases: vec![BenchmarkResult {
-                case: "entity".into(),
-                iterations: 1,
-                total_ns: 1,
-                avg_ns: 1,
-                min_ns: 1,
-                median_ns: 1,
-                p95_ns: 1,
-                max_ns: 1,
-                output_hash: "hash".into(),
-                parser_metrics: None,
-                steps: vec!["compile".into(), "execute".into()],
-            }],
-        };
-        let json = serde_json::to_string(&report).expect("serialize");
-        assert!(json.contains("entity"));
-    }
-}
+mod tests;

@@ -1,9 +1,9 @@
 mod support;
 
-use lexflex_lingua::{solve::UnifyError, EvidencePolicy, LinguaGoal, LinguaSolver, SolveError};
+use lexflex_lingua::{EvidencePolicy, LinguaGoal, LinguaSolver, SolveError};
 use lexflex_model::{
-    ConceptId, EntityId, Evidence, SemanticAssertion, SemanticExpression, SemanticType, SourceSpan,
-    VariableId, WorldId,
+    ConceptId, EntityId, Evidence, EvidenceSet, SemanticAssertion, SemanticExpression,
+    SemanticType, SourceSpan, VariableId, WorldId,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -38,6 +38,7 @@ fn evidence(source_id: &str) -> Evidence {
 }
 
 fn capital_assertion(city: &str) -> SemanticAssertion {
+    let catalog = kernel_catalog();
     SemanticAssertion::create(
         SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(city))),
@@ -49,8 +50,9 @@ fn capital_assertion(city: &str) -> SemanticAssertion {
                 )]),
             }),
         },
-        [evidence(&format!("source:{city}"))],
+        EvidenceSet::singleton(evidence(&format!("source:{city}"))).expect("valid evidence set"),
         WorldId::new_unchecked("world:test"),
+        &catalog,
     )
     .expect("assertion")
 }
@@ -60,27 +62,26 @@ fn normal_mismatch_is_skipped() {
     let solver = LinguaSolver::default();
     let catalog = Arc::new(kernel_catalog());
     let matching = capital_assertion("PARIS");
-    let result = solver.solve(&goal(), [&matching], catalog).expect("solve");
+    let result = solver
+        .solve(&goal(), [&matching], catalog.clone())
+        .expect("solve");
 
     assert_eq!(result.len(), 1);
 
     let mismatch = SemanticAssertion::create(
         SemanticExpression::Entity(EntityId::new_unchecked("PARIS")),
-        [evidence("source:mismatch")],
+        EvidenceSet::singleton(evidence("source:mismatch")).expect("valid evidence set"),
         WorldId::new_unchecked("world:test"),
-    )
-    .expect("mismatch assertion");
-
-    let result = solver
-        .solve(&goal(), [&mismatch], Arc::new(kernel_catalog()))
-        .expect("solve mismatch");
-
-    assert!(result.is_empty());
+        catalog.as_ref(),
+    );
+    assert!(matches!(
+        mismatch,
+        Err(lexflex_model::AssertionCatalogError::NonBoolean(_))
+    ));
 }
 
 #[test]
-fn fatal_unify_error_is_returned() {
-    let solver = LinguaSolver::default();
+fn invalid_candidate_variable_is_fatal_integrity_error() {
     let assertion = SemanticAssertion::create(
         SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Variable(VariableId::new_unchecked(
@@ -94,17 +95,14 @@ fn fatal_unify_error_is_returned() {
                 )]),
             }),
         },
-        [evidence("source:bad")],
+        EvidenceSet::singleton(evidence("source:bad")).expect("valid evidence set"),
         WorldId::new_unchecked("world:test"),
-    )
-    .expect("assertion");
-
-    let result = solver.solve(&goal(), [&assertion], Arc::new(kernel_catalog()));
+        &kernel_catalog(),
+    );
 
     assert!(matches!(
-        result,
-        Err(SolveError::Unify(UnifyError::UnknownVariableType(variable)))
-            if variable == VariableId::new_unchecked("candidate")
+        assertion,
+        Err(lexflex_model::AssertionCatalogError::Type(_))
     ));
 }
 
@@ -124,8 +122,7 @@ fn invalid_goal_is_returned_before_scan() {
 }
 
 #[test]
-fn candidate_type_mismatch_is_not_fatal() {
-    let solver = LinguaSolver::default();
+fn candidate_type_corruption_is_fatal() {
     let mismatch = SemanticAssertion::create(
         SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(
@@ -139,14 +136,12 @@ fn candidate_type_mismatch_is_not_fatal() {
                 )]),
             }),
         },
-        [evidence("source:type-mismatch")],
+        EvidenceSet::singleton(evidence("source:type-mismatch")).expect("valid evidence set"),
         WorldId::new_unchecked("world:test"),
-    )
-    .expect("assertion");
-
-    let result = solver
-        .solve(&goal(), [&mismatch], Arc::new(kernel_catalog()))
-        .expect("solve mismatch");
-
-    assert!(result.is_empty());
+        &kernel_catalog(),
+    );
+    assert!(matches!(
+        mismatch,
+        Err(lexflex_model::AssertionCatalogError::Type(_))
+    ));
 }

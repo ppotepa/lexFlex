@@ -19,3 +19,4 @@ lexflex-model = { path = "../../crates/lexflex-model" }
 lexflex-parser = { path = "../../crates/lexflex-parser" }
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true

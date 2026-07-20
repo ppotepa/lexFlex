@@ -11,9 +11,7 @@ pub struct ChartItemKey {
 
 impl ChartItemKey {
     pub fn create(item: &ChartItem) -> Result<Self, ParseError> {
-        let category = item
-            .substitution
-            .apply_category(&item.category)?;
+        let category = item.substitution.apply_category(&item.category)?;
         let query_types = item
             .substitution
             .apply_query_category_types(&item.meaning.query_variables)?;

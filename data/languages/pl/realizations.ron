@@ -1,0 +1,22 @@
+(
+    conjunction: " i ",
+    disjunction: " albo ",
+    negation_prefix: "nie ",
+    existential_prefix: "istnieje ",
+    universal_prefix: "dla każdego ",
+    equality_separator: " jest ",
+    question_prefix: "co to jest ",
+    predicate_prefix: "",
+    argument_orders: {
+        "SEE_EVENT": ["agent", "patient"],
+    },
+    head_positions: {
+        "SEE_EVENT": 1,
+    },
+    predicate_features: (values: {
+        "case": "instrumental",
+        "gender": "feminine",
+        "number": "singular",
+    }),
+    surface_relations: {},
+)

@@ -1,4 +1,4 @@
-use crate::category::features::expected_features_match;
+use crate::category::features::unify_expected_features;
 use crate::category::outcome::{CategoryMismatch, CategoryOutcome};
 use crate::category::CategorySubstitution;
 use lexflex_language::{CategoryType, SyntacticCategory};
@@ -9,7 +9,21 @@ pub(crate) fn unify_category(
     actual: &SyntacticCategory,
     substitution: &mut CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> CategoryOutcome<()> {
+) -> crate::category::CategoryResult<()> {
+    let mut candidate = substitution.clone();
+    let outcome = unify_category_inner(expected, actual, &mut candidate, catalog)?;
+    if matches!(outcome, CategoryOutcome::Applied(())) {
+        *substitution = candidate;
+    }
+    Ok(outcome)
+}
+
+fn unify_category_inner(
+    expected: &SyntacticCategory,
+    actual: &SyntacticCategory,
+    substitution: &mut CategorySubstitution,
+    catalog: &ConceptCatalog,
+) -> crate::category::CategoryResult<()> {
     match (expected, actual) {
         (
             SyntacticCategory::Atom {
@@ -24,13 +38,15 @@ pub(crate) fn unify_category(
             },
         ) => {
             if expected_kind != actual_kind {
-                return CategoryOutcome::NotApplicable(CategoryMismatch::AtomicKind {
-                    expected: expected_kind.clone(),
-                    actual: actual_kind.clone(),
-                });
+                return Ok(CategoryOutcome::NotApplicable(
+                    CategoryMismatch::AtomicKind {
+                        expected: expected_kind.clone(),
+                        actual: actual_kind.clone(),
+                    },
+                ));
             }
-            if !expected_features_match(expected_features, actual_features) {
-                return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
+            if let Err(mismatch) = unify_expected_features(expected_features, actual_features) {
+                return Ok(CategoryOutcome::NotApplicable(mismatch));
             }
             unify_type(expected_type, actual_type, substitution, catalog)
         }
@@ -51,27 +67,31 @@ pub(crate) fn unify_category(
             },
         ) => {
             if expected_direction != actual_direction {
-                return CategoryOutcome::NotApplicable(CategoryMismatch::Direction {
-                    expected: *expected_direction,
-                    actual: *actual_direction,
-                });
+                return Ok(CategoryOutcome::NotApplicable(
+                    CategoryMismatch::Direction {
+                        expected: *expected_direction,
+                        actual: *actual_direction,
+                    },
+                ));
             }
             if expected_parameter != actual_parameter {
-                return CategoryOutcome::NotApplicable(CategoryMismatch::SemanticParameter {
-                    expected: expected_parameter.clone(),
-                    actual: actual_parameter.clone(),
-                });
+                return Ok(CategoryOutcome::NotApplicable(
+                    CategoryMismatch::SemanticParameter {
+                        expected: expected_parameter.clone(),
+                        actual: actual_parameter.clone(),
+                    },
+                ));
             }
-            if !expected_features_match(expected_features, actual_features) {
-                return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
+            if let Err(mismatch) = unify_expected_features(expected_features, actual_features) {
+                return Ok(CategoryOutcome::NotApplicable(mismatch));
             }
-            match unify_category(expected_result, actual_result, substitution, catalog) {
+            match unify_category_inner(expected_result, actual_result, substitution, catalog)? {
                 CategoryOutcome::Applied(()) => {}
-                other => return other,
+                other => return Ok(other),
             }
-            unify_category(expected_argument, actual_argument, substitution, catalog)
+            unify_category_inner(expected_argument, actual_argument, substitution, catalog)
         }
-        (_, _) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape),
+        (_, _) => Ok(CategoryOutcome::NotApplicable(CategoryMismatch::Shape)),
     }
 }
 
@@ -80,36 +100,108 @@ pub(crate) fn unify_type(
     actual: &CategoryType,
     substitution: &mut CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> CategoryOutcome<()> {
+) -> crate::category::CategoryResult<()> {
     match (expected, actual) {
         (CategoryType::Concrete(expected), CategoryType::Concrete(actual)) => {
             if TypeRelation::new(catalog).accepts(expected, actual) {
-                CategoryOutcome::Applied(())
+                Ok(CategoryOutcome::Applied(()))
             } else {
-                CategoryOutcome::NotApplicable(CategoryMismatch::SemanticType {
-                    expected: expected.clone(),
-                    actual: actual.clone(),
-                })
+                Ok(CategoryOutcome::NotApplicable(
+                    CategoryMismatch::SemanticType {
+                        expected: expected.clone(),
+                        actual: actual.clone(),
+                    },
+                ))
             }
         }
         (CategoryType::Variable(left), CategoryType::Variable(right)) => {
-            match substitution.alias(left.clone(), right.clone(), catalog) {
-                Ok(()) => CategoryOutcome::Applied(()),
-                Err(_) => CategoryOutcome::NotApplicable(CategoryMismatch::SubstitutionConflict {
-                    existing: CategoryType::Variable(left.clone()),
-                    incoming: CategoryType::Variable(right.clone()),
-                }),
-            }
+            substitution.alias(left.clone(), right.clone(), catalog)
         }
         (CategoryType::Variable(variable), CategoryType::Concrete(value))
         | (CategoryType::Concrete(value), CategoryType::Variable(variable)) => {
-            match substitution.bind_concrete(variable.clone(), value.clone(), catalog) {
-                Ok(()) => CategoryOutcome::Applied(()),
-                Err(_) => CategoryOutcome::NotApplicable(CategoryMismatch::SubstitutionConflict {
-                    existing: CategoryType::Variable(variable.clone()),
-                    incoming: CategoryType::Concrete(value.clone()),
-                }),
-            }
+            substitution.bind_concrete(variable.clone(), value.clone(), catalog)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lexflex_language::{FeatureStructure, SlashDirection};
+    use lexflex_model::{ConceptId, ParameterId, SemanticType};
+
+    fn variable(name: &str) -> CategoryType {
+        CategoryType::Variable(lexflex_language::CategoryTypeVariableId::new_unchecked(
+            name,
+        ))
+    }
+
+    fn np(value: CategoryType) -> SyntacticCategory {
+        SyntacticCategory::noun_phrase(value, FeatureStructure::default())
+    }
+
+    fn function(result: SyntacticCategory, argument: SyntacticCategory) -> SyntacticCategory {
+        SyntacticCategory::Function {
+            result: Box::new(result),
+            argument: Box::new(argument),
+            direction: SlashDirection::Forward,
+            semantic_parameter: ParameterId::new_unchecked("scope"),
+            features: FeatureStructure::default(),
+        }
+    }
+
+    #[test]
+    fn function_late_mismatch_does_not_mutate_substitution() {
+        let catalog = ConceptCatalog::default();
+        let mut substitution = CategorySubstitution::default();
+        let expected = function(
+            np(variable("X")),
+            np(CategoryType::Concrete(SemanticType::Boolean)),
+        );
+        let actual = function(
+            np(CategoryType::Concrete(SemanticType::EntityOf(
+                ConceptId::new_unchecked("CITY"),
+            ))),
+            np(CategoryType::Concrete(SemanticType::EntityOf(
+                ConceptId::new_unchecked("CITY"),
+            ))),
+        );
+
+        let result = unify_category(&expected, &actual, &mut substitution, &catalog);
+
+        assert!(matches!(
+            result,
+            Ok(CategoryOutcome::NotApplicable(
+                CategoryMismatch::SemanticType { .. }
+            ))
+        ));
+        assert_eq!(
+            substitution
+                .resolve_variable(&lexflex_language::CategoryTypeVariableId::new_unchecked(
+                    "X"
+                ))
+                .expect("resolve"),
+            variable("X")
+        );
+    }
+
+    #[test]
+    fn successful_unification_commits_substitution() {
+        let catalog = ConceptCatalog::default();
+        let mut substitution = CategorySubstitution::default();
+        let expected = np(variable("X"));
+        let actual = np(CategoryType::Concrete(SemanticType::Boolean));
+
+        let result = unify_category(&expected, &actual, &mut substitution, &catalog);
+
+        assert_eq!(result, Ok(CategoryOutcome::Applied(())));
+        assert_eq!(
+            substitution
+                .resolve_variable(&lexflex_language::CategoryTypeVariableId::new_unchecked(
+                    "X"
+                ))
+                .expect("resolve"),
+            CategoryType::Concrete(SemanticType::Boolean)
+        );
     }
 }

@@ -14,6 +14,6 @@ pub use budget::{ExecutionPolicy, ExpansionMode};
 pub use environment::RuntimeEnvironment;
 pub use interpreter::LinguaInterpreter;
 pub use result::{ExecutionResult, TypedExecutionResult};
-pub(crate) use state::InterpreterState;
+pub(crate) use state::{InterpreterProgram, InterpreterState};
 pub use trace::{ExecutionTrace, ExecutionTraceEvent, TraceOperation};
 pub use value::{ClosureParameter, ClosureValue, RuntimeValue};

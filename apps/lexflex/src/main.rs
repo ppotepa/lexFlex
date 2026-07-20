@@ -74,8 +74,131 @@ enum Command {
         #[arg(long, value_enum, default_value_t = EvidencePolicyArg::Required)]
         evidence: EvidencePolicyArg,
     },
+    TextGenerate {
+        #[arg(value_name = "EXPRESSION")]
+        expression: PathBuf,
+        #[arg(long)]
+        language: String,
+        #[arg(long)]
+        trace: bool,
+    },
+    SemanticRealize {
+        #[arg(value_name = "EXPRESSION")]
+        expression: PathBuf,
+        #[arg(long)]
+        language: String,
+        #[arg(long)]
+        trace: bool,
+    },
+    TextTranslateText {
+        #[command(flatten)]
+        input: cli::input::TextInputArgs,
+
+        #[arg(long, value_name = "LANGUAGE")]
+        target_language: String,
+
+        #[arg(long)]
+        trace: bool,
+    },
+    DocumentIngest {
+        #[arg(value_name = "DOCUMENT_ID")]
+        document_id: String,
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        #[arg(long)]
+        store: Option<PathBuf>,
+    },
+    DocumentRemove {
+        #[arg(value_name = "DOCUMENT_ID")]
+        document_id: String,
+        #[arg(long)]
+        store: PathBuf,
+    },
+    DocumentReplace {
+        #[arg(value_name = "DOCUMENT_ID")]
+        document_id: String,
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        #[arg(long)]
+        store: PathBuf,
+    },
+    DocumentInspect {
+        #[arg(long)]
+        store: PathBuf,
+    },
+    DocumentQuery {
+        #[arg(value_name = "EXPRESSION")]
+        expression: PathBuf,
+        #[arg(long)]
+        store: PathBuf,
+    },
+    DocumentAnalyze {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long, value_name = "LANGUAGE")]
+        language: String,
+    },
+    ProviderIngest {
+        #[arg(value_name = "DOCUMENT_ID")]
+        document_id: String,
+        #[arg(value_name = "ARTIFACT")]
+        artifact: PathBuf,
+        #[arg(long)]
+        store: PathBuf,
+    },
+    ConversationTurn {
+        #[arg(value_name = "TURN_ID")]
+        turn_id: String,
+        #[arg(value_name = "EXPRESSION")]
+        expression: PathBuf,
+        #[arg(long)]
+        state: Option<PathBuf>,
+    },
+    ConversationTextTurn {
+        #[arg(value_name = "TURN_ID")]
+        turn_id: String,
+        #[command(flatten)]
+        input: cli::input::TextInputArgs,
+        #[arg(long)]
+        state: Option<PathBuf>,
+    },
+    ConversationInspect {
+        #[arg(long)]
+        state: PathBuf,
+    },
+    ConversationResolve {
+        #[arg(value_name = "ENTITY_TYPE")]
+        entity_type: String,
+        #[arg(long)]
+        state: PathBuf,
+    },
+    LearningPropose {
+        observation: PathBuf,
+        proposal: PathBuf,
+        #[arg(long)]
+        expected_behavior: String,
+    },
+    LearningObserve {
+        observation: PathBuf,
+    },
+    LearningApprove {
+        overlay: PathBuf,
+        proposal_id: String,
+    },
+    LearningReject {
+        overlay: PathBuf,
+        proposal_id: String,
+    },
+    LearningPromote {
+        overlay: PathBuf,
+        proposal_id: String,
+    },
     SessionInspect,
     SessionClear,
+    SessionMigrate {
+        #[arg(long)]
+        from_schema: u32,
+    },
     ModelValidate {
         #[arg(value_name = "MODEL_ROOT")]
         model_root: Option<PathBuf>,
@@ -158,9 +281,121 @@ pub fn run_from_env() -> Result<(), CliError> {
             evidence,
         } => {
             let mut runtime = runtime_args.build()?;
-            cli::text_ask::run(&mut runtime, input, limit, evidence.into())
+            cli::text_ask::run(&mut runtime, input, limit, evidence.into()).map_err(Into::into)
+        }
+        Command::TextGenerate {
+            expression,
+            language,
+            trace,
+        } => cli::semantic_text::generate(
+            expression,
+            language,
+            default_model_root,
+            default_language_root,
+            trace,
+        )
+        .map_err(Into::into),
+        Command::SemanticRealize {
+            expression,
+            language,
+            trace,
+        } => cli::semantic_text::realize(
+            expression,
+            language,
+            default_model_root,
+            default_language_root,
+            trace,
+        )
+        .map_err(Into::into),
+        Command::TextTranslateText {
+            input,
+            target_language,
+            trace,
+        } => {
+            let mut runtime = runtime_args.build()?;
+            cli::semantic_text::translate_text(
+                &mut runtime,
+                input,
+                target_language,
+                default_model_root,
+                default_language_root,
+                trace,
+            )
+            .map_err(Into::into)
+        }
+        Command::DocumentIngest {
+            document_id,
+            file,
+            store,
+        } => cli::semantic_context::document_ingest(document_id, file, store).map_err(Into::into),
+        Command::DocumentRemove { document_id, store } => {
+            cli::semantic_context::document_remove(document_id, store).map_err(Into::into)
+        }
+        Command::DocumentReplace {
+            document_id,
+            file,
+            store,
+        } => cli::semantic_context::document_replace(document_id, file, store).map_err(Into::into),
+        Command::DocumentInspect { store } => {
+            cli::semantic_context::document_inspect(store).map_err(Into::into)
+        }
+        Command::DocumentQuery { expression, store } => {
+            cli::semantic_context::document_query(expression, store).map_err(Into::into)
+        }
+        Command::DocumentAnalyze { store, language } => {
+            let mut runtime = runtime_args.build()?;
+            cli::semantic_context::document_analyze(&mut runtime, store, language)
                 .map_err(Into::into)
         }
+        Command::ProviderIngest {
+            document_id,
+            artifact,
+            store,
+        } => {
+            cli::semantic_context::provider_ingest(document_id, artifact, store).map_err(Into::into)
+        }
+        Command::ConversationTurn {
+            turn_id,
+            expression,
+            state,
+        } => {
+            cli::semantic_context::conversation_turn(turn_id, expression, state).map_err(Into::into)
+        }
+        Command::ConversationTextTurn {
+            turn_id,
+            input,
+            state,
+        } => {
+            let mut runtime = runtime_args.build()?;
+            cli::semantic_context::conversation_text_turn(&mut runtime, turn_id, input, state)
+                .map_err(Into::into)
+        }
+        Command::ConversationInspect { state } => {
+            cli::semantic_context::conversation_inspect(state).map_err(Into::into)
+        }
+        Command::ConversationResolve { entity_type, state } => {
+            cli::semantic_context::conversation_resolve(entity_type, state).map_err(Into::into)
+        }
+        Command::LearningPropose {
+            observation,
+            proposal,
+            expected_behavior,
+        } => cli::learning::propose(observation, proposal, expected_behavior).map_err(Into::into),
+        Command::LearningObserve { observation } => {
+            cli::learning::observe(observation).map_err(Into::into)
+        }
+        Command::LearningApprove {
+            overlay,
+            proposal_id,
+        } => cli::learning::approve(overlay, proposal_id).map_err(Into::into),
+        Command::LearningReject {
+            overlay,
+            proposal_id,
+        } => cli::learning::reject(overlay, proposal_id).map_err(Into::into),
+        Command::LearningPromote {
+            overlay,
+            proposal_id,
+        } => cli::learning::promote(overlay, proposal_id).map_err(Into::into),
         Command::SessionInspect => {
             let mut runtime = runtime_args.build()?;
             cli::session_inspect::run(&mut runtime).map_err(Into::into)
@@ -169,15 +404,18 @@ pub fn run_from_env() -> Result<(), CliError> {
             let mut runtime = runtime_args.build()?;
             cli::session_clear::run(&mut runtime).map_err(Into::into)
         }
+        Command::SessionMigrate { from_schema } => {
+            cli::session_migrate::run(&runtime_args.session, &runtime_args.state_dir, from_schema)
+        }
         Command::ModelValidate { model_root } => cli::model_validate::run(
             model_root.unwrap_or(default_model_root),
             default_language_root,
         )
-        .map_err(CliError::Command),
+        .map_err(CliError::Validation),
         Command::LanguageValidate { language_root } => cli::language_validate::run(
             default_model_root,
             language_root.unwrap_or(default_language_root),
         )
-        .map_err(CliError::Command),
+        .map_err(CliError::Validation),
     }
 }

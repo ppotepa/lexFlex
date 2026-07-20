@@ -70,7 +70,7 @@ fn text_analysis_uses_parser() {
     });
     match response {
         EngineResponse::TextAnalyzed { analysis, .. } => {
-            assert!(analysis.derivation.is_some());
+            assert!(analysis.derivations().is_some());
         }
         other => panic!("unexpected response: {other:?}"),
     }
@@ -90,12 +90,12 @@ fn ambiguous_text_analysis_carries_derivation() {
 
     match response {
         EngineResponse::TextAnalyzed { analysis, .. } => {
-            assert!(analysis.derivation.is_some());
+            assert!(analysis.derivations().is_some());
         }
         EngineResponse::TextAmbiguous { alternatives, .. } => {
             assert!(alternatives
                 .iter()
-                .all(|alternative| alternative.derivation.is_some()));
+                .all(|alternative| alternative.derivations().is_some()));
         }
         other => panic!("unexpected response: {other:?}"),
     }
@@ -252,7 +252,13 @@ fn ingest_query_and_session_round_trip() {
                 }),
             },
         },
-        evidence: vec![Evidence::create("source:test", None, None).expect("valid evidence")],
+        evidence: lexflex_model::EvidenceSet::try_from_iter([Evidence::create(
+            "source:test",
+            None,
+            None,
+        )
+        .expect("valid evidence")])
+        .expect("valid evidence set"),
     });
     assert!(matches!(
         ingest,
@@ -330,7 +336,11 @@ fn duplicate_assertions_merge_evidence() {
 
     let first = runtime.handle(EngineRequest::IngestLingua {
         program: program.clone(),
-        evidence: vec![Evidence::create("source:1", None, None).expect("valid evidence")],
+        evidence: lexflex_model::EvidenceSet::try_from_iter([Evidence::create(
+            "source:1", None, None,
+        )
+        .expect("valid evidence")])
+        .expect("valid evidence set"),
     });
     assert!(matches!(
         first,
@@ -345,7 +355,11 @@ fn duplicate_assertions_merge_evidence() {
 
     let second = runtime.handle(EngineRequest::IngestLingua {
         program,
-        evidence: vec![Evidence::create("source:2", None, None).expect("valid evidence")],
+        evidence: lexflex_model::EvidenceSet::try_from_iter([Evidence::create(
+            "source:2", None, None,
+        )
+        .expect("valid evidence")])
+        .expect("valid evidence set"),
     });
 
     match second {
@@ -356,7 +370,7 @@ fn duplicate_assertions_merge_evidence() {
                 outcome,
                 lexflex_engine::AssertionWriteOutcome::EvidenceMerged { .. }
             ));
-            assert_eq!(assertion.evidence.len(), 2);
+            assert_eq!(assertion.evidence().len(), 2);
         }
         other => panic!("unexpected response: {other:?}"),
     }
@@ -379,7 +393,7 @@ fn corrupted_session_is_rejected_on_runtime_init() {
 
     match LexFlexRuntime::with_session_and_roots(session_id, state_root, model_root, language_root)
     {
-        Err(lexflex_engine::runtime::RuntimeInitError::Store(_)) => {}
+        Err(lexflex_engine::runtime::RuntimeInitError::Integrity(_)) => {}
         Err(other) => panic!("unexpected error: {other:?}"),
         Ok(_) => panic!("corrupted session must fail"),
     }

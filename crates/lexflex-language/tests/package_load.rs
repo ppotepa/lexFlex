@@ -10,9 +10,10 @@ fn english_package_loads() {
         .expect("load");
     assert_eq!(model.lexemes.len(), 13);
     assert_eq!(model.senses.len(), 13);
-    assert!(model.senses.values().any(
-        |sense| matches!(sense.base_category, SyntacticCategory::Function { .. }),
-    ));
+    assert!(model
+        .senses
+        .values()
+        .any(|sense| matches!(sense.base_category, SyntacticCategory::Function { .. }),));
     assert_eq!(
         model.form_index.lookup("paris"),
         &[lexflex_language::FormId::new_unchecked("form:en:Paris")]

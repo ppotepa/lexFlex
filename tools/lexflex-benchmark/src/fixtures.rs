@@ -266,20 +266,18 @@ pub fn solver_single_goal() -> LinguaGoal {
     }
 }
 
-pub fn solver_single_assertions() -> Vec<SemanticAssertion> {
-    vec![generic_assertion("ENTITY_A")]
+pub fn solver_single_assertions() -> Result<Vec<SemanticAssertion>, Box<dyn std::error::Error>> {
+    Ok(vec![generic_assertion("ENTITY_A")?])
 }
 
-pub fn solver_thousand_assertions() -> Vec<SemanticAssertion> {
-    std::iter::repeat_with(|| generic_assertion("ENTITY_A"))
-        .take(1_000)
-        .collect()
+pub fn solver_thousand_assertions() -> Result<Vec<SemanticAssertion>, Box<dyn std::error::Error>> {
+    (0..1_000).map(|_| generic_assertion("ENTITY_A")).collect()
 }
 
-fn generic_assertion(subject: &str) -> SemanticAssertion {
+fn generic_assertion(subject: &str) -> Result<SemanticAssertion, Box<dyn std::error::Error>> {
     let scope = ParameterId::new_unchecked("scope");
-    let source_hash = canonical_hash(&(subject, "ENTITY_B")).expect("source hash");
-    SemanticAssertion::create(
+    let source_hash = canonical_hash(&(subject, "ENTITY_B"))?;
+    Ok(SemanticAssertion::create(
         SemanticExpression::Satisfies {
             subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked(subject))),
             predicate: Box::new(SemanticExpression::Apply {
@@ -290,29 +288,32 @@ fn generic_assertion(subject: &str) -> SemanticAssertion {
                 )]),
             }),
         },
-        vec![Evidence::create(
+        lexflex_model::EvidenceSet::singleton(Evidence::create(
             "benchmark",
-            Some(SourceSpan { start: 0, end: 1 }),
+            Some(SourceSpan::new(0, 1)?),
             Some(source_hash),
-        )
-        .expect("evidence")],
+        )?)?,
         WorldId::new_unchecked("actual"),
-    )
-    .expect("assertion")
+        &kernel_catalog(),
+    )?)
 }
 
-pub fn analyze_input(source_id: &str, language: &str, text: &str) -> TextInput {
-    TextInput {
+pub fn analyze_input(
+    source_id: &str,
+    language: &str,
+    text: &str,
+) -> Result<TextInput, Box<dyn std::error::Error>> {
+    Ok(TextInput {
         source_id: source_id.into(),
-        language: LanguageId::new(language).expect("language id"),
+        language: LanguageId::new(language)?,
         text: text.into(),
-    }
+    })
 }
 
-pub fn runtime(case: &str) -> LexFlexRuntime {
+pub fn runtime(case: &str) -> Result<LexFlexRuntime, Box<dyn std::error::Error>> {
     let state_dir = benchmark_state_dir(case);
     let _ = std::fs::remove_dir_all(&state_dir);
-    std::fs::create_dir_all(&state_dir).expect("benchmark state dir");
+    std::fs::create_dir_all(&state_dir)?;
     let session_id = format!("benchmark_{}", case.replace([':', '-'], "_"));
     LexFlexRuntime::with_session_and_roots(
         session_id,
@@ -320,7 +321,7 @@ pub fn runtime(case: &str) -> LexFlexRuntime {
         PathBuf::from("data/model"),
         PathBuf::from("data/languages"),
     )
-    .expect("benchmark runtime")
+    .map_err(|error| error.into())
 }
 
 fn benchmark_state_dir(case: &str) -> PathBuf {

@@ -17,7 +17,8 @@ fn lexeme_language_mismatch_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -28,7 +29,8 @@ fn lexeme_language_mismatch_is_rejected() {
         normalized_lemma: "bonjour",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(root.join("senses.ron"), "[]").expect("write senses");
     std::fs::write(root.join("forms.ron"), "[]").expect("write forms");
     std::fs::write(root.join("paradigms.ron"), "[]").expect("write paradigms");
@@ -55,7 +57,8 @@ fn feature_conflict_between_sense_and_form_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -66,7 +69,8 @@ fn feature_conflict_between_sense_and_form_is_rejected() {
         normalized_lemma: "alpha",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(
         root.join("senses.ron"),
         r#"[
@@ -105,7 +109,8 @@ fn feature_conflict_between_sense_and_form_is_rejected() {
         priority: 0,
     ),
 ]"#,
-    ).expect("write senses");
+    )
+    .expect("write senses");
     std::fs::write(
         root.join("forms.ron"),
         r#"[
@@ -121,7 +126,8 @@ fn feature_conflict_between_sense_and_form_is_rejected() {
         ),
     ),
 ]"#,
-    ).expect("write forms");
+    )
+    .expect("write forms");
     std::fs::write(root.join("paradigms.ron"), "[]").expect("write paradigms");
 
     let err = LanguagePackageLoader
@@ -146,7 +152,8 @@ fn form_normalized_mismatch_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -157,7 +164,8 @@ fn form_normalized_mismatch_is_rejected() {
         normalized_lemma: "alpha",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(
         root.join("senses.ron"),
         r#"[
@@ -192,7 +200,8 @@ fn form_normalized_mismatch_is_rejected() {
         priority: 0,
     ),
 ]"#,
-    ).expect("write senses");
+    )
+    .expect("write senses");
     std::fs::write(
         root.join("forms.ron"),
         r#"[
@@ -206,7 +215,8 @@ fn form_normalized_mismatch_is_rejected() {
         ),
     ),
 ]"#,
-    ).expect("write forms");
+    )
+    .expect("write forms");
     std::fs::write(root.join("paradigms.ron"), "[]").expect("write paradigms");
 
     let err = LanguagePackageLoader
@@ -231,7 +241,8 @@ fn category_semantic_type_mismatch_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -242,7 +253,8 @@ fn category_semantic_type_mismatch_is_rejected() {
         normalized_lemma: "alpha",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(
         root.join("senses.ron"),
         r#"[
@@ -277,7 +289,8 @@ fn category_semantic_type_mismatch_is_rejected() {
         priority: 0,
     ),
 ]"#,
-    ).expect("write senses");
+    )
+    .expect("write senses");
     std::fs::write(
         root.join("forms.ron"),
         r#"[
@@ -291,7 +304,8 @@ fn category_semantic_type_mismatch_is_rejected() {
         ),
     ),
 ]"#,
-    ).expect("write forms");
+    )
+    .expect("write forms");
     std::fs::write(root.join("paradigms.ron"), "[]").expect("write paradigms");
 
     let err = LanguagePackageLoader

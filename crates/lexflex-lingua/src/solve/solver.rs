@@ -1,23 +1,29 @@
 use crate::solve::{
-    canonical_goal_semantic_hash, query_solution_sort_key, unify, validate_goal, EvidencePolicy,
-    LinguaGoal, SolveError, Substitution, UnificationContext, UnificationMode,
+    goal_hash::canonical_goal_semantic_hash_validated, query_solution_sort_key, unify,
+    validate_goal, EvidencePolicy, LinguaGoal, SolveError, Substitution, UnificationContext,
+    UnificationMode, UnifyOutcome,
 };
-use lexflex_model::{AssertionId, CanonicalDigest, ConceptCatalog, Evidence, EvidenceId, SemanticAssertion};
+use lexflex_model::{AssertionId, CanonicalDigest, ConceptCatalog, EvidenceSet, SemanticAssertion};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuerySolution {
     pub substitution: Substitution,
-    pub evidence: BTreeMap<EvidenceId, Evidence>,
+    pub evidence: EvidenceSet,
     pub assertion_id: AssertionId,
     pub assertion_hash: CanonicalDigest,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct LinguaSolver {
     pub max_depth: usize,
+}
+
+impl Default for LinguaSolver {
+    fn default() -> Self {
+        Self { max_depth: 1_000 }
+    }
 }
 
 impl LinguaSolver {
@@ -28,41 +34,42 @@ impl LinguaSolver {
         catalog: Arc<ConceptCatalog>,
     ) -> Result<Vec<QuerySolution>, SolveError> {
         validate_goal(goal, catalog.as_ref())?;
-        let _goal_hash = canonical_goal_semantic_hash(goal, catalog.as_ref())?;
+        let _goal_hash = canonical_goal_semantic_hash_validated(goal)?;
         let context = UnificationContext {
             catalog: catalog.clone(),
             variable_types: goal.variables.clone(),
             mode: UnificationMode::Pattern,
-            max_depth: self.max_depth.max(1_000),
+            max_depth: self.max_depth,
         };
         let mut results = Vec::new();
         for assertion in assertions {
+            assertion.verify_with_catalog(catalog.as_ref())?;
             if goal
                 .world
                 .as_ref()
-                .is_some_and(|world| world != &assertion.world)
+                .is_some_and(|world| world != assertion.world())
             {
                 continue;
             }
             if matches!(goal.evidence_policy, EvidencePolicy::Required)
-                && assertion.evidence.is_empty()
+                && assertion.evidence().is_empty()
             {
                 continue;
             }
             let mut substitution = Substitution::default();
             match unify(
                 &goal.expression,
-                &assertion.expression,
+                assertion.expression(),
                 &context,
                 &mut substitution,
             ) {
-                Ok(()) => results.push(QuerySolution {
+                Ok(UnifyOutcome::Matched) => results.push(QuerySolution {
                     substitution,
-                    evidence: assertion.evidence.clone(),
-                    assertion_id: assertion.id.clone(),
-                    assertion_hash: assertion.canonical_hash.clone(),
+                    evidence: assertion.evidence().clone(),
+                    assertion_id: assertion.id().clone(),
+                    assertion_hash: assertion.canonical_hash().clone(),
                 }),
-                Err(error) if error.is_candidate_mismatch() => {}
+                Ok(UnifyOutcome::Mismatch(_)) => {}
                 Err(error) => return Err(SolveError::Unify(error)),
             }
         }

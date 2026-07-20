@@ -1,6 +1,6 @@
 use crate::token::Token;
-use lexflex_language::{CategoryType, FormId, LanguageId};
-use lexflex_model::{CanonicalHashError, SemanticType, SourceSpan, VariableId};
+use lexflex_language::{CategoryType, CategoryTypeVariableId, FormId, LanguageId};
+use lexflex_model::{CanonicalDigest, CanonicalHashError, SemanticType, SourceSpan, VariableId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -25,16 +25,33 @@ pub enum ParseBudgetLimit {
     CompleteParseLimit,
     #[error("semantic node limit")]
     SemanticNodeLimit,
-    #[error("alternative derivation limit")]
-    AlternativeDerivationLimit,
-    #[error("derivation limit")]
-    DerivationLimit,
+    #[error("derivation per item limit")]
+    DerivationPerItemLimit,
+    #[error("total derivation limit")]
+    TotalDerivationLimit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CategoryInvariantDiagnostic {
+    AliasCycle {
+        variables: Vec<CategoryTypeVariableId>,
+    },
+    CanonicalHash {
+        message: String,
+    },
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseError {
     #[error("empty input")]
     EmptyInput,
+    #[error("empty derivation set")]
+    EmptyDerivationSet,
+    #[error("derivation digest mismatch: stored={stored}, expected={expected}")]
+    DerivationDigestMismatch {
+        stored: CanonicalDigest,
+        expected: CanonicalDigest,
+    },
     #[error("unsupported language: {0}")]
     UnsupportedLanguage(LanguageId),
     #[error("unknown surface: {token}")]
@@ -68,8 +85,8 @@ pub enum ParseError {
     MeaningFreshening(String),
     #[error("canonical hash error: {0}")]
     CanonicalHash(String),
-    #[error("category error: {0}")]
-    Category(String),
+    #[error("category invariant error: {0:?}")]
+    CategoryInvariant(CategoryInvariantDiagnostic),
     #[error("no complete parse")]
     NoParse,
     #[error("ambiguous parse")]

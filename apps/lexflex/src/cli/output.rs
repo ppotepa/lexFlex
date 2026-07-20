@@ -1,10 +1,12 @@
+use crate::cli::input_error::{CliInputError, CliLocalError};
+use crate::cli::internal_error::CliInternalError;
 use lexflex_engine::api::response::EngineResponse;
 use lexflex_engine::error::EngineErrorCode;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
 
 pub fn print_response_and_check(response: &EngineResponse) -> Result<(), CliExit> {
-    print_json(response).map_err(CliExit::Command)?;
+    print_json(response).map_err(CliExit::Internal)?;
     match response {
         EngineResponse::Error { code, message, .. } => Err(CliExit::Engine {
             code: *code,
@@ -18,8 +20,13 @@ pub fn print_response_and_check(response: &EngineResponse) -> Result<(), CliExit
 
 #[derive(Debug)]
 pub enum CliExit {
-    Command(String),
-    Engine { code: EngineErrorCode, message: String },
+    Input(CliInputError),
+    Local(CliLocalError),
+    Internal(CliInternalError),
+    Engine {
+        code: EngineErrorCode,
+        message: String,
+    },
     NotParsed,
     Ambiguous,
 }
@@ -27,7 +34,9 @@ pub enum CliExit {
 impl CliExit {
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::Command(_) => 1,
+            Self::Input(_) => 4,
+            Self::Local(_) => 9,
+            Self::Internal(_) => 8,
             Self::Engine { code, .. } => match code {
                 EngineErrorCode::InvalidProgram
                 | EngineErrorCode::InvalidGoal
@@ -48,7 +57,9 @@ impl CliExit {
 impl Display for CliExit {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Command(message) => formatter.write_str(message),
+            Self::Input(error) => Display::fmt(error, formatter),
+            Self::Local(error) => Display::fmt(error, formatter),
+            Self::Internal(error) => Display::fmt(error, formatter),
             Self::Engine { message, .. } => formatter.write_str(message),
             Self::NotParsed => formatter.write_str("text not parsed"),
             Self::Ambiguous => formatter.write_str("text ambiguous"),
@@ -56,10 +67,14 @@ impl Display for CliExit {
     }
 }
 
-pub fn print_json<T: Serialize>(value: &T) -> Result<(), String> {
+pub fn print_json<T: Serialize>(value: &T) -> Result<(), CliInternalError> {
     println!(
         "{}",
-        serde_json::to_string_pretty(value).map_err(|error| error.to_string())?
+        serde_json::to_string_pretty(value).map_err(|error| {
+            CliInternalError::JsonSerialization {
+                message: error.to_string(),
+            }
+        })?
     );
     Ok(())
 }

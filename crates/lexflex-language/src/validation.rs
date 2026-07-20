@@ -6,7 +6,10 @@ pub use error::{LanguageValidationError, LanguageValidationIssue};
 
 use crate::loader::LanguageModel;
 use crate::SemanticAnchor;
-use lexflex_model::{ConceptCatalog, ConceptId, SemanticType, TypeRelation, ValueType};
+use lexflex_model::{
+    validate_semantic_type_references, ConceptCatalog, ConceptId, SemanticType,
+    SemanticTypeReferenceError, TypeRelation,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Default)]
@@ -177,38 +180,15 @@ pub(super) fn validate_semantic_type(
     catalog: &ConceptCatalog,
     sense_id: &str,
 ) -> Result<(), LanguageValidationIssue> {
-    match semantic_type {
-        SemanticType::Boolean | SemanticType::Concept | SemanticType::Entity => Ok(()),
-        SemanticType::ConceptOf(_) => Ok(()),
-        SemanticType::EntityOf(concept) => ensure_known_concept(concept, catalog, sense_id),
-        SemanticType::Value(value_type) => validate_value_type(value_type, catalog, sense_id),
-        SemanticType::Predicate(inner)
-        | SemanticType::Set(inner)
-        | SemanticType::Optional(inner) => validate_semantic_type(inner, catalog, sense_id),
-        SemanticType::Record(entries) => {
-            for value in entries.values() {
-                validate_semantic_type(value, catalog, sense_id)?;
+    validate_semantic_type_references(semantic_type, catalog).map_err(|error| match error {
+        SemanticTypeReferenceError::UnknownConcept(concept)
+        | SemanticTypeReferenceError::UnknownQuantityDimension(concept) => {
+            LanguageValidationIssue::UnknownConceptReference {
+                sense_id: sense_id.to_owned(),
+                concept_id: concept.to_string(),
             }
-            Ok(())
         }
-        SemanticType::Function(function) => {
-            for value in function.parameters.values() {
-                validate_semantic_type(value, catalog, sense_id)?;
-            }
-            validate_semantic_type(&function.result, catalog, sense_id)
-        }
-    }
-}
-
-fn validate_value_type(
-    value_type: &ValueType,
-    catalog: &ConceptCatalog,
-    sense_id: &str,
-) -> Result<(), LanguageValidationIssue> {
-    match value_type {
-        ValueType::Quantity { dimension } => ensure_known_concept(dimension, catalog, sense_id),
-        _ => Ok(()),
-    }
+    })
 }
 
 fn validate_anchor(

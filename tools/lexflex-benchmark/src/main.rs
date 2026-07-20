@@ -21,9 +21,12 @@ struct Cli {
 
     #[arg(long)]
     output: Option<PathBuf>,
+
+    #[arg(long, value_name = "NANOSECONDS")]
+    max_p95_ns: Option<u128>,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     if cli.iterations == 0 {
         eprintln!("iterations must be greater than zero");
@@ -37,18 +40,23 @@ fn main() {
     };
 
     let suite = BenchmarkSuite::new(Arc::new(fixtures::kernel_catalog()));
-    let report = suite.run_all(&cases, cli.iterations);
+    let report = suite.run_all(&cases, cli.iterations)?;
 
-    let json = serde_json::to_string_pretty(&report).expect("benchmark report serializes");
+    if let Some(limit) = cli.max_p95_ns {
+        report.enforce_p95(limit)?;
+    }
+
+    let json = serde_json::to_string_pretty(&report)?;
 
     if let Some(path) = cli.output {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).expect("benchmark output directory");
+                std::fs::create_dir_all(parent)?;
             }
         }
-        std::fs::write(&path, &json).expect("write benchmark report");
+        std::fs::write(&path, &json)?;
     } else {
         println!("{json}");
     }
+    Ok(())
 }

@@ -41,13 +41,13 @@ impl<'a> TypeRelation<'a> {
                 }
                 self.accepts(&expected.result, &actual.result)
             }
-            (SemanticType::Record(expected), SemanticType::Record(actual)) => expected
-                .iter()
-                .all(|(field, expected_type)| {
+            (SemanticType::Record(expected), SemanticType::Record(actual)) => {
+                expected.iter().all(|(field, expected_type)| {
                     actual
                         .get(field)
                         .is_some_and(|actual_type| self.accepts(expected_type, actual_type))
-                }),
+                })
+            }
             (SemanticType::Value(expected), SemanticType::Value(actual)) => expected == actual,
             (SemanticType::Concept, SemanticType::ConceptOf(_)) => true,
             (SemanticType::ConceptOf(expected), SemanticType::ConceptOf(actual)) => {

@@ -1,7 +1,7 @@
 use crate::solve::bound_scope::BoundVariableScope;
 use crate::solve::context::UnificationContext;
 use crate::solve::unify_expression::unify_inner;
-use crate::solve::{Substitution, UnifyError};
+use crate::solve::{Substitution, UnifyError, UnifyOutcome};
 use lexflex_model::SemanticExpression;
 
 pub fn unify(
@@ -9,7 +9,21 @@ pub fn unify(
     candidate: &SemanticExpression,
     context: &UnificationContext,
     substitution: &mut Substitution,
-) -> Result<(), UnifyError> {
+) -> Result<UnifyOutcome, UnifyError> {
     let mut bound = BoundVariableScope::default();
-    unify_inner(pattern, candidate, context, substitution, 0, &mut bound)
+    let mut candidate_substitution = substitution.clone();
+    let outcome = unify_inner(
+        pattern,
+        candidate,
+        context,
+        &mut candidate_substitution,
+        0,
+        &mut bound,
+    )?;
+
+    if matches!(outcome, UnifyOutcome::Matched) {
+        *substitution = candidate_substitution;
+    }
+
+    Ok(outcome)
 }

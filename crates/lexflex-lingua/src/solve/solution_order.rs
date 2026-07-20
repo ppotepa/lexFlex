@@ -7,5 +7,9 @@ pub(crate) fn query_solution_sort_key(
     let substitution_hash =
         canonical_hash(&solution.substitution).map_err(SolveError::CanonicalHash)?;
     let evidence_ids = solution.evidence.keys().cloned().collect();
-    Ok((solution.assertion_id.clone(), substitution_hash, evidence_ids))
+    Ok((
+        solution.assertion_id.clone(),
+        substitution_hash,
+        evidence_ids,
+    ))
 }

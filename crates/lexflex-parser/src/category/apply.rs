@@ -1,5 +1,5 @@
 use crate::category::outcome::{CategoryMismatch, CategoryOutcome};
-use crate::category::{unify_category, CategorySubstitution};
+use crate::category::{unify_category, CategoryResolutionError, CategorySubstitution};
 use lexflex_language::{CategoryType, SlashDirection, SyntacticCategory};
 use lexflex_model::{ConceptCatalog, ParameterId, SemanticType, VariableId};
 use std::collections::BTreeMap;
@@ -9,7 +9,7 @@ pub(crate) fn apply_forward(
     argument: &SyntacticCategory,
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
+) -> crate::category::CategoryResult<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     apply_directional(function, argument, base, catalog, SlashDirection::Forward)
 }
 
@@ -18,7 +18,7 @@ pub(crate) fn apply_backward(
     argument: &SyntacticCategory,
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
-) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
+) -> crate::category::CategoryResult<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     apply_directional(function, argument, base, catalog, SlashDirection::Backward)
 }
 
@@ -28,7 +28,17 @@ pub(crate) fn resolve_query_variables(
 ) -> Result<BTreeMap<VariableId, SemanticType>, crate::diagnostic::ParseError> {
     query_variables
         .iter()
-        .map(|(variable, value)| Ok((variable.clone(), substitution.require_concrete(value)?)))
+        .map(|(variable, value)| {
+            let resolved = substitution
+                .require_concrete(value)
+                .map_err(|error| match error {
+                    CategoryResolutionError::UnresolvedType { .. } => {
+                        crate::diagnostic::ParseError::UnresolvedQueryCategoryType
+                    }
+                    CategoryResolutionError::Invariant(error) => error.into(),
+                })?;
+            Ok((variable.clone(), resolved))
+        })
         .collect()
 }
 
@@ -38,7 +48,7 @@ fn apply_directional(
     base: &CategorySubstitution,
     catalog: &ConceptCatalog,
     direction: SlashDirection,
-) -> CategoryOutcome<(SyntacticCategory, ParameterId, CategorySubstitution)> {
+) -> crate::category::CategoryResult<(SyntacticCategory, ParameterId, CategorySubstitution)> {
     let SyntacticCategory::Function {
         result,
         argument: expected_argument,
@@ -47,26 +57,30 @@ fn apply_directional(
         ..
     } = function
     else {
-        return CategoryOutcome::NotApplicable(CategoryMismatch::Shape);
+        return Ok(CategoryOutcome::NotApplicable(CategoryMismatch::Shape));
     };
 
     if *actual_direction != direction {
-        return CategoryOutcome::NotApplicable(CategoryMismatch::Direction {
-            expected: direction,
-            actual: *actual_direction,
-        });
+        return Ok(CategoryOutcome::NotApplicable(
+            CategoryMismatch::Direction {
+                expected: direction,
+                actual: *actual_direction,
+            },
+        ));
     }
 
     let mut substitution = base.clone();
-    match unify_category(expected_argument, argument, &mut substitution, catalog) {
+    match unify_category(expected_argument, argument, &mut substitution, catalog)? {
         CategoryOutcome::Applied(()) => {}
         CategoryOutcome::NotApplicable(mismatch) => {
-            return CategoryOutcome::NotApplicable(mismatch);
+            return Ok(CategoryOutcome::NotApplicable(mismatch));
         }
     }
 
-    match substitution.apply_category(result) {
-        Ok(result) => CategoryOutcome::Applied((result, semantic_parameter.clone(), substitution)),
-        Err(_error) => CategoryOutcome::NotApplicable(CategoryMismatch::Shape), // fallback
-    }
+    let result = substitution.apply_category(result)?;
+    Ok(CategoryOutcome::Applied((
+        result,
+        semantic_parameter.clone(),
+        substitution,
+    )))
 }

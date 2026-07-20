@@ -39,7 +39,7 @@ fn lower_assertion(
     draft: lexflex_parser::AssertionDraft,
     catalog: Arc<ConceptCatalog>,
 ) -> SemanticExpression {
-    let compiler = LinguaCompiler::new(catalog);
+    let compiler = LinguaCompiler::try_new(catalog).expect("compiler");
     let program = LinguaProgram {
         id: ProgramId::new_unchecked("test:capital:assertion"),
         declarations: Vec::new(),

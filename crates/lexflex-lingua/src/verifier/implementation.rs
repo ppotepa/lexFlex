@@ -1,5 +1,4 @@
-use crate::compiler::{CompileError, CompiledProgram, ResolvedExpression};
-use crate::id::ProgramId;
+use crate::compiler::{CompileError, ResolvedExpression};
 use crate::syntax::{ConceptSemantics, LinguaDeclaration, LinguaExpression, LinguaProgram};
 use crate::verifier::limits::{VerificationLimits, VerificationReport};
 use crate::verifier::recursion::find_recursive_concepts;
@@ -97,28 +96,25 @@ impl LinguaVerifier {
         Ok(report)
     }
 
-    pub fn verify_compiled(
+    pub fn verify_resolved_entry(
         &self,
-        compiled: &CompiledProgram,
+        entry: &ResolvedExpression,
     ) -> Result<VerificationReport, CompileError> {
-        let mut declarations = compiled
-            .concepts
-            .values()
-            .cloned()
-            .map(|concept| LinguaDeclaration::Concept(concept.declaration))
-            .collect::<Vec<_>>();
-        declarations.extend(
-            compiled
-                .functions
-                .values()
-                .cloned()
-                .map(|function| LinguaDeclaration::Function(function.declaration)),
-        );
-        self.verify_program(&LinguaProgram {
-            id: ProgramId::new_unchecked("compiled"),
-            declarations,
-            entry: expression_to_source(&compiled.entry),
-        })
+        let (expression_node_count, max_expression_depth) = resolved_expression_metrics(entry);
+        let report = VerificationReport {
+            declaration_count: 0,
+            expression_node_count,
+            max_expression_depth,
+            concept_dependencies: BTreeMap::new(),
+        };
+        if report.max_expression_depth > self.limits.max_expression_depth
+            || report.expression_node_count > self.limits.max_expression_nodes
+        {
+            return Err(CompileError::Diagnostic(
+                "entry expression limits exceeded".into(),
+            ));
+        }
+        Ok(report)
     }
 }
 
@@ -230,88 +226,49 @@ fn expression_metrics(expressions: &[&LinguaExpression]) -> (usize, usize) {
     (nodes, max_depth)
 }
 
-fn expression_to_source(expression: &ResolvedExpression) -> LinguaExpression {
-    match expression {
-        ResolvedExpression::Concept(id) => LinguaExpression::Concept(id.clone()),
-        ResolvedExpression::Entity(id) => LinguaExpression::Entity(id.clone()),
-        ResolvedExpression::Value(value) => LinguaExpression::Value(value.clone()),
-        ResolvedExpression::Local(symbol) => {
-            LinguaExpression::Variable(crate::id::SymbolName::new_unchecked(symbol.as_str()))
+fn resolved_expression_metrics(expression: &ResolvedExpression) -> (usize, usize) {
+    let mut nodes = 0usize;
+    let mut max_depth = 0usize;
+    let mut stack = vec![(expression, 1usize)];
+
+    while let Some((expression, depth)) = stack.pop() {
+        nodes += 1;
+        max_depth = max_depth.max(depth);
+        match expression {
+            ResolvedExpression::Concept(_)
+            | ResolvedExpression::Entity(_)
+            | ResolvedExpression::Value(_)
+            | ResolvedExpression::Local(_)
+            | ResolvedExpression::QueryVariable(_)
+            | ResolvedExpression::Function(_) => {}
+            ResolvedExpression::Lambda { body, .. }
+            | ResolvedExpression::Not(body)
+            | ResolvedExpression::Exists { body, .. }
+            | ResolvedExpression::ForAll { body, .. } => stack.push((body, depth + 1)),
+            ResolvedExpression::Call { callee, arguments } => {
+                stack.push((callee, depth + 1));
+                stack.extend(arguments.values().map(|value| (value, depth + 1)));
+            }
+            ResolvedExpression::ApplyConcept { bindings, .. } => {
+                stack.extend(bindings.values().map(|value| (value, depth + 1)));
+            }
+            ResolvedExpression::Satisfies { subject, concept }
+            | ResolvedExpression::Equals {
+                left: subject,
+                right: concept,
+            } => {
+                stack.push((subject, depth + 1));
+                stack.push((concept, depth + 1));
+            }
+            ResolvedExpression::And(items) | ResolvedExpression::Or(items) => {
+                stack.extend(items.iter().map(|item| (item, depth + 1)));
+            }
+            ResolvedExpression::Let { value, body, .. } => {
+                stack.push((value, depth + 1));
+                stack.push((body, depth + 1));
+            }
         }
-        ResolvedExpression::QueryVariable(variable) => {
-            LinguaExpression::QueryVariable(variable.clone())
-        }
-        ResolvedExpression::Function(function_id) => {
-            LinguaExpression::Function(function_id.clone())
-        }
-        ResolvedExpression::Lambda { parameters, body } => LinguaExpression::Lambda {
-            parameters: parameters
-                .iter()
-                .map(|parameter| crate::syntax::LambdaParameter {
-                    name: crate::id::SymbolName::new_unchecked(parameter.symbol.as_str()),
-                    parameter_id: parameter.parameter_id.clone(),
-                    value_type: parameter.value_type.clone(),
-                })
-                .collect(),
-            body: Box::new(expression_to_source(body)),
-        },
-        ResolvedExpression::Call { callee, arguments } => LinguaExpression::Call {
-            callee: Box::new(expression_to_source(callee)),
-            arguments: arguments
-                .iter()
-                .map(|(parameter, value)| (parameter.clone(), expression_to_source(value)))
-                .collect(),
-        },
-        ResolvedExpression::ApplyConcept { concept, bindings } => LinguaExpression::ApplyConcept {
-            concept: concept.clone(),
-            bindings: bindings
-                .iter()
-                .map(|(parameter, value)| (parameter.clone(), expression_to_source(value)))
-                .collect(),
-        },
-        ResolvedExpression::Satisfies { subject, concept } => LinguaExpression::Satisfies {
-            subject: Box::new(expression_to_source(subject)),
-            concept: Box::new(expression_to_source(concept)),
-        },
-        ResolvedExpression::Equals { left, right } => LinguaExpression::Equals {
-            left: Box::new(expression_to_source(left)),
-            right: Box::new(expression_to_source(right)),
-        },
-        ResolvedExpression::And(items) => {
-            LinguaExpression::And(items.iter().map(expression_to_source).collect())
-        }
-        ResolvedExpression::Or(items) => {
-            LinguaExpression::Or(items.iter().map(expression_to_source).collect())
-        }
-        ResolvedExpression::Not(inner) => {
-            LinguaExpression::Not(Box::new(expression_to_source(inner)))
-        }
-        ResolvedExpression::Exists {
-            variable,
-            value_type,
-            body,
-        } => LinguaExpression::Exists {
-            variable: variable.clone(),
-            value_type: value_type.clone(),
-            body: Box::new(expression_to_source(body)),
-        },
-        ResolvedExpression::ForAll {
-            variable,
-            value_type,
-            body,
-        } => LinguaExpression::ForAll {
-            variable: variable.clone(),
-            value_type: value_type.clone(),
-            body: Box::new(expression_to_source(body)),
-        },
-        ResolvedExpression::Let {
-            symbol,
-            value,
-            body,
-        } => LinguaExpression::Let {
-            name: crate::id::SymbolName::new_unchecked(symbol.as_str()),
-            value: Box::new(expression_to_source(value)),
-            body: Box::new(expression_to_source(body)),
-        },
     }
+
+    (nodes, max_depth)
 }

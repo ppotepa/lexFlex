@@ -1,3 +1,4 @@
+use crate::solve::UnifyMismatch;
 use lexflex_model::{SemanticExpression, VariableId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -12,15 +13,13 @@ impl Substitution {
         &mut self,
         variable: VariableId,
         value: SemanticExpression,
-    ) -> Result<(), crate::solve::UnifyError> {
+    ) -> Result<(), UnifyMismatch> {
         match self.bindings.get(&variable) {
-            Some(existing) if existing != &value => {
-                Err(crate::solve::UnifyError::ConflictingBinding {
-                    variable,
-                    existing: existing.clone(),
-                    incoming: value,
-                })
-            }
+            Some(existing) if existing != &value => Err(UnifyMismatch::ConflictingBinding {
+                variable,
+                existing: existing.clone(),
+                incoming: value,
+            }),
             Some(_) => Ok(()),
             None => {
                 self.bindings.insert(variable, value);

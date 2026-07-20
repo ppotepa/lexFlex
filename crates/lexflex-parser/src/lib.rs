@@ -16,7 +16,7 @@ mod token;
 
 pub use budget::ParseBudget;
 pub use diagnostic::{ParseBudgetLimit, ParseDiagnostic, ParseError};
-pub use explain::DerivationNode;
+pub use explain::{ApplicationRule, DerivationNode, DerivationSet};
 pub use id::{ChartItemId, DerivationId, TokenId};
 pub use input::{ClauseMode, ParseInput};
 pub use metrics::{ParseMetrics, ParseScore};

@@ -1,5 +1,7 @@
 use crate::compiler::ResolvedExpression;
-use crate::runtime::{ClosureValue, InterpreterState, RuntimeEnvironment, RuntimeError, RuntimeValue, TraceOperation};
+use crate::runtime::{
+    ClosureValue, InterpreterState, RuntimeEnvironment, RuntimeError, RuntimeValue, TraceOperation,
+};
 use lexflex_model::ParameterId;
 use std::{collections::BTreeMap, sync::Arc};
 

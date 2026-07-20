@@ -1,7 +1,7 @@
 use crate::solve::bound_scope::BoundVariableScope;
 use crate::solve::context::{UnificationContext, UnificationMode};
 use crate::solve::unify_variable::bind_variable;
-use crate::solve::{Substitution, UnifyError};
+use crate::solve::{Substitution, UnifyError, UnifyMismatch, UnifyOutcome};
 use lexflex_model::{ParameterId, SemanticExpression};
 
 pub(crate) fn unify_inner(
@@ -11,7 +11,7 @@ pub(crate) fn unify_inner(
     substitution: &mut Substitution,
     depth: usize,
     bound: &mut BoundVariableScope,
-) -> Result<(), UnifyError> {
+) -> Result<UnifyOutcome, UnifyError> {
     if depth > context.max_depth {
         return Err(UnifyError::DepthLimitExceeded {
             depth: context.max_depth,
@@ -23,12 +23,12 @@ pub(crate) fn unify_inner(
                 || bound.left_for_right(other).is_some() =>
         {
             if bound.right_for_left(variable) == Some(other) {
-                Ok(())
+                Ok(UnifyOutcome::Matched)
             } else {
-                Err(UnifyError::ValueMismatch {
+                Ok(UnifyOutcome::Mismatch(UnifyMismatch::Value {
                     pattern: pattern.clone(),
                     candidate: candidate.clone(),
-                })
+                }))
             }
         }
         (SemanticExpression::Variable(variable), value) => {
@@ -37,13 +37,13 @@ pub(crate) fn unify_inner(
         (SemanticExpression::Concept(left), SemanticExpression::Concept(right))
             if left == right =>
         {
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
         (SemanticExpression::Entity(left), SemanticExpression::Entity(right)) if left == right => {
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
         (SemanticExpression::Value(left), SemanticExpression::Value(right)) if left == right => {
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
         (
             SemanticExpression::Apply {
@@ -58,16 +58,18 @@ pub(crate) fn unify_inner(
             if matches!(context.mode, UnificationMode::Exact)
                 && left_bindings.len() != right_bindings.len()
             {
-                return Err(UnifyError::ShapeMismatch);
+                return Ok(UnifyOutcome::Mismatch(UnifyMismatch::Shape));
             }
             if left_bindings.len() > right_bindings.len() {
-                return Err(UnifyError::ShapeMismatch);
+                return Ok(UnifyOutcome::Mismatch(UnifyMismatch::Shape));
             }
             for (parameter, left_value) in left_bindings {
-                let right_value = right_bindings
-                    .get(parameter)
-                    .ok_or_else(|| UnifyError::MissingBinding(parameter.clone()))?;
-                unify_inner(
+                let Some(right_value) = right_bindings.get(parameter) else {
+                    return Ok(UnifyOutcome::Mismatch(UnifyMismatch::MissingBinding(
+                        parameter.clone(),
+                    )));
+                };
+                let outcome = unify_inner(
                     left_value,
                     right_value,
                     context,
@@ -75,8 +77,11 @@ pub(crate) fn unify_inner(
                     depth + 1,
                     bound,
                 )?;
+                if !matches!(outcome, UnifyOutcome::Matched) {
+                    return Ok(outcome);
+                }
             }
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
         (
             SemanticExpression::Satisfies {
@@ -88,7 +93,7 @@ pub(crate) fn unify_inner(
                 predicate: right_predicate,
             },
         ) => {
-            unify_inner(
+            let outcome = unify_inner(
                 left_subject,
                 right_subject,
                 context,
@@ -96,6 +101,9 @@ pub(crate) fn unify_inner(
                 depth + 1,
                 bound,
             )?;
+            if !matches!(outcome, UnifyOutcome::Matched) {
+                return Ok(outcome);
+            }
             unify_inner(
                 left_predicate,
                 right_predicate,
@@ -115,7 +123,10 @@ pub(crate) fn unify_inner(
                 right: right_b,
             },
         ) => {
-            unify_inner(left_a, right_a, context, substitution, depth + 1, bound)?;
+            let outcome = unify_inner(left_a, right_a, context, substitution, depth + 1, bound)?;
+            if !matches!(outcome, UnifyOutcome::Matched) {
+                return Ok(outcome);
+            }
             unify_inner(left_b, right_b, context, substitution, depth + 1, bound)
         }
         (SemanticExpression::And(left), SemanticExpression::And(right))
@@ -123,7 +134,7 @@ pub(crate) fn unify_inner(
             if left.len() == right.len() =>
         {
             for (left_item, right_item) in left.iter().zip(right) {
-                unify_inner(
+                let outcome = unify_inner(
                     left_item,
                     right_item,
                     context,
@@ -131,8 +142,11 @@ pub(crate) fn unify_inner(
                     depth + 1,
                     bound,
                 )?;
+                if !matches!(outcome, UnifyOutcome::Matched) {
+                    return Ok(outcome);
+                }
             }
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
         (SemanticExpression::Not(left), SemanticExpression::Not(right)) => {
             unify_inner(left, right, context, substitution, depth + 1, bound)
@@ -162,10 +176,10 @@ pub(crate) fn unify_inner(
             },
         ) => {
             if left_type != right_type {
-                return Err(UnifyError::ValueMismatch {
+                return Ok(UnifyOutcome::Mismatch(UnifyMismatch::Value {
                     pattern: pattern.clone(),
                     candidate: candidate.clone(),
-                });
+                }));
             }
             bound.push(left_variable.clone(), right_variable.clone());
             let result = unify_inner(
@@ -189,7 +203,7 @@ pub(crate) fn unify_inner(
                 qualifiers: right_qualifiers,
             },
         ) if left_qualifiers.len() <= right_qualifiers.len() => {
-            unify_inner(
+            let outcome = unify_inner(
                 left_expression,
                 right_expression,
                 context,
@@ -197,11 +211,16 @@ pub(crate) fn unify_inner(
                 depth + 1,
                 bound,
             )?;
+            if !matches!(outcome, UnifyOutcome::Matched) {
+                return Ok(outcome);
+            }
             for (qualifier, left_value) in left_qualifiers {
-                let right_value = right_qualifiers.get(qualifier).ok_or_else(|| {
-                    UnifyError::MissingBinding(ParameterId::new_unchecked(qualifier.as_str()))
-                })?;
-                unify_inner(
+                let Some(right_value) = right_qualifiers.get(qualifier) else {
+                    return Ok(UnifyOutcome::Mismatch(UnifyMismatch::MissingBinding(
+                        ParameterId::new_unchecked(qualifier.as_str()),
+                    )));
+                };
+                let outcome = unify_inner(
                     left_value,
                     right_value,
                     context,
@@ -209,12 +228,15 @@ pub(crate) fn unify_inner(
                     depth + 1,
                     bound,
                 )?;
+                if !matches!(outcome, UnifyOutcome::Matched) {
+                    return Ok(outcome);
+                }
             }
-            Ok(())
+            Ok(UnifyOutcome::Matched)
         }
-        _ => Err(UnifyError::ValueMismatch {
+        _ => Ok(UnifyOutcome::Mismatch(UnifyMismatch::Value {
             pattern: pattern.clone(),
             candidate: candidate.clone(),
-        }),
+        })),
     }
 }

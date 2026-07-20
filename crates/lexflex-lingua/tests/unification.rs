@@ -1,8 +1,10 @@
 #[path = "support/mod.rs"]
 mod support;
 
-use lexflex_lingua::{unify, Substitution, UnificationContext, UnificationMode};
-use lexflex_model::{ConceptId, EntityId, ParameterId, SemanticExpression, SemanticType, VariableId};
+use lexflex_lingua::{unify, Substitution, UnificationContext, UnificationMode, UnifyOutcome};
+use lexflex_model::{
+    ConceptId, EntityId, ParameterId, SemanticExpression, SemanticType, VariableId,
+};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -24,16 +26,13 @@ fn variable_binding_succeeds() {
     unify(
         &pattern,
         &candidate,
-        &context(BTreeMap::from(
-            [
-                (
-                    variable.clone(),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                ),
-            ],
-        )),
+        &context(BTreeMap::from([(
+            variable.clone(),
+            SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
+        )])),
         &mut substitution,
-    ).expect("unify");
+    )
+    .expect("unify");
     assert_eq!(substitution.get(&variable), Some(&candidate));
 }
 
@@ -59,44 +58,33 @@ fn apply_unifies_by_parameter() {
     let mut substitution = Substitution::default();
     let pattern = SemanticExpression::Apply {
         concept: ConceptId::new_unchecked("CAPITAL"),
-        bindings: BTreeMap::from(
-            [
-                (
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Variable(VariableId::new_unchecked("scope")),
-                ),
-            ],
-        ),
+        bindings: BTreeMap::from([(
+            ParameterId::new_unchecked("scope"),
+            SemanticExpression::Variable(VariableId::new_unchecked("scope")),
+        )]),
     };
     let candidate = SemanticExpression::Apply {
         concept: ConceptId::new_unchecked("CAPITAL"),
-        bindings: BTreeMap::from(
-            [
-                (
-                    ParameterId::new_unchecked("scope"),
-                    SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                ),
-            ],
-        ),
+        bindings: BTreeMap::from([(
+            ParameterId::new_unchecked("scope"),
+            SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+        )]),
     };
     unify(
         &pattern,
         &candidate,
-        &context(BTreeMap::from(
-            [
-                (
-                    VariableId::new_unchecked("scope"),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("POLITY")),
-                ),
-            ],
-        )),
+        &context(BTreeMap::from([(
+            VariableId::new_unchecked("scope"),
+            SemanticType::EntityOf(ConceptId::new_unchecked("POLITY")),
+        )])),
         &mut substitution,
-    ).expect("unify");
+    )
+    .expect("unify");
     assert_eq!(
         substitution.get(&VariableId::new_unchecked("scope")),
-        Some(&SemanticExpression::Entity(
-            EntityId::new_unchecked("FRANCE"),
-        ))
+        Some(&SemanticExpression::Entity(EntityId::new_unchecked(
+            "FRANCE"
+        ),))
     );
 }
 
@@ -104,53 +92,42 @@ fn apply_unifies_by_parameter() {
 fn satisfies_unifies_structurally() {
     let mut substitution = Substitution::default();
     let pattern = SemanticExpression::Satisfies {
-        subject: Box::new(SemanticExpression::Variable(
-            VariableId::new_unchecked("city"),
-        )),
+        subject: Box::new(SemanticExpression::Variable(VariableId::new_unchecked(
+            "city",
+        ))),
         predicate: Box::new(SemanticExpression::Apply {
             concept: ConceptId::new_unchecked("CAPITAL"),
-            bindings: BTreeMap::from(
-                [
-                    (
-                        ParameterId::new_unchecked("scope"),
-                        SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                    ),
-                ],
-            ),
+            bindings: BTreeMap::from([(
+                ParameterId::new_unchecked("scope"),
+                SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+            )]),
         }),
     };
     let candidate = SemanticExpression::Satisfies {
         subject: Box::new(SemanticExpression::Entity(EntityId::new_unchecked("PARIS"))),
         predicate: Box::new(SemanticExpression::Apply {
             concept: ConceptId::new_unchecked("CAPITAL"),
-            bindings: BTreeMap::from(
-                [
-                    (
-                        ParameterId::new_unchecked("scope"),
-                        SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
-                    ),
-                ],
-            ),
+            bindings: BTreeMap::from([(
+                ParameterId::new_unchecked("scope"),
+                SemanticExpression::Entity(EntityId::new_unchecked("FRANCE")),
+            )]),
         }),
     };
     unify(
         &pattern,
         &candidate,
-        &context(BTreeMap::from(
-            [
-                (
-                    VariableId::new_unchecked("city"),
-                    SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
-                ),
-            ],
-        )),
+        &context(BTreeMap::from([(
+            VariableId::new_unchecked("city"),
+            SemanticType::EntityOf(ConceptId::new_unchecked("CITY")),
+        )])),
         &mut substitution,
-    ).expect("unify");
+    )
+    .expect("unify");
     assert_eq!(
         substitution.get(&VariableId::new_unchecked("city")),
-        Some(&SemanticExpression::Entity(
-            EntityId::new_unchecked("PARIS"),
-        ))
+        Some(&SemanticExpression::Entity(EntityId::new_unchecked(
+            "PARIS"
+        ),))
     );
 }
 
@@ -163,5 +140,5 @@ fn no_match_is_reported() {
         &context(BTreeMap::new()),
         &mut substitution,
     );
-    assert!(result.is_err());
+    assert!(matches!(result, Ok(UnifyOutcome::Mismatch(_))));
 }

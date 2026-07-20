@@ -56,10 +56,12 @@ pub fn tokenize(input: &ParseInput) -> Result<TokenizationResult, ParseError> {
                 )),
                 surface: character.to_string(),
                 normalized: character.to_string(),
-                span: SourceSpan {
-                    start: index as u64,
-                    end: end as u64,
-                },
+                span: SourceSpan::new(index as u64, end as u64).map_err(|_| {
+                    ParseError::InvalidSpan {
+                        start_byte: index as u64,
+                        end_byte: end as u64,
+                    }
+                })?,
                 kind: TokenKind::Punctuation,
             });
         } else if !character.is_whitespace() {
@@ -97,10 +99,10 @@ fn push_word(
         id: TokenId::new_unchecked(format!("token:{}:{}", &source_seed[..16], tokens.len())),
         normalized: normalize_surface(&surface),
         surface,
-        span: SourceSpan {
-            start: start as u64,
-            end: end as u64,
-        },
+        span: SourceSpan::new(start as u64, end as u64).map_err(|_| ParseError::InvalidSpan {
+            start_byte: start as u64,
+            end_byte: end as u64,
+        })?,
         kind: TokenKind::Word,
     });
     Ok(())

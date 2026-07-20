@@ -1,7 +1,8 @@
 mod support;
 
-use lexflex_language::{LanguageModelValidator, LanguagePackageLoader, MeaningTemplate,
-                       MeaningTemplateId};
+use lexflex_language::{
+    LanguageModelValidator, LanguagePackageLoader, MeaningTemplate, MeaningTemplateId,
+};
 use lexflex_lingua::{LinguaExpression, SymbolName};
 use std::collections::BTreeMap;
 
@@ -14,15 +15,12 @@ fn free_local_symbol_is_rejected_by_meaning_validator() {
         )
         .expect("load");
     let sense_id = model.senses.keys().next().cloned().expect("sense");
-    model.senses.get_mut(&sense_id).expect("sense").meaning =
-        MeaningTemplate::new(
-            MeaningTemplateId::new_unchecked("meaning:test:free"),
-            LinguaExpression::Variable(SymbolName::new_unchecked("free_symbol")),
-            BTreeMap::new(),
-        );
-    assert!(
-        LanguageModelValidator
-            .validate(&model, &support::catalog())
-            .is_err()
+    model.senses.get_mut(&sense_id).expect("sense").meaning = MeaningTemplate::new(
+        MeaningTemplateId::new_unchecked("meaning:test:free"),
+        LinguaExpression::Variable(SymbolName::new_unchecked("free_symbol")),
+        BTreeMap::new(),
     );
+    assert!(LanguageModelValidator
+        .validate(&model, &support::catalog())
+        .is_err());
 }

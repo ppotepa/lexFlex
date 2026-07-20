@@ -1,7 +1,7 @@
 use crate::api::input::TextInput;
 use lexflex_lingua::solve::EvidencePolicy;
 use lexflex_lingua::{ExecutionPolicy, LinguaGoal, LinguaProgram};
-use lexflex_model::Evidence;
+use lexflex_model::EvidenceSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,7 +13,7 @@ pub enum EngineRequest {
     },
     IngestLingua {
         program: LinguaProgram,
-        evidence: Vec<Evidence>,
+        evidence: EvidenceSet,
     },
     QueryLingua {
         goal: LinguaGoal,

@@ -48,7 +48,14 @@ impl LexicalCompositionParser {
             return Err(ParseError::BudgetExceeded(ParseBudgetLimit::TokenLimit));
         }
         let words = collect_words(&tokenization.tokens)?;
-        let ctx = ParseContext::new(input, tokenization, words, &self.catalog, &self.language, &self.budget);
+        let ctx = ParseContext::new(
+            input,
+            tokenization,
+            words,
+            &self.catalog,
+            &self.language,
+            &self.budget,
+        );
         parse_with_ambiguity(ctx)
     }
 }

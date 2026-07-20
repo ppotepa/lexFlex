@@ -46,6 +46,8 @@ fn question_retains_resolved_query_type() {
     let variable = goal.projection.first().expect("projection");
     assert_eq!(
         goal.variables.get(variable),
-        Some(&SemanticType::EntityOf(lexflex_model::ConceptId::new_unchecked("CITY")))
+        Some(&SemanticType::EntityOf(
+            lexflex_model::ConceptId::new_unchecked("CITY")
+        ))
     );
 }

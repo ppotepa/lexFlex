@@ -7,7 +7,7 @@ pub fn run(
     input: TextInputArgs,
     derivation: bool,
 ) -> Result<(), CliExit> {
-    let input = input.into_text_input().map_err(CliExit::Command)?;
+    let input = input.into_text_input()?;
     let response = runtime.handle(EngineRequest::AnalyzeText {
         input,
         include_derivation: derivation,

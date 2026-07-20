@@ -6,4 +6,5 @@
     senses: "senses.ron",
     forms: "forms.ron",
     paradigms: "paradigms.ron",
+    realizations: Some("realizations.ron"),
 )

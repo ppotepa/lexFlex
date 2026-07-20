@@ -1,7 +1,9 @@
 mod support;
 
-use lexflex_language::{CategoryType, LanguageModelValidator, LanguagePackageLoader,
-                       MeaningTemplate, MeaningTemplateId, SemanticAnchor};
+use lexflex_language::{
+    CategoryType, LanguageModelValidator, LanguagePackageLoader, MeaningTemplate,
+    MeaningTemplateId, SemanticAnchor,
+};
 use lexflex_lingua::{LinguaExpression, SymbolName};
 use lexflex_model::{ConceptId, EntityId, SemanticType, VariableId};
 use std::collections::BTreeMap;
@@ -40,12 +42,11 @@ fn declarative_query_variable_is_rejected() {
         .expect("load");
 
     let sense_id = model.senses.keys().next().cloned().expect("sense id");
-    model.senses.get_mut(&sense_id).expect("sense").meaning =
-        MeaningTemplate::new(
-            MeaningTemplateId::new_unchecked("meaning:test:query"),
-            LinguaExpression::QueryVariable(VariableId::new_unchecked("answer")),
-            BTreeMap::new(),
-        );
+    model.senses.get_mut(&sense_id).expect("sense").meaning = MeaningTemplate::new(
+        MeaningTemplateId::new_unchecked("meaning:test:query"),
+        LinguaExpression::QueryVariable(VariableId::new_unchecked("answer")),
+        BTreeMap::new(),
+    );
 
     let err = LanguageModelValidator
         .validate(&model, &support::catalog())
@@ -66,12 +67,11 @@ fn free_local_symbol_in_meaning_is_rejected() {
         .expect("load");
 
     let sense_id = model.senses.keys().next().cloned().expect("sense id");
-    model.senses.get_mut(&sense_id).expect("sense").meaning =
-        MeaningTemplate::new(
-            MeaningTemplateId::new_unchecked("meaning:test:free-local"),
-            LinguaExpression::Variable(SymbolName::new_unchecked("free_symbol")),
-            BTreeMap::new(),
-        );
+    model.senses.get_mut(&sense_id).expect("sense").meaning = MeaningTemplate::new(
+        MeaningTemplateId::new_unchecked("meaning:test:free-local"),
+        LinguaExpression::Variable(SymbolName::new_unchecked("free_symbol")),
+        BTreeMap::new(),
+    );
 
     let err = LanguageModelValidator
         .validate(&model, &support::catalog())
@@ -92,21 +92,16 @@ fn query_variable_category_type_with_unknown_concept_is_rejected() {
         .expect("load");
 
     let sense_id = model.senses.keys().next().cloned().expect("sense id");
-    model.senses.get_mut(&sense_id).expect("sense").meaning =
-        MeaningTemplate::new(
-            MeaningTemplateId::new_unchecked("meaning:test:query-type"),
-            LinguaExpression::QueryVariable(VariableId::new_unchecked("answer")),
-            BTreeMap::from(
-                [
-                    (
-                        VariableId::new_unchecked("answer"),
-                        CategoryType::Concrete(SemanticType::EntityOf(
-                            ConceptId::new_unchecked("MISSING_CONCEPT"),
-                        )),
-                    ),
-                ],
-            ),
-        );
+    model.senses.get_mut(&sense_id).expect("sense").meaning = MeaningTemplate::new(
+        MeaningTemplateId::new_unchecked("meaning:test:query-type"),
+        LinguaExpression::QueryVariable(VariableId::new_unchecked("answer")),
+        BTreeMap::from([(
+            VariableId::new_unchecked("answer"),
+            CategoryType::Concrete(SemanticType::EntityOf(ConceptId::new_unchecked(
+                "MISSING_CONCEPT",
+            ))),
+        )]),
+    );
 
     let err = LanguageModelValidator
         .validate(&model, &support::catalog())

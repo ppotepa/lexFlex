@@ -182,7 +182,9 @@
                         EntityOf("COUNTRY"),
                     ),
                     features: (
-                        values: {},
+                        values: {
+                            "case": "genitive",
+                        },
                     ),
                 ),
                 surface_relation: None,

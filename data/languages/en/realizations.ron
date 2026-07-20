@@ -1,0 +1,20 @@
+(
+    conjunction: " and ",
+    disjunction: " or ",
+    negation_prefix: "not ",
+    existential_prefix: "there exists ",
+    universal_prefix: "for all ",
+    equality_separator: " is ",
+    question_prefix: "what is ",
+    predicate_prefix: "the ",
+    argument_orders: {
+        "SEE_EVENT": ["agent", "patient"],
+    },
+    head_positions: {
+        "SEE_EVENT": 1,
+    },
+    predicate_features: (values: {}),
+    surface_relations: {
+        "of-complement": " of ",
+    },
+)

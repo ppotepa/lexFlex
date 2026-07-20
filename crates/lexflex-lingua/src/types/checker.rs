@@ -17,7 +17,7 @@ impl<'a> TypeChecker<'a> {
             ResolvedExpression::Concept(id) => {
                 let schema = self
                     .environment
-                    .catalog
+                    .catalog()
                     .concept(id)
                     .ok_or_else(|| TypeError::UnknownConcept(id.clone()))?;
                 Ok(SemanticType::ConceptOf(schema.kind))
@@ -25,7 +25,7 @@ impl<'a> TypeChecker<'a> {
             ResolvedExpression::Entity(id) => {
                 let entity = self
                     .environment
-                    .catalog
+                    .catalog()
                     .entity(id)
                     .ok_or_else(|| TypeError::UnknownEntity(id.clone()))?;
                 Ok(SemanticType::EntityOf(entity.primary_type.clone()))
@@ -45,7 +45,7 @@ impl<'a> TypeChecker<'a> {
                 .ok_or_else(|| TypeError::UnknownVariable(variable.clone())),
             ResolvedExpression::Function(id) => self
                 .environment
-                .functions
+                .functions()
                 .get(id)
                 .cloned()
                 .map(SemanticType::Function)
@@ -183,7 +183,7 @@ impl<'a> TypeChecker<'a> {
     }
 
     pub fn compatible(&self, actual: &SemanticType, expected: &SemanticType) -> bool {
-        TypeRelation::new(self.environment.catalog.as_ref()).accepts(expected, actual)
+        TypeRelation::new(self.environment.catalog().as_ref()).accepts(expected, actual)
     }
 
     fn infer_apply_concept(
@@ -193,7 +193,7 @@ impl<'a> TypeChecker<'a> {
     ) -> Result<SemanticType, TypeError> {
         let schema = self
             .environment
-            .catalog
+            .catalog()
             .concept(concept)
             .ok_or_else(|| TypeError::UnknownConcept(concept.clone()))?;
 

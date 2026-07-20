@@ -14,7 +14,9 @@ impl From<LanguageValidationIssue> for LanguageValidationError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanguageValidationIssue {
-    DuplicateLexemeId { lexeme_id: String },
+    DuplicateLexemeId {
+        lexeme_id: String,
+    },
     LexemeLanguageMismatch {
         lexeme_id: String,
         lexeme_language: String,
@@ -25,25 +27,44 @@ pub enum LanguageValidationIssue {
         expected: String,
         found: String,
     },
-    DuplicateSenseId { sense_id: String },
-    UnknownLexemeIdInSense { sense_id: String, lexeme_id: String },
+    DuplicateSenseId {
+        sense_id: String,
+    },
+    UnknownLexemeIdInSense {
+        sense_id: String,
+        lexeme_id: String,
+    },
     UnknownConceptIdInSense {
         sense_id: String,
         concept_id: String,
     },
-    UnknownEntityAnchor { sense_id: String, entity_id: String },
+    UnknownEntityAnchor {
+        sense_id: String,
+        entity_id: String,
+    },
     UnknownConceptReference {
         sense_id: String,
         concept_id: String,
     },
-    QueryVariableNotAllowed { sense_id: String, variable: String },
-    BaseCategoryMustBeAtomicWhenValencyPresent { sense_id: String },
+    QueryVariableNotAllowed {
+        sense_id: String,
+        variable: String,
+    },
+    BaseCategoryMustBeAtomicWhenValencyPresent {
+        sense_id: String,
+    },
     UnknownAnchorConcept {
         sense_id: String,
         concept_id: String,
     },
-    ValencyRequiresConceptAnchor { sense_id: String, entity_id: String },
-    DuplicateValencyApplicationRank { sense_id: String, rank: u16 },
+    ValencyRequiresConceptAnchor {
+        sense_id: String,
+        entity_id: String,
+    },
+    DuplicateValencyApplicationRank {
+        sense_id: String,
+        rank: u16,
+    },
     UnknownValencyParameter {
         sense_id: String,
         concept_id: String,
@@ -55,20 +76,30 @@ pub enum LanguageValidationIssue {
         expected: String,
         actual: String,
     },
-    MissingSurfaceRelation { sense_id: String, slot_id: String },
+    MissingSurfaceRelation {
+        sense_id: String,
+        slot_id: String,
+    },
     MissingRequiredValency {
         sense_id: String,
         concept_id: String,
         parameter_id: String,
     },
-    DuplicateFormId { form_id: String },
-    UnknownLexemeIdInForm { form_id: String, lexeme_id: String },
+    DuplicateFormId {
+        form_id: String,
+    },
+    UnknownLexemeIdInForm {
+        form_id: String,
+        lexeme_id: String,
+    },
     FormNormalizedMismatch {
         form_id: String,
         expected: String,
         found: String,
     },
-    DuplicateParadigmId { paradigm_id: String },
+    DuplicateParadigmId {
+        paradigm_id: String,
+    },
     ParadigmLanguageMismatch {
         paradigm_id: String,
         paradigm_language: String,
@@ -86,11 +117,26 @@ pub enum LanguageValidationIssue {
         paradigm_id: String,
         form_id: String,
     },
-    SenseAnchor { sense_id: String, message: String },
-    SenseMeaning { sense_id: String, message: String },
-    SenseCategory { sense_id: String, message: String },
-    SenseSemanticType { sense_id: String, message: String },
-    SenseValency { sense_id: String, message: String },
+    SenseAnchor {
+        sense_id: String,
+        message: String,
+    },
+    SenseMeaning {
+        sense_id: String,
+        message: String,
+    },
+    SenseCategory {
+        sense_id: String,
+        message: String,
+    },
+    SenseSemanticType {
+        sense_id: String,
+        message: String,
+    },
+    SenseValency {
+        sense_id: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for LanguageValidationIssue {

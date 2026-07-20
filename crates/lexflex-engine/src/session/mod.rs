@@ -4,6 +4,6 @@ mod schema;
 mod state;
 
 pub use integrity::SessionIntegrityError;
-pub use runtime::RuntimeSession;
-pub use schema::SESSION_SCHEMA;
+pub(crate) use runtime::RuntimeSession;
+pub use schema::{ENGINE_SESSION_SCHEMA, SESSION_RECORD_SCHEMA};
 pub use state::{EngineSessionState, SessionStateError};

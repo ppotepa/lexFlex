@@ -8,7 +8,6 @@ description = "Language-layer types for the lexFlex concept-expression rebuild"
 
 [dependencies]
 serde.workspace = true
-serde_json.workspace = true
 ron = { workspace = true }
 thiserror.workspace = true
 lexflex-model = { path = "../lexflex-model" }

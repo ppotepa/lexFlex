@@ -66,10 +66,6 @@ pub enum RuntimeError {
     UnknownLocal(SymbolId),
     #[error("unknown function: {0}")]
     UnknownFunction(FunctionId),
-    #[error("unknown concept: {0}")]
-    UnknownConcept(ConceptId),
-    #[error("missing concept definition: {0}")]
-    MissingConceptDefinition(ConceptId),
     #[error("missing argument: {0}")]
     MissingArgument(ParameterId),
     #[error("concept expansion cycle: {path:?}")]

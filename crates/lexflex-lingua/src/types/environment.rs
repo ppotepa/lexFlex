@@ -1,26 +1,31 @@
-use crate::id::FunctionId;
+use crate::types::BaseTypeEnvironment;
 use lexflex_model::{ConceptCatalog, SemanticType, VariableId};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct TypeEnvironment {
-    pub catalog: Arc<ConceptCatalog>,
+    pub base: Arc<BaseTypeEnvironment>,
     pub locals: BTreeMap<crate::id::SymbolId, SemanticType>,
     pub variables: BTreeMap<VariableId, SemanticType>,
-    pub functions: BTreeMap<FunctionId, lexflex_model::FunctionType>,
 }
 
 impl TypeEnvironment {
     pub fn new(
         catalog: Arc<ConceptCatalog>,
-        functions: BTreeMap<FunctionId, lexflex_model::FunctionType>,
+        functions: BTreeMap<crate::id::FunctionId, lexflex_model::FunctionType>,
     ) -> Self {
         Self {
-            catalog,
+            base: Arc::new(BaseTypeEnvironment::new(catalog, functions)),
             locals: BTreeMap::new(),
             variables: BTreeMap::new(),
-            functions,
         }
+    }
+
+    pub fn catalog(&self) -> &Arc<ConceptCatalog> {
+        &self.base.catalog
+    }
+    pub fn functions(&self) -> &Arc<BTreeMap<crate::id::FunctionId, lexflex_model::FunctionType>> {
+        &self.base.functions
     }
 }
 

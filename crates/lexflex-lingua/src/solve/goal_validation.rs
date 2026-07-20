@@ -1,8 +1,9 @@
-use crate::solve::goal::LinguaGoal;
 use crate::solve::free_variables::collect_free_variables;
+use crate::solve::goal::LinguaGoal;
 use lexflex_model::{
-    ConceptCatalog, ExpressionTypeChecker, ExpressionTypeEnvironment, ExpressionTypeError,
-    SemanticExpression, SemanticType, VariableId,
+    validate_semantic_type_references, ConceptCatalog, ExpressionTypeChecker,
+    ExpressionTypeEnvironment, ExpressionTypeError, SemanticType, SemanticTypeReferenceError,
+    VariableId,
 };
 use std::collections::BTreeSet;
 use thiserror::Error;
@@ -21,10 +22,17 @@ pub enum GoalValidationError {
     ExpressionVariableNotDeclared(VariableId),
     #[error("declared query variable is unused: {0}")]
     UnusedVariable(VariableId),
+    #[error("invalid type for query variable {variable}: {source}")]
+    InvalidVariableType {
+        variable: VariableId,
+        source: SemanticTypeReferenceError,
+    },
+    #[error("projection variable is not free in expression: {0}")]
+    ProjectionVariableNotFree(VariableId),
+    #[error("goal expression type error: {0}")]
+    Type(ExpressionTypeError),
     #[error("goal expression must be Boolean, found {0:?}")]
     NonBooleanExpression(SemanticType),
-    #[error("projection variable is bound by a quantifier: {0}")]
-    ProjectionVariableBound(VariableId),
 }
 
 pub fn validate_goal(
@@ -38,10 +46,9 @@ pub fn validate_goal(
         return Err(GoalValidationError::EmptyProjection);
     }
 
-    let mut projection_seen = BTreeSet::new();
-    let mut bound_projection = BTreeSet::new();
-    collect_bound_projection_conflicts(&goal.expression, &mut bound_projection);
+    let free = collect_free_variables(&goal.expression);
 
+    let mut projection_seen = BTreeSet::new();
     for variable in &goal.projection {
         if !projection_seen.insert(variable.clone()) {
             return Err(GoalValidationError::DuplicateProjection(variable.clone()));
@@ -51,14 +58,13 @@ pub fn validate_goal(
                 variable.clone(),
             ));
         }
-        if bound_projection.contains(variable) {
-            return Err(GoalValidationError::ProjectionVariableBound(
+        if !free.contains(variable) {
+            return Err(GoalValidationError::ProjectionVariableNotFree(
                 variable.clone(),
             ));
         }
     }
 
-    let free = collect_free_variables(&goal.expression);
     for variable in &free {
         if !goal.variables.contains_key(variable) {
             return Err(GoalValidationError::ExpressionVariableNotDeclared(
@@ -66,7 +72,13 @@ pub fn validate_goal(
             ));
         }
     }
-    for variable in goal.variables.keys() {
+    for (variable, value_type) in &goal.variables {
+        validate_semantic_type_references(value_type, catalog).map_err(|source| {
+            GoalValidationError::InvalidVariableType {
+                variable: variable.clone(),
+                source,
+            }
+        })?;
         if !free.contains(variable) {
             return Err(GoalValidationError::UnusedVariable(variable.clone()));
         }
@@ -76,63 +88,9 @@ pub fn validate_goal(
     let mut env = ExpressionTypeEnvironment::with_free_variables(catalog, goal.variables.clone());
     let expression_type = checker
         .infer(&goal.expression, &mut env)
-        .map_err(|error| match error {
-            ExpressionTypeError::UnknownVariable(variable) => {
-                GoalValidationError::ExpressionVariableNotDeclared(variable)
-            }
-            ExpressionTypeError::UnknownConcept(_)
-            | ExpressionTypeError::UnknownEntity(_) => {
-                GoalValidationError::NonBooleanExpression(SemanticType::Concept)
-            }
-            _ => GoalValidationError::NonBooleanExpression(SemanticType::Concept),
-        })?;
+        .map_err(GoalValidationError::Type)?;
     if expression_type != SemanticType::Boolean {
         return Err(GoalValidationError::NonBooleanExpression(expression_type));
     }
     Ok(())
-}
-
-fn collect_bound_projection_conflicts(
-    expression: &SemanticExpression,
-    output: &mut BTreeSet<VariableId>,
-) {
-    match expression {
-        SemanticExpression::Exists { variable, body, .. }
-        | SemanticExpression::ForAll { variable, body, .. } => {
-            output.insert(variable.clone());
-            collect_bound_projection_conflicts(body, output);
-        }
-        SemanticExpression::Apply { bindings, .. } => {
-            for value in bindings.values() {
-                collect_bound_projection_conflicts(value, output);
-            }
-        }
-        SemanticExpression::Satisfies { subject, predicate } => {
-            collect_bound_projection_conflicts(subject, output);
-            collect_bound_projection_conflicts(predicate, output);
-        }
-        SemanticExpression::Equals { left, right } => {
-            collect_bound_projection_conflicts(left, output);
-            collect_bound_projection_conflicts(right, output);
-        }
-        SemanticExpression::And(items) | SemanticExpression::Or(items) => {
-            for item in items {
-                collect_bound_projection_conflicts(item, output);
-            }
-        }
-        SemanticExpression::Not(inner) => collect_bound_projection_conflicts(inner, output),
-        SemanticExpression::Qualified {
-            expression,
-            qualifiers,
-        } => {
-            collect_bound_projection_conflicts(expression, output);
-            for value in qualifiers.values() {
-                collect_bound_projection_conflicts(value, output);
-            }
-        }
-        SemanticExpression::Concept(_)
-        | SemanticExpression::Entity(_)
-        | SemanticExpression::Value(_)
-        | SemanticExpression::Variable(_) => {}
-    }
 }

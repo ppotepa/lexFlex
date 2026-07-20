@@ -1,5 +1,5 @@
 use crate::catalog::{ModelProgramRegistry, ProgramRegistryError};
-use lexflex_lingua::LinguaProgram;
+use lexflex_lingua::{compiler::CompileError, LinguaCompiler, LinguaProgram};
 use lexflex_model::{
     canonical_hash, validate_catalog, CanonicalDigest, CanonicalHashError, CatalogValidationReport,
     ConceptCatalog, EntityDefinition, EntityId, ModelPackageId,
@@ -7,12 +7,15 @@ use lexflex_model::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
 
-pub use super::concept_program_validation::validate_concept_programs;
+use super::concept_program_validation::validate_program_manifest_structure;
 
 const SUPPORTED_MANIFEST_SCHEMA: u32 = 1;
+const MAX_PACKAGE_FILE_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelManifest {
@@ -28,13 +31,14 @@ pub struct EntityPackage {
     pub entities: BTreeMap<EntityId, EntityDefinition>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct LoadedModelPackage {
     pub manifest: ModelManifest,
-    pub catalog: ConceptCatalog,
+    pub catalog: Arc<ConceptCatalog>,
     pub programs: ModelProgramRegistry,
     pub model_hash: CanonicalDigest,
     pub validation: CatalogValidationReport,
+    pub compiled_model: Arc<lexflex_lingua::VerifiedCompiledModel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -54,8 +58,12 @@ pub enum ModelLoadError {
     Validation(CatalogValidationReport),
     #[error("program registry error: {0}")]
     ProgramRegistry(#[from] ProgramRegistryError),
+    #[error("program compilation error: {0}")]
+    ProgramCompile(CompileError),
     #[error("canonical hash error: {0}")]
     CanonicalHash(#[from] CanonicalHashError),
+    #[error("model package file exceeds resource limit")]
+    ResourceLimit,
 }
 
 pub struct ModelPackageLoader;
@@ -82,12 +90,18 @@ impl ModelPackageLoader {
             return Err(ModelLoadError::Validation(validation));
         }
 
-        validate_concept_programs(&catalog, &concept_programs)?;
+        validate_program_manifest_structure(&catalog, &concept_programs)?;
 
         let programs = ModelProgramRegistry::build(concept_programs, &catalog)?;
+        let catalog = Arc::new(catalog);
+        let compiler =
+            LinguaCompiler::try_new(catalog.clone()).map_err(ModelLoadError::ProgramCompile)?;
+        let compiled_model = compiler
+            .compile_model_declarations(programs.declarations())
+            .map_err(ModelLoadError::ProgramCompile)?;
         let model_hash = canonical_hash(&ModelIdentity {
             package_id: &manifest.package_id,
-            catalog: &catalog,
+            catalog: catalog.as_ref(),
             declaration_hash: programs.declaration_hash(),
         })?;
 
@@ -97,6 +111,7 @@ impl ModelPackageLoader {
             programs,
             model_hash,
             validation,
+            compiled_model: Arc::new(compiled_model),
         })
     }
 }
@@ -126,9 +141,23 @@ fn safe_package_path(root: &Path, relative: &str) -> Result<PathBuf, ModelLoadEr
 }
 
 fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, ModelLoadError> {
-    let source = fs::read_to_string(path).map_err(|error| ModelLoadError::Io {
+    let file = fs::File::open(path).map_err(|error| ModelLoadError::Io {
         path: path.to_path_buf(),
         kind: error.kind(),
+    })?;
+    let mut bytes = Vec::new();
+    file.take((MAX_PACKAGE_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| ModelLoadError::Io {
+            path: path.to_path_buf(),
+            kind: error.kind(),
+        })?;
+    if bytes.len() > MAX_PACKAGE_FILE_BYTES {
+        return Err(ModelLoadError::ResourceLimit);
+    }
+    let source = String::from_utf8(bytes).map_err(|error| ModelLoadError::Parse {
+        path: path.to_path_buf(),
+        message: error.to_string(),
     })?;
     ron::from_str(&source).map_err(|error| ModelLoadError::Parse {
         path: path.to_path_buf(),

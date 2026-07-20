@@ -24,26 +24,55 @@ pub enum CatalogValidationIssue {
         entity_id: String,
         additional_type: String,
     },
-    MissingHierarchyChild { concept_id: String },
+    MissingHierarchyChild {
+        concept_id: String,
+    },
     MissingHierarchyParent {
         concept_id: String,
         parent_id: String,
     },
-    HierarchyCycle { cycle: Vec<String> },
-    UnsupportedEntityType { concept_id: String, found: String },
-    UnsupportedRoleType { concept_id: String, found: String },
-    UnsupportedRelationType { concept_id: String, found: String },
-    EventTypeMustReturnBoolean { concept_id: String, found: String },
-    EventTypeRequiresParameter { concept_id: String },
-    UnknownConceptInEntityType { concept_id: String },
-    UnknownQuantityDimension { dimension: String },
-    InvalidOptionalNesting { context: String },
-    ConceptProgramDuplicateId { program_id: String },
+    HierarchyCycle {
+        cycle: Vec<String>,
+    },
+    UnsupportedEntityType {
+        concept_id: String,
+        found: String,
+    },
+    UnsupportedRoleType {
+        concept_id: String,
+        found: String,
+    },
+    UnsupportedRelationType {
+        concept_id: String,
+        found: String,
+    },
+    EventTypeMustReturnBoolean {
+        concept_id: String,
+        found: String,
+    },
+    EventTypeRequiresParameter {
+        concept_id: String,
+    },
+    UnknownConceptInEntityType {
+        concept_id: String,
+    },
+    UnknownQuantityDimension {
+        dimension: String,
+    },
+    InvalidOptionalNesting {
+        context: String,
+    },
+    ConceptProgramDuplicateId {
+        program_id: String,
+    },
     ConceptProgramUnknownTarget {
         program_id: String,
         concept_id: String,
     },
-    ConceptProgramValidation { program_id: String, message: String },
+    ConceptProgramValidation {
+        program_id: String,
+        message: String,
+    },
 }
 
 impl CatalogValidationIssue {

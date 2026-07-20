@@ -1,5 +1,7 @@
 use crate::compiler::{CompiledConcept, CompiledConceptSemantics, ResolvedExpression};
-use crate::runtime::{InterpreterState, RuntimeEnvironment, RuntimeError, RuntimeValue, TraceOperation};
+use crate::runtime::{
+    InterpreterState, RuntimeEnvironment, RuntimeError, RuntimeValue, TraceOperation,
+};
 use lexflex_model::{ConceptId, ParameterId, SemanticExpression};
 use std::collections::BTreeMap;
 
@@ -123,7 +125,10 @@ impl InterpreterState<'_> {
         let mut child = environment.clone();
         if let Some(subject) = subject {
             if let Some(self_parameter) = concept.self_parameter.as_ref() {
-                child.insert(self_parameter.symbol.clone(), RuntimeValue::Semantic(subject));
+                child.insert(
+                    self_parameter.symbol.clone(),
+                    RuntimeValue::Semantic(subject),
+                );
                 self.push_trace(
                     TraceOperation::BindSelfSubject,
                     "ApplyConcept",

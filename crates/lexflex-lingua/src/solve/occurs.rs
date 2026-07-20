@@ -13,19 +13,16 @@ pub fn occurs_free(
         SemanticExpression::Variable(candidate) => {
             candidate == variable && !bound.contains(candidate)
         }
-        SemanticExpression::Apply { bindings, .. } => {
-            bindings.values().any(
-                |value| occurs_free(variable, value, bound),
-            )
-        }
+        SemanticExpression::Apply { bindings, .. } => bindings
+            .values()
+            .any(|value| occurs_free(variable, value, bound)),
         SemanticExpression::Satisfies { subject, predicate } => {
             occurs_free(variable, subject, bound) || occurs_free(variable, predicate, bound)
         }
         SemanticExpression::Equals { left, right } => {
             occurs_free(variable, left, bound) || occurs_free(variable, right, bound)
         }
-        SemanticExpression::And(items) |
-        SemanticExpression::Or(items) => {
+        SemanticExpression::And(items) | SemanticExpression::Or(items) => {
             items.iter().any(|item| occurs_free(variable, item, bound))
         }
         SemanticExpression::Not(inner) => occurs_free(variable, inner, bound),
@@ -33,8 +30,8 @@ pub fn occurs_free(
             variable: bound_variable,
             body,
             ..
-        } |
-        SemanticExpression::ForAll {
+        }
+        | SemanticExpression::ForAll {
             variable: bound_variable,
             body,
             ..
@@ -48,13 +45,13 @@ pub fn occurs_free(
             expression,
             qualifiers,
         } => {
-            occurs_free(variable, expression, bound) ||
-                qualifiers.values().any(|value| {
-                    occurs_free(variable, value, bound)
-                })
+            occurs_free(variable, expression, bound)
+                || qualifiers
+                    .values()
+                    .any(|value| occurs_free(variable, value, bound))
         }
-        SemanticExpression::Concept(_) |
-        SemanticExpression::Entity(_) |
-        SemanticExpression::Value(_) => false,
+        SemanticExpression::Concept(_)
+        | SemanticExpression::Entity(_)
+        | SemanticExpression::Value(_) => false,
     }
 }

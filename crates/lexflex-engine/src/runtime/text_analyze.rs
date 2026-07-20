@@ -1,6 +1,7 @@
 use super::*;
-use crate::runtime::formal_result::FormalExpressionError;
 use crate::runtime::ambiguity::ExpectedTextKind;
+use crate::runtime::formal_error_mapping::{analysis_error_response, formal_error_response};
+use crate::runtime::formal_result::FormalExpressionError;
 use lexflex_parser::ClauseMode;
 use std::collections::BTreeMap;
 
@@ -10,6 +11,14 @@ impl LexFlexRuntime {
         input: TextInput,
         include_derivation: bool,
     ) -> EngineResponse {
+        if let Err(error) = input.validate() {
+            return EngineResponse::Error {
+                code: EngineErrorCode::InvalidProgram,
+                message: error.to_string(),
+                diagnostics: Vec::new(),
+            };
+        }
+
         match self.parse_text(&input) {
             Ok(ParseOutput::Assertion(draft)) => {
                 let semantic_expression = match self.evaluate_formal_expression(
@@ -19,22 +28,14 @@ impl LexFlexRuntime {
                 ) {
                     Ok(value) => value,
                     Err(error) => {
-                        return EngineResponse::Error {
-                            code: EngineErrorCode::InvalidProgram,
-                            message: error.to_string(),
-                            diagnostics: Vec::new(),
-                        };
+                        return formal_error_response(error);
                     }
                 };
                 if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
                     let error = FormalExpressionError::NonBooleanAssertion(
                         semantic_expression.entry_type.clone(),
                     );
-                    return EngineResponse::Error {
-                        code: EngineErrorCode::InvalidProgram,
-                        message: error.to_string(),
-                        diagnostics: Vec::new(),
-                    };
+                    return formal_error_response(error);
                 }
                 let analysis = self.assertion_analysis(
                     &draft,
@@ -45,11 +46,7 @@ impl LexFlexRuntime {
                 let analysis = match analysis {
                     Ok(analysis) => analysis,
                     Err(error) => {
-                        return EngineResponse::Error {
-                            code: EngineErrorCode::Canonicalization,
-                            message: error.to_string(),
-                            diagnostics: Vec::new(),
-                        };
+                        return formal_error_response(error);
                     }
                 };
                 EngineResponse::TextAnalyzed {
@@ -65,22 +62,14 @@ impl LexFlexRuntime {
                 ) {
                     Ok(value) => value,
                     Err(error) => {
-                        return EngineResponse::Error {
-                            code: EngineErrorCode::InvalidProgram,
-                            message: error.to_string(),
-                            diagnostics: Vec::new(),
-                        };
+                        return formal_error_response(error);
                     }
                 };
                 if semantic_expression.entry_type != lexflex_model::SemanticType::Boolean {
                     let error = FormalExpressionError::NonBooleanGoal(
                         semantic_expression.entry_type.clone(),
                     );
-                    return EngineResponse::Error {
-                        code: EngineErrorCode::InvalidProgram,
-                        message: error.to_string(),
-                        diagnostics: Vec::new(),
-                    };
+                    return formal_error_response(error);
                 }
                 let analysis = self.goal_analysis(
                     &draft,
@@ -91,11 +80,7 @@ impl LexFlexRuntime {
                 let analysis = match analysis {
                     Ok(analysis) => analysis,
                     Err(error) => {
-                        return EngineResponse::Error {
-                            code: EngineErrorCode::Canonicalization,
-                            message: error.to_string(),
-                            diagnostics: Vec::new(),
-                        };
+                        return formal_error_response(error);
                     }
                 };
                 EngineResponse::TextAnalyzed {
@@ -103,7 +88,9 @@ impl LexFlexRuntime {
                     diagnostics: Vec::new(),
                 }
             }
-            Ok(ParseOutput::Ambiguous { alternatives, mode, .. }) => {
+            Ok(ParseOutput::Ambiguous {
+                alternatives, mode, ..
+            }) => {
                 let expected_kind = match mode {
                     ClauseMode::Declarative => TextAnalysisKind::Assertion,
                     ClauseMode::Interrogative => TextAnalysisKind::Goal,
@@ -130,11 +117,10 @@ impl LexFlexRuntime {
                             let span = match SourceSpan::new(0, input.text.len() as u64) {
                                 Ok(span) => span,
                                 Err(error) => {
-                                    return EngineResponse::Error {
-                                        code: EngineErrorCode::Canonicalization,
-                                        message: error.to_string(),
-                                        diagnostics,
-                                    };
+                                    return crate::runtime::evidence_error_mapping::evidence_error_response(
+                                        error,
+                                        crate::runtime::evidence_error_mapping::EvidenceOrigin::GeneratedText,
+                                    );
                                 }
                             };
                             let analysis = match TextAnalysis::new(TextAnalysisInput {
@@ -142,20 +128,16 @@ impl LexFlexRuntime {
                                 language: input.language,
                                 span,
                                 kind: expected_kind,
-                                canonical_expression: alternative.canonical_expression,
-                                variables: alternative.variables,
-                                projection: alternative.projection,
-                                formal_steps: alternative.formal_steps,
-                                parser_metrics: alternative.parser_metrics,
-                                derivation: alternative.derivation,
+                                canonical_expression: alternative.canonical_expression().clone(),
+                                variables: alternative.variables().clone(),
+                                projection: alternative.projection().to_vec(),
+                                formal_steps: alternative.formal_steps(),
+                                parser_metrics: alternative.parser_metrics().clone(),
+                                derivations: alternative.derivations().cloned(),
                             }) {
                                 Ok(analysis) => analysis,
                                 Err(error) => {
-                                    return EngineResponse::Error {
-                                        code: EngineErrorCode::Canonicalization,
-                                        message: error.to_string(),
-                                        diagnostics,
-                                    };
+                                    return analysis_error_response(error, diagnostics);
                                 }
                             };
                             EngineResponse::TextAnalyzed {

@@ -1,26 +1,33 @@
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
 use crate::explain::{ApplicationRule, DerivationNode};
 use lexflex_model::{canonical_hash, CanonicalDigest};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DerivationInsertOutcome {
-    Inserted,
-    Duplicate,
-    LimitExceeded,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DerivationSet {
     entries: BTreeMap<CanonicalDigest, DerivationNode>,
 }
 
 impl DerivationSet {
     pub fn singleton(derivation: DerivationNode) -> Result<Self, ParseError> {
-        let digest = canonical_hash(&derivation)?;
+        Self::try_from_iter([derivation])
+    }
+
+    pub fn try_from_iter(
+        derivations: impl IntoIterator<Item = DerivationNode>,
+    ) -> Result<Self, ParseError> {
         let mut entries = BTreeMap::new();
-        entries.insert(digest, derivation);
+
+        for derivation in derivations {
+            let digest = canonical_hash(&derivation)?;
+            entries.entry(digest).or_insert(derivation);
+        }
+
+        if entries.is_empty() {
+            return Err(ParseError::EmptyDerivationSet);
+        }
+
         Ok(Self { entries })
     }
 
@@ -32,8 +39,11 @@ impl DerivationSet {
         self.entries.is_empty()
     }
 
-    pub fn primary(&self) -> Option<&DerivationNode> {
-        self.entries.first_key_value().map(|(_, value)| value)
+    pub fn primary(&self) -> &DerivationNode {
+        match self.entries.first_key_value() {
+            Some((_, value)) => value,
+            None => unreachable!("validated DerivationSet"),
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &DerivationNode> {
@@ -48,11 +58,23 @@ impl DerivationSet {
         self.entries.values().map(|d| d.depth()).max().unwrap_or(0)
     }
 
-    pub fn try_merge(
-        &mut self,
-        incoming: &Self,
-        limit: usize,
-    ) -> Result<usize, ParseError> {
+    pub fn verify(&self) -> Result<(), ParseError> {
+        if self.entries.is_empty() {
+            return Err(ParseError::EmptyDerivationSet);
+        }
+        for (stored, node) in &self.entries {
+            let expected = canonical_hash(node)?;
+            if stored != &expected {
+                return Err(ParseError::DerivationDigestMismatch {
+                    stored: stored.clone(),
+                    expected,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn try_merge(&mut self, incoming: &Self, limit: usize) -> Result<usize, ParseError> {
         let new_entries = incoming
             .entries
             .iter()
@@ -60,9 +82,17 @@ impl DerivationSet {
             .map(|(digest, node)| (digest.clone(), node.clone()))
             .collect::<Vec<_>>();
 
-        if self.entries.len() + new_entries.len() > limit {
+        let merged_len =
+            self.entries
+                .len()
+                .checked_add(new_entries.len())
+                .ok_or(ParseError::BudgetExceeded(
+                    ParseBudgetLimit::DerivationPerItemLimit,
+                ))?;
+
+        if merged_len > limit {
             return Err(ParseError::BudgetExceeded(
-                ParseBudgetLimit::DerivationLimit,
+                ParseBudgetLimit::DerivationPerItemLimit,
             ));
         }
 
@@ -77,27 +107,46 @@ impl DerivationSet {
         right: &Self,
         limit: usize,
     ) -> Result<Self, ParseError> {
-        let mut entries = BTreeMap::new();
+        let expected_max =
+            left.len()
+                .checked_mul(right.len())
+                .ok_or(ParseError::BudgetExceeded(
+                    ParseBudgetLimit::DerivationPerItemLimit,
+                ))?;
 
-        for left_node in left.iter() {
-            for right_node in right.iter() {
-                let node = DerivationNode::Applied {
-                    rule: rule.clone(),
-                    left: Box::new(left_node.clone()),
-                    right: Box::new(right_node.clone()),
-                };
-                let digest = canonical_hash(&node)?;
-                entries.entry(digest).or_insert(node);
-
-                if entries.len() > limit {
-                    return Err(ParseError::BudgetExceeded(
-                        ParseBudgetLimit::DerivationLimit,
-                    ));
-                }
-            }
+        if expected_max > limit {
+            return Err(ParseError::BudgetExceeded(
+                ParseBudgetLimit::DerivationPerItemLimit,
+            ));
         }
 
-        Ok(Self { entries })
+        let nodes = left
+            .iter()
+            .flat_map(|left_node| {
+                right.iter().map({
+                    let rule = rule.clone();
+                    move |right_node| DerivationNode::Applied {
+                        rule: rule.clone(),
+                        left: Box::new(left_node.clone()),
+                        right: Box::new(right_node.clone()),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Self::try_from_iter(nodes)
+    }
+}
+
+impl<'de> Deserialize<'de> for DerivationSet {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let entries = BTreeMap::<CanonicalDigest, DerivationNode>::deserialize(deserializer)?;
+        let value = Self { entries };
+        value.verify().map_err(serde::de::Error::custom)?;
+        Ok(value)
     }
 }
 
@@ -133,7 +182,13 @@ mod tests {
     fn singleton_contains_one() {
         let set = DerivationSet::singleton(dummy_node("a")).unwrap();
         assert_eq!(set.len(), 1);
-        assert!(set.primary().is_some());
+        assert_eq!(set.primary(), &dummy_node("a"));
+    }
+
+    #[test]
+    fn empty_iterator_rejected() {
+        let result = DerivationSet::try_from_iter([]);
+        assert!(matches!(result, Err(ParseError::EmptyDerivationSet)));
     }
 
     #[test]
@@ -152,8 +207,8 @@ mod tests {
         let mut m = a.clone();
         m.try_merge(&b, 10).unwrap();
         assert_eq!(m.len(), 2);
-        let primary_first = m.primary().cloned();
-        let primary_second = m.primary().cloned();
+        let primary_first = m.primary().clone();
+        let primary_second = m.primary().clone();
         assert_eq!(primary_first, primary_second);
     }
 
@@ -167,10 +222,7 @@ mod tests {
         m2.try_merge(&a, 10).unwrap();
         assert_eq!(m1.len(), m2.len());
         assert_eq!(m1.primary(), m2.primary());
-        assert_eq!(
-            m1.iter().collect::<Vec<_>>(),
-            m2.iter().collect::<Vec<_>>()
-        );
+        assert_eq!(m1.iter().collect::<Vec<_>>(), m2.iter().collect::<Vec<_>>());
     }
 
     #[test]
@@ -188,10 +240,10 @@ mod tests {
 
     #[test]
     fn cartesian_2x2_equals_4() {
-        let left = DerivationSet::singleton(dummy_node("L1")).unwrap();
-        let right = DerivationSet::singleton(dummy_node("R1")).unwrap();
+        let left = DerivationSet::try_from_iter([dummy_node("L1"), dummy_node("L2")]).unwrap();
+        let right = DerivationSet::try_from_iter([dummy_node("R1"), dummy_node("R2")]).unwrap();
         let result = DerivationSet::composed(dummy_rule(), &left, &right, 10).unwrap();
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.len(), 4);
     }
 
     #[test]
@@ -217,5 +269,26 @@ mod tests {
         let right = DerivationSet::singleton(dummy_node("R")).unwrap();
         let result = DerivationSet::composed(dummy_rule(), &left, &right, 1).unwrap();
         assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn deserialize_rejects_empty_set() {
+        let source = "()";
+        let result = ron::from_str::<DerivationSet>(source);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn deserialize_rejects_wrong_digest_key() {
+        let node = dummy_node("a");
+        let wrong = lexflex_model::canonical_hash(&dummy_node("b")).expect("digest");
+        let source = ron::to_string(&DerivationSet {
+            entries: BTreeMap::from([(wrong, node)]),
+        })
+        .expect("serialize invalid set");
+
+        let result = ron::from_str::<DerivationSet>(&source);
+
+        assert!(result.is_err());
     }
 }

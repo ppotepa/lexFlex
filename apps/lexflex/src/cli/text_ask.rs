@@ -1,5 +1,5 @@
+use crate::cli::input::TextInputArgs;
 use crate::cli::output::{print_response_and_check, CliExit};
-use crate::cli::{input::TextInputArgs};
 use lexflex_engine::{api::request::EngineRequest, runtime::LexFlexRuntime};
 use lexflex_lingua::solve::EvidencePolicy;
 
@@ -9,7 +9,7 @@ pub fn run(
     limit: usize,
     evidence_policy: EvidencePolicy,
 ) -> Result<(), CliExit> {
-    let input = input.into_text_input().map_err(CliExit::Command)?;
+    let input = input.into_text_input()?;
     let response = runtime.handle(EngineRequest::AskText {
         input,
         evidence_policy,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::error_mapping::request_program_error_response;
 
 impl LexFlexRuntime {
     pub(crate) fn handle_evaluate(
@@ -12,13 +13,11 @@ impl LexFlexRuntime {
                 if !include_trace {
                     result.execution.trace = Default::default();
                 }
-                EngineResponse::LinguaEvaluated { result: result.execution }
+                EngineResponse::LinguaEvaluated {
+                    result: result.execution,
+                }
             }
-            Err(error) => EngineResponse::Error {
-                code: EngineErrorCode::InvalidProgram,
-                message: error.to_string(),
-                diagnostics: Vec::new(),
-            },
+            Err(error) => request_program_error_response(error),
         }
     }
 

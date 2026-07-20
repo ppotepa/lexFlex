@@ -1,12 +1,10 @@
-use crate::parser::context::ParseContext;
+use crate::diagnostic::ParseError;
 use crate::lexical::{candidate_order, score_candidate, Candidate, CategoryFeatureMerge};
 use crate::meaning::instantiate_meaning;
-use crate::diagnostic::ParseError;
+use crate::parser::context::ParseContext;
 use lexflex_model::canonical_hash;
 
-pub fn lexical_stage(
-    ctx: &mut ParseContext<'_>,
-) -> Result<Vec<Vec<Candidate>>, ParseError> {
+pub fn lexical_stage(ctx: &mut ParseContext<'_>) -> Result<Vec<Vec<Candidate>>, ParseError> {
     let mut output = Vec::with_capacity(ctx.words.len());
     for token in &ctx.words {
         let form_ids = ctx.language.form_index.lookup(&token.normalized);
@@ -28,11 +26,8 @@ pub fn lexical_stage(
                 let Some(category) = sense.category.unify_features(&form.features) else {
                     continue;
                 };
-                let seed = canonical_hash(&(
-                    token.id.as_str(),
-                    form.id.as_str(),
-                    sense.id.as_str(),
-                ))?;
+                let seed =
+                    canonical_hash(&(token.id.as_str(), form.id.as_str(), sense.id.as_str()))?;
                 let seed = seed.as_str().to_owned();
                 let (category, meaning) = instantiate_meaning(&seed, &category, sense)?;
                 if meaning.semantic_nodes > ctx.budget.max_semantic_nodes {

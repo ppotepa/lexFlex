@@ -1,11 +1,9 @@
-use lexflex_engine::catalog::{
-    model_loader::validate_concept_programs, ModelLoadError, ModelPackageLoader,
-};
+use lexflex_engine::catalog::{ModelLoadError, ModelPackageLoader};
 use lexflex_lingua::{
     ConceptDeclaration, ConceptSemantics, DeclarationId, ExpansionPolicy, LinguaDeclaration,
     LinguaExpression, LinguaProgram,
 };
-use lexflex_model::{ConceptCatalog, ConceptId, EntityId, SemanticValue};
+use lexflex_model::{ConceptId, EntityId, SemanticValue};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -75,12 +73,34 @@ fn unknown_concept_program_target_is_rejected() {
 
 #[test]
 fn defined_concept_body_result_mismatch_is_rejected() {
-    let catalog = ConceptCatalog::default();
+    let root = temp_root();
+    std::fs::create_dir_all(&root).expect("create root");
+    std::fs::write(
+        root.join("manifest.ron"),
+        r#"(
+    schema: 1,
+    package_id: "lexflex:model:test:mismatch",
+    concepts: "concepts.ron",
+    entities: "entities.ron",
+    programs: "programs.ron",
+)"#,
+    )
+    .expect("write manifest");
+    std::fs::copy(
+        repo_model_root().join("concepts.ron"),
+        root.join("concepts.ron"),
+    )
+    .expect("copy concepts");
+    std::fs::copy(
+        repo_model_root().join("entities.ron"),
+        root.join("entities.ron"),
+    )
+    .expect("copy entities");
     let program = LinguaProgram {
         id: lexflex_lingua::ProgramId::new_unchecked("program:test:mismatch"),
         declarations: vec![LinguaDeclaration::Concept(ConceptDeclaration {
             declaration_id: DeclarationId::new_unchecked("decl:test:mismatch"),
-            concept_id: ConceptId::new_unchecked("BROKEN"),
+            concept_id: ConceptId::new_unchecked("CAPITAL"),
             self_parameter: None,
             parameters: Vec::new(),
             semantics: ConceptSemantics::Defined {
@@ -90,10 +110,17 @@ fn defined_concept_body_result_mismatch_is_rejected() {
         })],
         entry: LinguaExpression::Value(SemanticValue::from(1_i64)),
     };
+    std::fs::write(
+        root.join("programs.ron"),
+        ron::ser::to_string(&vec![program]).expect("serialize programs"),
+    )
+    .expect("write programs");
 
-    let err = validate_concept_programs(&catalog, &[program])
+    let err = ModelPackageLoader
+        .load(&root)
         .expect_err("mismatched defined body must fail");
-    assert!(matches!(err, ModelLoadError::Validation(_)));
+    assert!(matches!(err, ModelLoadError::ProgramCompile(_)));
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]

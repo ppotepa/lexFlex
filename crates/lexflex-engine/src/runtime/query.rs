@@ -1,16 +1,12 @@
 use super::*;
-use crate::api::response::EngineDiagnostic;
+use crate::runtime::error_mapping::{missing_assertion_response, request_program_error_response};
 
 impl LexFlexRuntime {
     pub(crate) fn handle_query(&self, goal: LinguaGoal) -> EngineResponse {
         let candidates = match self.candidate_assertions(&goal) {
             Ok(candidates) => candidates,
             Err(assertion_id) => {
-                return EngineResponse::Error {
-                    code: EngineErrorCode::InternalInvariant,
-                    message: format!("missing indexed assertion: {assertion_id}"),
-                    diagnostics: vec![EngineDiagnostic::MissingAssertion { assertion_id }],
-                };
+                return missing_assertion_response(assertion_id);
             }
         };
         match self.lingua.solve(&goal, candidates) {
@@ -19,11 +15,7 @@ impl LexFlexRuntime {
                 solutions,
                 snapshot_hash: self.session.state.snapshot_hash().to_string(),
             },
-            Err(error) => EngineResponse::Error {
-                code: EngineErrorCode::InvalidGoal,
-                message: error.to_string(),
-                diagnostics: Vec::new(),
-            },
+            Err(error) => request_program_error_response(error),
         }
     }
 
@@ -34,10 +26,10 @@ impl LexFlexRuntime {
         let candidate_ids = self
             .session
             .knowledge_index
-            .candidate_ids(goal, &self.session.state.knowledge);
+            .candidate_ids(goal, self.session.state.knowledge());
         candidate_ids
             .into_iter()
-            .map(|id| self.session.state.knowledge.assertions.get(&id).ok_or(id))
+            .map(|id| self.session.state.knowledge().get(&id).ok_or(id))
             .collect()
     }
 }

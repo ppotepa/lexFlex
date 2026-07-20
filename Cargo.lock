@@ -190,9 +190,16 @@ name = "lexflex-app"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "lexflex-conversation",
+ "lexflex-documents",
  "lexflex-engine",
+ "lexflex-generation",
+ "lexflex-language",
+ "lexflex-learning",
  "lexflex-lingua",
  "lexflex-model",
+ "lexflex-provider-llm",
+ "lexflex-store",
  "ron",
  "serde",
  "serde_json",
@@ -210,6 +217,30 @@ dependencies = [
  "lexflex-parser",
  "serde",
  "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "lexflex-conversation"
+version = "0.1.0"
+dependencies = [
+ "lexflex-model",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "lexflex-documents"
+version = "0.1.0"
+dependencies = [
+ "lexflex-engine",
+ "lexflex-model",
+ "ron",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -228,6 +259,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lexflex-generation"
+version = "0.1.0"
+dependencies = [
+ "lexflex-language",
+ "lexflex-model",
+ "ron",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "lexflex-language"
 version = "0.1.0"
 dependencies = [
@@ -235,7 +277,6 @@ dependencies = [
  "lexflex-model",
  "ron",
  "serde",
- "serde_json",
  "thiserror",
 ]
 
@@ -244,6 +285,8 @@ name = "lexflex-learning"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -251,10 +294,8 @@ name = "lexflex-lingua"
 version = "0.1.0"
 dependencies = [
  "lexflex-model",
- "ron",
  "serde",
  "serde_json",
- "sha2",
  "thiserror",
 ]
 
@@ -286,7 +327,6 @@ dependencies = [
  "lexflex-model",
  "ron",
  "serde",
- "sha2",
  "thiserror",
 ]
 
@@ -294,7 +334,11 @@ dependencies = [
 name = "lexflex-provider-llm"
 version = "0.1.0"
 dependencies = [
+ "lexflex-documents",
  "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]

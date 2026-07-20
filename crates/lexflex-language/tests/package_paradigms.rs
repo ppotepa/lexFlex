@@ -17,7 +17,8 @@ fn paradigm_unknown_form_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -28,7 +29,8 @@ fn paradigm_unknown_form_is_rejected() {
         normalized_lemma: "alpha",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(
         root.join("senses.ron"),
         r#"[
@@ -63,7 +65,8 @@ fn paradigm_unknown_form_is_rejected() {
         priority: 0,
     ),
 ]"#,
-    ).expect("write senses");
+    )
+    .expect("write senses");
     std::fs::write(
         root.join("forms.ron"),
         r#"[
@@ -77,7 +80,8 @@ fn paradigm_unknown_form_is_rejected() {
         ),
     ),
 ]"#,
-    ).expect("write forms");
+    )
+    .expect("write forms");
     std::fs::write(
         root.join("paradigms.ron"),
         r#"[
@@ -89,7 +93,8 @@ fn paradigm_unknown_form_is_rejected() {
         ],
     ),
 ]"#,
-    ).expect("write paradigms");
+    )
+    .expect("write paradigms");
 
     let err = LanguagePackageLoader
         .load(&root, &support::catalog())
@@ -113,7 +118,8 @@ fn duplicate_paradigm_form_id_is_rejected() {
     forms: "forms.ron",
     paradigms: "paradigms.ron",
 )"#,
-    ).expect("write manifest");
+    )
+    .expect("write manifest");
     std::fs::write(
         root.join("lexemes.ron"),
         r#"[
@@ -124,7 +130,8 @@ fn duplicate_paradigm_form_id_is_rejected() {
         normalized_lemma: "alpha",
     ),
 ]"#,
-    ).expect("write lexemes");
+    )
+    .expect("write lexemes");
     std::fs::write(
         root.join("senses.ron"),
         r#"[
@@ -159,7 +166,8 @@ fn duplicate_paradigm_form_id_is_rejected() {
         priority: 0,
     ),
 ]"#,
-    ).expect("write senses");
+    )
+    .expect("write senses");
     std::fs::write(
         root.join("forms.ron"),
         r#"[
@@ -173,7 +181,8 @@ fn duplicate_paradigm_form_id_is_rejected() {
         ),
     ),
 ]"#,
-    ).expect("write forms");
+    )
+    .expect("write forms");
     std::fs::write(
         root.join("paradigms.ron"),
         r#"[
@@ -186,7 +195,8 @@ fn duplicate_paradigm_form_id_is_rejected() {
         ],
     ),
 ]"#,
-    ).expect("write paradigms");
+    )
+    .expect("write paradigms");
 
     let err = LanguagePackageLoader
         .load(&root, &support::catalog())

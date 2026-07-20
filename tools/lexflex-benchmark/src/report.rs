@@ -1,9 +1,35 @@
 use crate::bench::BenchmarkCase;
 use serde::Serialize;
+use thiserror::Error;
 
 #[derive(Debug, Serialize)]
 pub struct BenchmarkReport {
     pub cases: Vec<BenchmarkResult>,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum BenchmarkThresholdError {
+    #[error("benchmark case {case} p95 {observed_ns}ns exceeds limit {limit_ns}ns")]
+    P95Exceeded {
+        case: String,
+        observed_ns: u128,
+        limit_ns: u128,
+    },
+}
+
+impl BenchmarkReport {
+    pub fn enforce_p95(&self, limit_ns: u128) -> Result<(), BenchmarkThresholdError> {
+        self.cases
+            .iter()
+            .find(|case| case.p95_ns > limit_ns)
+            .map_or(Ok(()), |case| {
+                Err(BenchmarkThresholdError::P95Exceeded {
+                    case: case.case.clone(),
+                    observed_ns: case.p95_ns,
+                    limit_ns,
+                })
+            })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -64,5 +90,34 @@ impl BenchmarkResult {
             parser_metrics,
             steps: steps.into_iter().map(str::to_string).collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn p95_threshold_rejects_regression() {
+        let report = BenchmarkReport {
+            cases: vec![BenchmarkResult {
+                case: "entity".into(),
+                iterations: 1,
+                total_ns: 10,
+                avg_ns: 10,
+                min_ns: 10,
+                median_ns: 10,
+                p95_ns: 10,
+                max_ns: 10,
+                output_hash: "hash".into(),
+                parser_metrics: None,
+                steps: Vec::new(),
+            }],
+        };
+        assert!(report.enforce_p95(10).is_ok());
+        assert!(matches!(
+            report.enforce_p95(9),
+            Err(BenchmarkThresholdError::P95Exceeded { .. })
+        ));
     }
 }

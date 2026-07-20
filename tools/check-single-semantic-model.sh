@@ -11,7 +11,7 @@ if [[ "$semantic_expression_count" -ne 1 ]]; then
 fi
 
 semantic_type_count="$(
-  rg -l --glob '*.rs' 'pub enum SemanticType' crates apps tools | wc -l
+  rg -l --glob '*.rs' 'pub enum SemanticType\b' crates apps tools | wc -l
 )"
 
 if [[ "$semantic_type_count" -ne 1 ]]; then

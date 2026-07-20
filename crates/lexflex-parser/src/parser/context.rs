@@ -1,7 +1,7 @@
 use crate::budget::ParseBudget;
 use crate::input::ParseInput;
 use crate::metrics::ParseMetrics;
-use crate::token::{TokenizationResult, Token};
+use crate::token::{Token, TokenizationResult};
 use lexflex_language::LanguageModel;
 use lexflex_model::ConceptCatalog;
 use std::sync::Arc;

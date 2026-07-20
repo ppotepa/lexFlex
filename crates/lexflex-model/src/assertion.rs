@@ -1,28 +1,39 @@
 use crate::{
     canonical_hash, normalize_expression, AssertionId, CanonicalDigest, CanonicalHashError,
-    Evidence, EvidenceError, EvidenceId, NormalizationError, SemanticExpression, WorldId,
+    EvidenceError, EvidenceSet, NormalizationError, SemanticExpression, WorldId,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SemanticAssertion {
-    pub id: AssertionId,
-    pub expression: SemanticExpression,
-    pub evidence: BTreeMap<EvidenceId, Evidence>,
-    pub world: WorldId,
-    pub canonical_hash: CanonicalDigest,
+    id: AssertionId,
+    expression: SemanticExpression,
+    evidence: EvidenceSet,
+    world: WorldId,
+    canonical_hash: CanonicalDigest,
 }
 
 impl SemanticAssertion {
     pub fn create(
         expression: SemanticExpression,
-        evidence: impl IntoIterator<Item = Evidence>,
+        evidence: EvidenceSet,
+        world: WorldId,
+        catalog: &crate::ConceptCatalog,
+    ) -> Result<Self, crate::AssertionCatalogError> {
+        let assertion = Self::create_structural(expression, evidence, world)
+            .map_err(crate::AssertionCatalogError::Integrity)?;
+        assertion.verify_with_catalog(catalog)?;
+        Ok(assertion)
+    }
+
+    pub(crate) fn create_structural(
+        expression: SemanticExpression,
+        evidence: EvidenceSet,
         world: WorldId,
     ) -> Result<Self, AssertionError> {
         let expression = normalize_expression(expression)?.expression;
-        let evidence = collect_evidence(evidence)?;
+        evidence.verify()?;
         let canonical_hash = canonical_hash(&AssertionIdentity {
             expression: &expression,
             world: &world,
@@ -38,15 +49,7 @@ impl SemanticAssertion {
     }
 
     pub fn verify(&self) -> Result<(), AssertionError> {
-        for (key, evidence) in &self.evidence {
-            if key != &evidence.id {
-                return Err(AssertionError::EvidenceKeyMismatch {
-                    key: key.clone(),
-                    evidence: evidence.id.clone(),
-                });
-            }
-            evidence.verify()?;
-        }
+        self.evidence.verify()?;
 
         let normalized = normalize_expression(self.expression.clone())?.expression;
         if normalized != self.expression {
@@ -76,22 +79,64 @@ impl SemanticAssertion {
         Ok(())
     }
 
-    pub fn merge_evidence(
-        &mut self,
-        evidence: impl IntoIterator<Item = Evidence>,
-    ) -> Result<usize, AssertionError> {
-        let incoming = collect_evidence(evidence)?;
-        let before = self.evidence.len();
-        for (id, evidence) in incoming {
-            match self.evidence.get(&id) {
-                None => {
-                    self.evidence.insert(id, evidence);
-                }
-                Some(existing) if existing == &evidence => {}
-                Some(_) => return Err(AssertionError::ConflictingEvidence(id)),
-            }
+    pub fn verify_with_catalog(
+        &self,
+        catalog: &crate::ConceptCatalog,
+    ) -> Result<(), crate::AssertionCatalogError> {
+        crate::assertion_catalog::verify_assertion_with_catalog(self, catalog)
+    }
+
+    pub fn merge_evidence(&mut self, evidence: EvidenceSet) -> Result<usize, AssertionError> {
+        self.evidence
+            .merge(evidence)
+            .map_err(AssertionError::Evidence)
+    }
+
+    pub fn id(&self) -> &AssertionId {
+        &self.id
+    }
+
+    pub fn expression(&self) -> &SemanticExpression {
+        &self.expression
+    }
+
+    pub fn evidence(&self) -> &EvidenceSet {
+        &self.evidence
+    }
+
+    pub fn world(&self) -> &WorldId {
+        &self.world
+    }
+
+    pub fn canonical_hash(&self) -> &CanonicalDigest {
+        &self.canonical_hash
+    }
+}
+
+impl<'de> Deserialize<'de> for SemanticAssertion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawSemanticAssertion {
+            id: AssertionId,
+            expression: SemanticExpression,
+            evidence: EvidenceSet,
+            world: WorldId,
+            canonical_hash: CanonicalDigest,
         }
-        Ok(self.evidence.len() - before)
+
+        let raw = RawSemanticAssertion::deserialize(deserializer)?;
+        let assertion = Self {
+            id: raw.id,
+            expression: raw.expression,
+            evidence: raw.evidence,
+            world: raw.world,
+            canonical_hash: raw.canonical_hash,
+        };
+        assertion.verify().map_err(serde::de::Error::custom)?;
+        Ok(assertion)
     }
 }
 
@@ -99,23 +144,6 @@ impl SemanticAssertion {
 struct AssertionIdentity<'a> {
     expression: &'a SemanticExpression,
     world: &'a WorldId,
-}
-
-fn collect_evidence(
-    values: impl IntoIterator<Item = Evidence>,
-) -> Result<BTreeMap<EvidenceId, Evidence>, AssertionError> {
-    let mut output = BTreeMap::new();
-    for evidence in values {
-        evidence.verify()?;
-        match output.get(&evidence.id) {
-            None => {
-                output.insert(evidence.id.clone(), evidence);
-            }
-            Some(existing) if existing == &evidence => {}
-            Some(_) => return Err(AssertionError::ConflictingEvidence(evidence.id)),
-        }
-    }
-    Ok(output)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -128,15 +156,6 @@ pub enum AssertionError {
 
     #[error("invalid evidence: {0}")]
     Evidence(#[from] EvidenceError),
-
-    #[error("evidence key mismatch: key={key}, evidence={evidence}")]
-    EvidenceKeyMismatch {
-        key: EvidenceId,
-        evidence: EvidenceId,
-    },
-
-    #[error("conflicting evidence with id {0}")]
-    ConflictingEvidence(EvidenceId),
 
     #[error("assertion hash mismatch: stored={stored}, expected={expected}")]
     HashMismatch {

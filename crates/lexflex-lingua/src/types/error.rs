@@ -42,16 +42,6 @@ pub enum TypeError {
     ExpectedBoolean(SemanticType),
     #[error("expected function, found {found:?}")]
     ExpectedFunction { found: SemanticType },
-    #[error("missing function argument {0}")]
-    MissingFunctionArgument(ParameterId),
     #[error("unknown function argument {0}")]
     UnknownFunctionArgument(ParameterId),
-    #[error("unknown variable type {0}")]
-    UnknownVariableType(VariableId),
-    #[error("definition result mismatch for {concept}: expected {expected:?}, actual {actual:?}")]
-    DefinitionResultMismatch {
-        concept: ConceptId,
-        expected: SemanticType,
-        actual: SemanticType,
-    },
 }

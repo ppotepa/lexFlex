@@ -1,11 +1,11 @@
 use crate::{canonical_hash, CanonicalDigest, CanonicalHashError, EvidenceId};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct SourceSpan {
-    pub start: u64,
-    pub end: u64,
+    start: u64,
+    end: u64,
 }
 
 impl SourceSpan {
@@ -15,14 +15,38 @@ impl SourceSpan {
         }
         Ok(Self { start, end })
     }
+
+    pub fn start(&self) -> u64 {
+        self.start
+    }
+
+    pub fn end(&self) -> u64 {
+        self.end
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+impl<'de> Deserialize<'de> for SourceSpan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawSourceSpan {
+            start: u64,
+            end: u64,
+        }
+
+        let raw = RawSourceSpan::deserialize(deserializer)?;
+        SourceSpan::new(raw.start, raw.end).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Evidence {
-    pub id: EvidenceId,
-    pub source_id: String,
-    pub span: Option<SourceSpan>,
-    pub source_hash: Option<CanonicalDigest>,
+    id: EvidenceId,
+    source_id: String,
+    span: Option<SourceSpan>,
+    source_hash: Option<CanonicalDigest>,
 }
 
 impl Evidence {
@@ -36,7 +60,7 @@ impl Evidence {
             return Err(EvidenceError::EmptySourceId);
         }
         if let Some(existing_span) = &span {
-            SourceSpan::new(existing_span.start, existing_span.end)?;
+            SourceSpan::new(existing_span.start(), existing_span.end())?;
         }
 
         let digest = canonical_hash(&EvidenceIdentity {
@@ -59,7 +83,7 @@ impl Evidence {
         }
 
         if let Some(span) = &self.span {
-            SourceSpan::new(span.start, span.end)?;
+            SourceSpan::new(span.start(), span.end())?;
         }
 
         let digest = canonical_hash(&EvidenceIdentity {
@@ -77,6 +101,47 @@ impl Evidence {
         }
 
         Ok(())
+    }
+
+    pub fn id(&self) -> &EvidenceId {
+        &self.id
+    }
+
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+
+    pub fn span(&self) -> Option<&SourceSpan> {
+        self.span.as_ref()
+    }
+
+    pub fn source_hash(&self) -> Option<&CanonicalDigest> {
+        self.source_hash.as_ref()
+    }
+}
+
+impl<'de> Deserialize<'de> for Evidence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawEvidence {
+            id: EvidenceId,
+            source_id: String,
+            span: Option<SourceSpan>,
+            source_hash: Option<CanonicalDigest>,
+        }
+
+        let raw = RawEvidence::deserialize(deserializer)?;
+        let value = Self {
+            id: raw.id,
+            source_id: raw.source_id,
+            span: raw.span,
+            source_hash: raw.source_hash,
+        };
+        value.verify().map_err(serde::de::Error::custom)?;
+        Ok(value)
     }
 }
 
@@ -103,4 +168,13 @@ pub enum EvidenceError {
 
     #[error("source id is empty")]
     EmptySourceId,
+
+    #[error("evidence key mismatch: key={key}, evidence={evidence}")]
+    KeyMismatch {
+        key: EvidenceId,
+        evidence: EvidenceId,
+    },
+
+    #[error("conflicting evidence with id {0}")]
+    ConflictingEvidence(EvidenceId),
 }

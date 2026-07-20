@@ -1,7 +1,7 @@
-use crate::parser::context::ParseContext;
-use crate::parser::lexical_stage::lexical_stage;
 use crate::parser::chart_stage::chart_stage;
+use crate::parser::context::ParseContext;
 use crate::parser::finish_stage::finish_stage;
+use crate::parser::lexical_stage::lexical_stage;
 
 pub fn parse_with_ambiguity(
     mut ctx: ParseContext<'_>,

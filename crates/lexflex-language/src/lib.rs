@@ -15,6 +15,7 @@ pub use index::{FormIndex, SenseIndex};
 pub use lexflex_model::LanguageId;
 pub use loader::{
     LanguageLoadError, LanguageModel, LanguagePackageLoader, LanguagePackageManifest,
+    LanguageRealizationModel,
 };
 pub use model::{
     AtomicCategoryKind, CategoryType, FeatureConflict, FeatureStructure, Form, Lexeme,

@@ -85,12 +85,8 @@ fn collect_free_variables(
             }
         }
         SemanticExpression::Not(inner) => collect_free_variables(inner, bound, output),
-        SemanticExpression::Exists {
-            variable, body, ..
-        }
-        | SemanticExpression::ForAll {
-            variable, body, ..
-        } => {
+        SemanticExpression::Exists { variable, body, .. }
+        | SemanticExpression::ForAll { variable, body, .. } => {
             bound.push(variable.clone());
             collect_free_variables(body, bound, output);
             bound.pop();
