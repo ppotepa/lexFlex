@@ -39,14 +39,21 @@
         lexeme_id: "lexeme:en:be:verb",
         surface: "is",
         normalized: "is",
-        features: (values: { "tense": "present", "number": "singular" }),
+        features: (
+            values: {
+                "tense": "present",
+                "number": "singular",
+                "person": "third",
+                "part_of_speech": "verb",
+            },
+        ),
     ),
     (
         id: "form:en:Is",
         lexeme_id: "lexeme:en:be:verb",
         surface: "Is",
         normalized: "is",
-        features: (values: { "interrogative": "true" }),
+        features: (values: { "part_of_speech": "verb", "interrogative": "true" }),
         priority: -1,
     ),
     (

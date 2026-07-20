@@ -1,4 +1,5 @@
 use crate::diagnostic::ParseError;
+use crate::input::ClauseMode;
 use crate::lexical::{candidate_order, score_candidate, Candidate, CategoryFeatureMerge};
 use crate::meaning::instantiate_meaning;
 use crate::parser::context::ParseContext;
@@ -23,6 +24,19 @@ pub fn lexical_stage(ctx: &mut ParseContext<'_>) -> Result<Vec<Vec<Candidate>>, 
                 let Some(sense) = ctx.language.compiled_sense(sense_id) else {
                     continue;
                 };
+                let interrogative = lexflex_language::FeatureName::new_unchecked("interrogative");
+                let part_of_speech = lexflex_language::FeatureName::new_unchecked("part_of_speech");
+                let verb = lexflex_language::FeatureValue::new_unchecked("verb");
+                let case_sensitive_interrogative = form.features.get(&interrogative).is_some()
+                    && form.features.get(&part_of_speech) == Some(&verb);
+                if (sense.category.features().get(&interrogative).is_some()
+                    || form.features.get(&interrogative).is_some())
+                    && (form.features.get(&interrogative).is_none()
+                        || ctx.tokenization.mode != ClauseMode::Interrogative
+                        || (case_sensitive_interrogative && form.surface != token.surface))
+                {
+                    continue;
+                }
                 let Some(category) = sense.category.unify_features(&form.features) else {
                     continue;
                 };
