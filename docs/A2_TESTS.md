@@ -40,27 +40,26 @@ assertion and goal translations:
 | A2-011 | Who sees Tom? | Kto widzi Tomka? | goal projection + agent | PASS |
 | A2-012 | Kto widzi Tomka? | Who sees Tom? | goal projection + agent | PASS |
 
-## Planned 200-Case Distribution
+## Planned 200 + 200 Distribution
 
-The matrix grows by adding real cases, not by repeating identical commands.
+The acceptance target is 200 source sentences in English and 200 source
+sentences in Polish. A translation case is counted once for its source
+language and once when the reverse-language fixture is executed. The matrix
+grows by adding real cases, not by repeating identical commands.
 
 | Group | Cases | Required coverage |
 | --- | ---: | --- |
-| Entity and lexical lookup | 20 | names, countries, cities, lexical senses |
-| `Satisfies` assertions | 25 | subject/predicate and argument roles |
-| `Apply` and valency | 25 | required slots, direction, surface relations |
-| `Equals` | 15 | copula and natural realization |
-| Event assertions | 25 | agent, patient, ordering, morphology |
-| Questions and projections | 25 | assertion/goal kind and variables |
-| Negation and coordination | 20 | `Not`, `And`, `Or` |
-| Quantification | 10 | `Exists`, `ForAll` |
-| English morphology | 15 | forms, agreement, query forms |
-| Polish morphology | 20 | cases, gender, number, agreement |
-| Cross-language round trips | 20 | EN -> PL -> EN and PL -> EN -> PL |
-| **Total** | **220** | planned A2 coverage |
-
-The first release gate is 200 passing cases. The additional 20 cases are
-reserved for regressions discovered while implementing the matrix.
+| Entity and lexical lookup | 20 + 20 | names, countries, cities, lexical senses |
+| `Satisfies` assertions | 25 + 25 | subject/predicate and argument roles |
+| `Apply` and valency | 25 + 25 | required slots, direction, surface relations |
+| `Equals` | 15 + 15 | copula and natural realization |
+| Event assertions | 25 + 25 | agent, patient, ordering, morphology |
+| Questions and projections | 25 + 25 | assertion/goal kind and variables |
+| Negation and coordination | 20 + 20 | `Not`, `And`, `Or` |
+| Quantification | 10 + 10 | `Exists`, `ForAll` |
+| English/Polish morphology | 15 + 15 | forms, agreement, query forms |
+| Cross-language round trips | 20 + 20 | EN -> PL -> EN and PL -> EN -> PL |
+| **Total** | **200 + 200** | A2 acceptance target |
 
 ## Failure Classification
 

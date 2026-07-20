@@ -4,10 +4,12 @@
 
 | Metric | Result |
 | --- | ---: |
-| Executable cases | 12 |
-| Passing cases | 12 |
+| Executable source cases | 12 |
+| Passing source cases | 12 |
 | Semantic round-trips | 12 |
-| Pending cases | 188 |
+| English target | 6 / 200 |
+| Polish target | 6 / 200 |
+| Pending source cases | 388 |
 | Languages | EN, PL |
 | Covered kinds | Assertion, Goal |
 | Covered constructions | `Satisfies`, `Apply`, `CAPITAL`, `SEE_EVENT` |
