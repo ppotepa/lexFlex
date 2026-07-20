@@ -110,6 +110,8 @@ mod tests {
                 expression: lexflex_lingua::LinguaExpression::Value(true.into()),
                 query_variables,
                 semantic_nodes: 1,
+                boolean_operator: None,
+                boolean_scope_violations: 0,
             },
             ParseScore::lexical(0),
             derivation,

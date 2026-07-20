@@ -491,23 +491,47 @@ fn coordination_or_preserves_canonical_order_in_both_languages() {
 #[test]
 fn negated_assertions_preserve_semantics_in_both_languages() {
     let results = vec![
-        assert_b1_translation(
-            0,
-            "en",
-            "pl",
-            "Not Tom sees Iza.",
-            "nie Tomek widzi Izę",
-        ),
-        assert_b1_translation(
-            0,
-            "pl",
-            "en",
-            "Nie Tomek widzi Izę.",
-            "not Tom sees Iza",
-        ),
+        assert_b1_translation(0, "en", "pl", "Not Tom sees Iza.", "nie Tomek widzi Izę"),
+        assert_b1_translation(0, "pl", "en", "Nie Tomek widzi Izę.", "not Tom sees Iza"),
     ];
     command_support::write_level_report("negation", &results);
     command_support::assert_level_passed("negation", &results);
+}
+
+#[test]
+fn nested_boolean_scope_preserves_semantics_in_both_languages() {
+    let results = vec![
+        assert_b1_translation(
+            0,
+            "en",
+            "pl",
+            "Not Tom sees Iza or Iza sees Tom.",
+            "Iza widzi Tomka albo nie Tomek widzi Izę",
+        ),
+        assert_b1_translation(
+            1,
+            "pl",
+            "en",
+            "Nie Tomek widzi Izę albo Iza widzi Tomka.",
+            "Iza sees Tom or not Tom sees Iza",
+        ),
+        assert_b1_translation(
+            2,
+            "en",
+            "pl",
+            "Not Tom sees Iza and Iza sees Tom.",
+            "Iza widzi Tomka i nie Tomek widzi Izę",
+        ),
+        assert_b1_translation(
+            3,
+            "pl",
+            "en",
+            "Nie Tomek widzi Izę i Iza widzi Tomka.",
+            "Iza sees Tom and not Tom sees Iza",
+        ),
+    ];
+    command_support::write_level_report("nested-boolean-scope", &results);
+    command_support::assert_level_passed("nested-boolean-scope", &results);
 }
 
 fn canonical_english_subject(source: &str) -> &str {

@@ -1,5 +1,5 @@
 use crate::diagnostic::ParseError;
-use crate::meaning::MeaningInstance;
+use crate::meaning::{BooleanOperator, MeaningInstance};
 use lexflex_language::{
     CategoryType, CategoryTypeVariableId, CompiledLexicalSense, SyntacticCategory,
 };
@@ -312,6 +312,18 @@ pub(crate) fn instantiate_meaning(
             expression,
             query_variables,
             semantic_nodes,
+            boolean_operator: boolean_operator_for_expression(&sense.meaning.expression),
+            boolean_scope_violations: 0,
         },
     ))
+}
+
+fn boolean_operator_for_expression(expression: &LinguaExpression) -> Option<BooleanOperator> {
+    match expression {
+        LinguaExpression::Lambda { body, .. } => boolean_operator_for_expression(body),
+        LinguaExpression::Not(_) => Some(BooleanOperator::Not),
+        LinguaExpression::And(_) => Some(BooleanOperator::And),
+        LinguaExpression::Or(_) => Some(BooleanOperator::Or),
+        _ => None,
+    }
 }

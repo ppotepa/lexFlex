@@ -2,7 +2,7 @@ use lexflex_engine::{
     api::{input::TextInput, request::EngineRequest, response::EngineResponse},
     runtime::LexFlexRuntime,
 };
-use lexflex_model::LanguageId;
+use lexflex_model::{LanguageId, SemanticExpression};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -37,7 +37,7 @@ fn capital_analysis_is_not_reported_as_ambiguous() {
 }
 
 #[test]
-fn negation_and_or_scope_remains_explicitly_ambiguous() {
+fn negation_and_or_scope_uses_precedence() {
     let mut runtime = test_runtime();
     let response = runtime.handle(EngineRequest::AnalyzeText {
         input: TextInput {
@@ -47,12 +47,18 @@ fn negation_and_or_scope_remains_explicitly_ambiguous() {
         },
         include_derivation: false,
     });
-    assert!(matches!(response, EngineResponse::TextAmbiguous { alternatives, .. }
-        if alternatives.len() == 2));
+    let EngineResponse::TextAnalyzed { analysis, .. } = response else {
+        panic!("boolean precedence should select one scope");
+    };
+    assert!(matches!(
+        analysis.canonical_expression(),
+        SemanticExpression::Or(items)
+            if items.iter().any(|item| matches!(item, SemanticExpression::Not(_)))
+    ));
 }
 
 #[test]
-fn negation_and_and_scope_remains_explicitly_ambiguous() {
+fn negation_and_and_scope_uses_precedence() {
     let mut runtime = test_runtime();
     let response = runtime.handle(EngineRequest::AnalyzeText {
         input: TextInput {
@@ -62,6 +68,12 @@ fn negation_and_and_scope_remains_explicitly_ambiguous() {
         },
         include_derivation: false,
     });
-    assert!(matches!(response, EngineResponse::TextAmbiguous { alternatives, .. }
-        if alternatives.len() == 2));
+    let EngineResponse::TextAnalyzed { analysis, .. } = response else {
+        panic!("boolean precedence should select one scope");
+    };
+    assert!(matches!(
+        analysis.canonical_expression(),
+        SemanticExpression::And(items)
+            if items.iter().any(|item| matches!(item, SemanticExpression::Not(_)))
+    ));
 }

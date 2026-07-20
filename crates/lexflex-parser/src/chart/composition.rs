@@ -126,6 +126,13 @@ fn compose_applied(
         &right.derivations,
         applied.max_derivations_per_item,
     )?;
+    let inherited_scope_violations =
+        function_meaning.boolean_scope_violations + argument_meaning.boolean_scope_violations;
+    let new_scope_violations = meaning
+        .boolean_scope_violations
+        .saturating_sub(inherited_scope_violations);
+    let mut score = ParseScore::composed(left.score, right.score, unresolved_types);
+    score.lexical_priority += (new_scope_violations as i64) * 1_000;
 
     ChartItem::new(
         left.start,
@@ -133,7 +140,7 @@ fn compose_applied(
         applied.category,
         applied.substitution,
         meaning,
-        ParseScore::composed(left.score, right.score, unresolved_types),
+        score,
         derivations,
     )
 }

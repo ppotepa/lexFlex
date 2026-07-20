@@ -1,5 +1,5 @@
 use crate::diagnostic::{ParseBudgetLimit, ParseError};
-use crate::meaning::{count_lingua_nodes, MeaningInstance};
+use crate::meaning::{count_lingua_nodes, BooleanOperator, MeaningInstance};
 use lexflex_model::ParameterId;
 use std::collections::BTreeMap;
 
@@ -34,9 +34,19 @@ pub(crate) fn apply_meaning(
         ));
     }
 
+    let scope_violation = match (function.boolean_operator, argument.boolean_operator) {
+        (Some(BooleanOperator::Not), Some(BooleanOperator::And | BooleanOperator::Or))
+        | (Some(BooleanOperator::And), Some(BooleanOperator::Or)) => 1,
+        _ => 0,
+    };
+
     Ok(MeaningInstance {
         expression,
         query_variables,
         semantic_nodes,
+        boolean_operator: function.boolean_operator.or(argument.boolean_operator),
+        boolean_scope_violations: function.boolean_scope_violations
+            + argument.boolean_scope_violations
+            + scope_violation,
     })
 }
