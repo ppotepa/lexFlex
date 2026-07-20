@@ -77,4 +77,28 @@
         lemma: "who",
         normalized_lemma: "who",
     ),
+    (
+        id: "lexeme:en:thomas:proper",
+        language: "en",
+        lemma: "Thomas",
+        normalized_lemma: "thomas",
+    ),
+    (
+        id: "lexeme:en:tommy:proper",
+        language: "en",
+        lemma: "Tommy",
+        normalized_lemma: "tommy",
+    ),
+    (
+        id: "lexeme:en:isabelle:proper",
+        language: "en",
+        lemma: "Isabelle",
+        normalized_lemma: "isabelle",
+    ),
+    (
+        id: "lexeme:en:izzy:proper",
+        language: "en",
+        lemma: "Izzy",
+        normalized_lemma: "izzy",
+    ),
 ]

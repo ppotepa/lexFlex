@@ -71,4 +71,28 @@
         lemma: "kogo",
         normalized_lemma: "kogo",
     ),
+    (
+        id: "lexeme:pl:tomasz:proper",
+        language: "pl",
+        lemma: "Tomasz",
+        normalized_lemma: "tomasz",
+    ),
+    (
+        id: "lexeme:pl:tomcio:proper",
+        language: "pl",
+        lemma: "Tomcio",
+        normalized_lemma: "tomcio",
+    ),
+    (
+        id: "lexeme:pl:izabela:proper",
+        language: "pl",
+        lemma: "Izabela",
+        normalized_lemma: "izabela",
+    ),
+    (
+        id: "lexeme:pl:izka:proper",
+        language: "pl",
+        lemma: "Izka",
+        normalized_lemma: "izka",
+    ),
 ]

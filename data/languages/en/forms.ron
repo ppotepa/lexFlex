@@ -90,4 +90,32 @@
         normalized: "who",
         features: (values: { "interrogative": "true" }),
     ),
+    (
+        id: "form:en:Thomas",
+        lexeme_id: "lexeme:en:thomas:proper",
+        surface: "Thomas",
+        normalized: "thomas",
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+    ),
+    (
+        id: "form:en:Tommy",
+        lexeme_id: "lexeme:en:tommy:proper",
+        surface: "Tommy",
+        normalized: "tommy",
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+    ),
+    (
+        id: "form:en:Isabelle",
+        lexeme_id: "lexeme:en:isabelle:proper",
+        surface: "Isabelle",
+        normalized: "isabelle",
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+    ),
+    (
+        id: "form:en:Izzy",
+        lexeme_id: "lexeme:en:izzy:proper",
+        surface: "Izzy",
+        normalized: "izzy",
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+    ),
 ]

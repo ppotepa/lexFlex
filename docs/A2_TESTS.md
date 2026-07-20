@@ -42,6 +42,11 @@ assertion and goal translations:
 | A2-013 | Tom sees who? | Tomek widzi Kogo? | goal projection + patient | PASS |
 | A2-014 | Tomek widzi Kogo? | Tom sees who? | goal projection + patient | PASS |
 
+The executable matrix test `a2_reaches_fifty_english_and_polish_source_sentences`
+adds 36 event combinations, six agent questions, six patient questions and
+two capital assertions per source language. All 100 generated cases use the
+CLI translation path and compare source/target semantic hashes.
+
 ## Planned 200 + 200 Distribution
 
 The acceptance target is 200 source sentences in English and 200 source

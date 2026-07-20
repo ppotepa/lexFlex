@@ -4,12 +4,12 @@
 
 | Metric | Result |
 | --- | ---: |
-| Executable source cases | 14 |
-| Passing source cases | 14 |
-| Semantic round-trips | 14 |
-| English target | 7 / 200 |
-| Polish target | 7 / 200 |
-| Pending source cases | 386 |
+| Executable source cases | 100 |
+| Passing source cases | 100 |
+| Semantic round-trips | 100 |
+| English source target | 50 / 200 |
+| Polish source target | 50 / 200 |
+| Pending source cases | 300 |
 | Languages | EN, PL |
 | Covered kinds | Assertion, Goal |
 | Covered constructions | `Satisfies`, `Apply`, `CAPITAL`, `SEE_EVENT` |
@@ -22,6 +22,7 @@
 - target text is reparsed by the normal CLI path;
 - source and target canonical hashes are equal;
 - expected target realization is exact;
+- lexical aliases preserve the same canonical entity identity;
 - no test uses a repeated command as a substitute for a new semantic case.
 
 ## Known Gaps

@@ -72,3 +72,184 @@ fn a2_assertion_translation_preserves_semantic_hash() {
         );
     }
 }
+
+#[derive(Clone, Copy)]
+struct PersonCase {
+    en: &'static str,
+    pl_subject: &'static str,
+    pl_object: &'static str,
+}
+
+fn assert_translation(
+    index: usize,
+    source_language: &str,
+    target_language: &str,
+    source: &str,
+    expected: &str,
+) {
+    let output = command_support::run(&[
+        "text-translate-text",
+        "--language",
+        source_language,
+        "--target-language",
+        target_language,
+        "--text",
+        source,
+    ]);
+    assert_eq!(output.code, Some(0), "A2 case {index} failed: {source}");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("translation JSON");
+    assert_eq!(payload["text"], expected, "A2 case {index} output mismatch");
+    assert_eq!(
+        payload["source_semantic_hash"], payload["target_semantic_hash"],
+        "A2 case {index} semantic mismatch"
+    );
+}
+
+#[test]
+fn a2_reaches_fifty_english_and_polish_source_sentences() {
+    let people = [
+        PersonCase {
+            en: "Tom",
+            pl_subject: "Tomek",
+            pl_object: "Tomka",
+        },
+        PersonCase {
+            en: "Iza",
+            pl_subject: "Iza",
+            pl_object: "Izę",
+        },
+        PersonCase {
+            en: "Thomas",
+            pl_subject: "Tomasz",
+            pl_object: "Tomasza",
+        },
+        PersonCase {
+            en: "Tommy",
+            pl_subject: "Tomcio",
+            pl_object: "Tomcia",
+        },
+        PersonCase {
+            en: "Isabelle",
+            pl_subject: "Izabela",
+            pl_object: "Izabelę",
+        },
+        PersonCase {
+            en: "Izzy",
+            pl_subject: "Izka",
+            pl_object: "Izkę",
+        },
+    ];
+    let canonical_en = ["Tom", "Iza", "Tom", "Tom", "Iza", "Iza"];
+    let canonical_pl_subject = ["Tomek", "Iza", "Tomek", "Tomek", "Iza", "Iza"];
+    let canonical_pl_object = ["Tomka", "Izę", "Tomka", "Tomka", "Izę", "Izę"];
+
+    let mut english_cases = 0;
+    let mut polish_cases = 0;
+    for (agent_index, agent) in people.iter().enumerate() {
+        for (patient_index, patient) in people.iter().enumerate() {
+            let expected_pl = format!(
+                "{} widzi {}",
+                canonical_pl_subject[agent_index], canonical_pl_object[patient_index]
+            );
+            let expected_en = format!(
+                "{} sees {}",
+                canonical_en[agent_index], canonical_en[patient_index]
+            );
+            assert_translation(
+                english_cases,
+                "en",
+                "pl",
+                &format!("{} sees {}.", agent.en, patient.en),
+                &expected_pl,
+            );
+            english_cases += 1;
+            assert_translation(
+                polish_cases,
+                "pl",
+                "en",
+                &format!("{} widzi {}.", agent.pl_subject, patient.pl_object),
+                &expected_en,
+            );
+            polish_cases += 1;
+        }
+    }
+
+    for (index, patient) in people.iter().take(6).enumerate() {
+        let expected_pl = format!("Kto widzi {}?", canonical_pl_object[index]);
+        let expected_en = format!("Who sees {}?", canonical_en[index]);
+        assert_translation(
+            english_cases,
+            "en",
+            "pl",
+            &format!("Who sees {}?", patient.en),
+            &expected_pl,
+        );
+        english_cases += 1;
+        assert_translation(
+            polish_cases,
+            "pl",
+            "en",
+            &format!("Kto widzi {}?", patient.pl_object),
+            &expected_en,
+        );
+        polish_cases += 1;
+    }
+
+    for (index, agent) in people.iter().take(6).enumerate() {
+        let expected_pl = format!("{} widzi Kogo?", canonical_pl_subject[index]);
+        let expected_en = format!("{} sees who?", canonical_en[index]);
+        assert_translation(
+            english_cases,
+            "en",
+            "pl",
+            &format!("{} sees who?", agent.en),
+            &expected_pl,
+        );
+        english_cases += 1;
+        assert_translation(
+            polish_cases,
+            "pl",
+            "en",
+            &format!("{} widzi Kogo?", agent.pl_subject),
+            &expected_en,
+        );
+        polish_cases += 1;
+    }
+
+    assert_translation(
+        english_cases,
+        "en",
+        "pl",
+        "Paris is the capital of France.",
+        "Paryż jest stolicą Francji",
+    );
+    english_cases += 1;
+    assert_translation(
+        english_cases,
+        "en",
+        "pl",
+        "Warsaw is the capital of Poland.",
+        "Warszawa jest stolicą Polski",
+    );
+    english_cases += 1;
+    assert_translation(
+        polish_cases,
+        "pl",
+        "en",
+        "Paryż jest stolicą Francji.",
+        "Paris is the capital of France",
+    );
+    polish_cases += 1;
+    assert_translation(
+        polish_cases,
+        "pl",
+        "en",
+        "Warszawa jest stolicą Polski.",
+        "Warsaw is the capital of Poland",
+    );
+    polish_cases += 1;
+
+    assert_eq!(english_cases, 50);
+    assert_eq!(polish_cases, 50);
+}
