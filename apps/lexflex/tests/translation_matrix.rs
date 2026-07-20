@@ -121,6 +121,18 @@ fn assert_translation(
     result
 }
 
+fn assert_b1_translation(
+    index: usize,
+    source_language: &str,
+    target_language: &str,
+    source: &str,
+    expected: &str,
+) -> command_support::LevelCaseResult {
+    let mut result = assert_translation(index, source_language, target_language, source, expected);
+    result.id = format!("B1-{}-{index:03}", source_language.to_uppercase());
+    result
+}
+
 #[test]
 fn a2_reaches_fifty_english_and_polish_source_sentences() {
     let people = [
@@ -270,4 +282,135 @@ fn a2_reaches_fifty_english_and_polish_source_sentences() {
     assert_eq!(polish_cases, 50);
     assert_eq!(results.len(), 100);
     command_support::write_level_report("a2", &results);
+}
+
+#[test]
+fn b1_reaches_fifty_english_and_polish_varied_sentences() {
+    let people = [
+        ("Tom", "Tomek", "Tomka", "Tom"),
+        ("Iza", "Iza", "Izę", "Iza"),
+        ("Thomas", "Tomasz", "Tomasza", "Tom"),
+        ("Tommy", "Tomcio", "Tomcia", "Tom"),
+        ("Isabelle", "Izabela", "Izabelę", "Iza"),
+        ("Izzy", "Izka", "Izkę", "Iza"),
+    ];
+    let mut english_cases = 0;
+    let mut polish_cases = 0;
+    let mut results = Vec::new();
+
+    for (agent, agent_pl, _, agent_canonical) in people {
+        for (patient, _, patient_pl_object, patient_canonical) in people {
+            results.push(assert_b1_translation(
+                english_cases,
+                "en",
+                "pl",
+                &format!("{agent} sees {patient}!"),
+                &format!(
+                    "{} widzi {}",
+                    if agent_canonical == "Tom" {
+                        "Tomek"
+                    } else {
+                        "Iza"
+                    },
+                    if patient_canonical == "Tom" {
+                        "Tomka"
+                    } else {
+                        "Izę"
+                    }
+                ),
+            ));
+            english_cases += 1;
+            results.push(assert_b1_translation(
+                polish_cases,
+                "pl",
+                "en",
+                &format!("{agent_pl} widzi {patient_pl_object}!"),
+                &format!("{agent_canonical} sees {patient_canonical}"),
+            ));
+            polish_cases += 1;
+        }
+    }
+
+    for (index, (person, _, object, canonical)) in people.iter().enumerate() {
+        results.push(assert_b1_translation(
+            english_cases,
+            "en",
+            "pl",
+            &format!("Who sees {person}?"),
+            &format!(
+                "Kto widzi {}?",
+                if *canonical == "Tom" { "Tomka" } else { "Izę" }
+            ),
+        ));
+        english_cases += 1;
+        results.push(assert_b1_translation(
+            polish_cases,
+            "pl",
+            "en",
+            &format!("Kto widzi {object}?"),
+            &format!("Who sees {canonical}?"),
+        ));
+        polish_cases += 1;
+        let _ = index;
+    }
+
+    for (index, (person, person_pl, _, canonical)) in people.iter().enumerate() {
+        results.push(assert_b1_translation(
+            english_cases,
+            "en",
+            "pl",
+            &format!("{person} sees who?"),
+            &format!(
+                "{} widzi Kogo?",
+                if *canonical == "Tom" { "Tomek" } else { "Iza" }
+            ),
+        ));
+        english_cases += 1;
+        results.push(assert_b1_translation(
+            polish_cases,
+            "pl",
+            "en",
+            &format!("{person_pl} widzi Kogo?"),
+            &format!("{canonical} sees who?"),
+        ));
+        polish_cases += 1;
+        let _ = index;
+    }
+
+    results.push(assert_b1_translation(
+        english_cases,
+        "en",
+        "pl",
+        "Paris is the capital of France!",
+        "Paryż jest stolicą Francji",
+    ));
+    english_cases += 1;
+    results.push(assert_b1_translation(
+        english_cases,
+        "en",
+        "pl",
+        "Warsaw is the capital of Poland!",
+        "Warszawa jest stolicą Polski",
+    ));
+    english_cases += 1;
+    results.push(assert_b1_translation(
+        polish_cases,
+        "pl",
+        "en",
+        "Paryż jest stolicą Francji!",
+        "Paris is the capital of France",
+    ));
+    polish_cases += 1;
+    results.push(assert_b1_translation(
+        polish_cases,
+        "pl",
+        "en",
+        "Warszawa jest stolicą Polski!",
+        "Warsaw is the capital of Poland",
+    ));
+    polish_cases += 1;
+
+    assert_eq!(english_cases, 50);
+    assert_eq!(polish_cases, 50);
+    command_support::write_level_report("b1", &results);
 }
