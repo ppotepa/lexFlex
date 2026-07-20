@@ -411,3 +411,51 @@ fn b1_reaches_fifty_english_and_polish_varied_sentences() {
     command_support::write_level_report("b1", &results);
     command_support::assert_level_passed("b1", &results);
 }
+
+#[test]
+fn fronted_object_questions_preserve_semantics_in_both_languages() {
+    let people = [
+        ("Tom", "Tomek"),
+        ("Iza", "Iza"),
+        ("Thomas", "Tomasz"),
+        ("Tommy", "Tomcio"),
+        ("Isabelle", "Izabela"),
+        ("Izzy", "Izka"),
+    ];
+    let mut results = Vec::new();
+    for (index, (english, polish)) in people.iter().enumerate() {
+        results.push(assert_b1_translation(
+            index,
+            "en",
+            "pl",
+            &format!("Who does {english} see?"),
+            &format!("{} widzi Kogo?", canonical_polish_subject(polish)),
+        ));
+        results.push(assert_b1_translation(
+            index,
+            "pl",
+            "en",
+            &format!("Kogo widzi {polish}?"),
+            &format!("{} sees who?", canonical_english_subject(english)),
+        ));
+    }
+    assert_eq!(results.len(), 12);
+    command_support::write_level_report("fronted-questions", &results);
+    command_support::assert_level_passed("fronted-questions", &results);
+}
+
+fn canonical_english_subject(source: &str) -> &str {
+    match source {
+        "Thomas" | "Tommy" => "Tom",
+        "Isabelle" | "Izzy" => "Iza",
+        value => value,
+    }
+}
+
+fn canonical_polish_subject(source: &str) -> &str {
+    match source {
+        "Tomasz" | "Tomcio" => "Tomek",
+        "Izabela" | "Izka" => "Iza",
+        value => value,
+    }
+}

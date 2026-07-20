@@ -84,6 +84,14 @@
         features: (values: { "tense": "present", "number": "singular" }),
     ),
     (
+        id: "form:en:see",
+        lexeme_id: "lexeme:en:see:verb",
+        surface: "see",
+        normalized: "see",
+        features: (values: { "tense": "present" }),
+        priority: 1,
+    ),
+    (
         id: "form:en:Who",
         lexeme_id: "lexeme:en:who:question",
         surface: "Who",
@@ -117,5 +125,12 @@
         surface: "Izzy",
         normalized: "izzy",
         features: (values: { "part_of_speech": "noun", "proper": "true" }),
+    ),
+    (
+        id: "form:en:does",
+        lexeme_id: "lexeme:en:does:auxiliary",
+        surface: "does",
+        normalized: "does",
+        features: (values: { "part_of_speech": "auxiliary", "tense": "present" }),
     ),
 ]

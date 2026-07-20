@@ -101,4 +101,10 @@
         lemma: "Izzy",
         normalized_lemma: "izzy",
     ),
+    (
+        id: "lexeme:en:does:auxiliary",
+        language: "en",
+        lemma: "does",
+        normalized_lemma: "does",
+    ),
 ]

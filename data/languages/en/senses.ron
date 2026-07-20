@@ -572,6 +572,108 @@
         priority: 0,
     ),
     (
+        id: "sense:en:see:fronted-event",
+        lexeme_id: "lexeme:en:see:verb",
+        anchor: Some(Concept("SEE_EVENT")),
+        base_category: Atom(
+            kind: Sentence,
+            semantic_type: Concrete(Boolean),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:en:see:fronted-event",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "patient",
+                        parameter_id: "patient",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                    (
+                        name: "agent",
+                        parameter_id: "agent",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                ],
+                body: ApplyConcept(
+                    concept: "SEE_EVENT",
+                    bindings: {
+                        "agent": Variable("agent"),
+                        "patient": Variable("patient"),
+                    },
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "tense": "present", "fronted_patient": "true" }),
+        valency: [
+            (
+                id: "valency:en:see:fronted:agent",
+                parameter: "agent",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: {}),
+                ),
+                surface_relation: None,
+                direction: Backward,
+                application_rank: 0,
+                required: true,
+            ),
+            (
+                id: "valency:en:see:fronted:patient",
+                parameter: "patient",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: {}),
+                ),
+                surface_relation: None,
+                direction: Backward,
+                application_rank: 1,
+                required: true,
+            ),
+        ],
+        priority: 1,
+    ),
+    (
+        id: "sense:en:does:auxiliary",
+        lexeme_id: "lexeme:en:does:auxiliary",
+        anchor: None,
+        base_category: Function(
+            result: Atom(
+                kind: NounPhrase,
+                semantic_type: Variable("T"),
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: NounPhrase,
+                semantic_type: Variable("T"),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "value",
+            features: (values: { "auxiliary": "true" }),
+        ),
+        meaning: (
+            id: "meaning:en:does:auxiliary",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "value",
+                        parameter_id: "value",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                ],
+                body: Variable("value"),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "auxiliary" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
         id: "sense:en:who:question",
         lexeme_id: "lexeme:en:who:question",
         anchor: None,

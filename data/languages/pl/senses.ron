@@ -469,6 +469,71 @@
         priority: 0,
     ),
     (
+        id: "sense:pl:widzi:fronted-event",
+        lexeme_id: "lexeme:pl:widziec:verb",
+        anchor: Some(Concept("SEE_EVENT")),
+        base_category: Atom(
+            kind: Sentence,
+            semantic_type: Concrete(Boolean),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:widzi:fronted-event",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "patient",
+                        parameter_id: "patient",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                    (
+                        name: "agent",
+                        parameter_id: "agent",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                ],
+                body: ApplyConcept(
+                    concept: "SEE_EVENT",
+                    bindings: {
+                        "agent": Variable("agent"),
+                        "patient": Variable("patient"),
+                    },
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "tense": "present", "fronted_patient": "true" }),
+        valency: [
+            (
+                id: "valency:pl:see:fronted:agent",
+                parameter: "agent",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: { "case": "nominative" }),
+                ),
+                surface_relation: None,
+                direction: Forward,
+                application_rank: 0,
+                required: true,
+            ),
+            (
+                id: "valency:pl:see:fronted:patient",
+                parameter: "patient",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: { "case": "accusative" }),
+                ),
+                surface_relation: None,
+                direction: Backward,
+                application_rank: 1,
+                required: true,
+            ),
+        ],
+        priority: 1,
+    ),
+    (
         id: "sense:pl:kto:question",
         lexeme_id: "lexeme:pl:kto:question",
         anchor: None,
