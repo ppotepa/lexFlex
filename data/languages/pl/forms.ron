@@ -212,4 +212,11 @@
         normalized: "i",
         features: (values: { "part_of_speech": "conjunction" }),
     ),
+    (
+        id: "form:pl:albo",
+        lexeme_id: "lexeme:pl:albo:conjunction",
+        surface: "albo",
+        normalized: "albo",
+        features: (values: { "part_of_speech": "conjunction" }),
+    ),
 ]

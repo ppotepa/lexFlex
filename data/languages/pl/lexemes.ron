@@ -101,4 +101,10 @@
         lemma: "i",
         normalized_lemma: "i",
     ),
+    (
+        id: "lexeme:pl:albo:conjunction",
+        language: "pl",
+        lemma: "albo",
+        normalized_lemma: "albo",
+    ),
 ]

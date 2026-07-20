@@ -140,4 +140,11 @@
         normalized: "and",
         features: (values: { "part_of_speech": "conjunction" }),
     ),
+    (
+        id: "form:en:or",
+        lexeme_id: "lexeme:en:or:conjunction",
+        surface: "or",
+        normalized: "or",
+        features: (values: { "part_of_speech": "conjunction" }),
+    ),
 ]

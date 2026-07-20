@@ -266,6 +266,31 @@ fn semantic_negation_and_coordination_generate_in_both_languages() {
 }
 
 #[test]
+fn semantic_or_generates_in_both_languages() {
+    let expression = SemanticExpression::Or(vec![sees_expression(), sees_expression()]);
+
+    let en = generate(
+        &GenerationRequest {
+            expression: expression.clone(),
+            include_trace: false,
+        },
+        &language_for("en"),
+    )
+    .expect("English OR should generate");
+    let pl = generate(
+        &GenerationRequest {
+            expression,
+            include_trace: false,
+        },
+        &language_for("pl"),
+    )
+    .expect("Polish OR should generate");
+
+    assert_eq!(en.text, "Tom sees Iza or Tom sees Iza");
+    assert_eq!(pl.text, "Tomek widzi Izę albo Tomek widzi Izę");
+}
+
+#[test]
 fn generation_budget_rejects_deep_expression_before_realization() {
     let mut expression = SemanticExpression::Value(true.into());
     for _ in 0..4 {

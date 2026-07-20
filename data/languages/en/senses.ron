@@ -726,6 +726,58 @@
         priority: 0,
     ),
     (
+        id: "sense:en:or:conjunction",
+        lexeme_id: "lexeme:en:or:conjunction",
+        anchor: None,
+        base_category: Function(
+            result: Function(
+                result: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                argument: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                direction: Backward,
+                semantic_parameter: "left",
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "right",
+            features: (values: { "coordination": "or" }),
+        ),
+        meaning: (
+            id: "meaning:en:or:conjunction",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "right",
+                        parameter_id: "right",
+                        value_type: Boolean,
+                    ),
+                    (
+                        name: "left",
+                        parameter_id: "left",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Or([Variable("left"), Variable("right")]),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "conjunction" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
         id: "sense:en:who:question",
         lexeme_id: "lexeme:en:who:question",
         anchor: None,

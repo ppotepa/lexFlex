@@ -113,4 +113,10 @@
         lemma: "and",
         normalized_lemma: "and",
     ),
+    (
+        id: "lexeme:en:or:conjunction",
+        language: "en",
+        lemma: "or",
+        normalized_lemma: "or",
+    ),
 ]
