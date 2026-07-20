@@ -239,6 +239,33 @@ fn compound_generation_preserves_all_lexical_trace_entries() {
 }
 
 #[test]
+fn semantic_negation_and_coordination_generate_in_both_languages() {
+    let expression = SemanticExpression::And(vec![
+        SemanticExpression::Not(Box::new(sees_expression())),
+        sees_expression(),
+    ]);
+    let english = generate(
+        &GenerationRequest {
+            expression: expression.clone(),
+            include_trace: false,
+        },
+        &language_for("en"),
+    )
+    .expect("English compound negation");
+    assert_eq!(english.text, "not Tom sees Iza and Tom sees Iza");
+
+    let polish = generate(
+        &GenerationRequest {
+            expression,
+            include_trace: false,
+        },
+        &language_for("pl"),
+    )
+    .expect("Polish compound negation");
+    assert_eq!(polish.text, "nie Tomek widzi Izę i Tomek widzi Izę");
+}
+
+#[test]
 fn generation_budget_rejects_deep_expression_before_realization() {
     let mut expression = SemanticExpression::Value(true.into());
     for _ in 0..4 {
@@ -453,6 +480,50 @@ fn apply_uses_declared_surface_relation_and_slot_order() {
                 ..
             }
         )));
+}
+
+fn sees_expression() -> SemanticExpression {
+    SemanticExpression::Apply {
+        concept: lexflex_model::ConceptId::new_unchecked("SEE_EVENT"),
+        bindings: [
+            (
+                lexflex_model::ParameterId::new_unchecked("agent"),
+                SemanticExpression::Entity(EntityId::new_unchecked("TOM")),
+            ),
+            (
+                lexflex_model::ParameterId::new_unchecked("patient"),
+                SemanticExpression::Entity(EntityId::new_unchecked("IZA")),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    }
+}
+
+#[test]
+fn negation_generation_uses_english_language_realization() {
+    let generated = generate(
+        &GenerationRequest {
+            expression: SemanticExpression::Not(Box::new(sees_expression())),
+            include_trace: false,
+        },
+        &language_for("en"),
+    )
+    .expect("negative assertion generation");
+    assert_eq!(generated.text, "not Tom sees Iza");
+}
+
+#[test]
+fn negation_generation_uses_polish_language_realization() {
+    let generated = generate(
+        &GenerationRequest {
+            expression: SemanticExpression::Not(Box::new(sees_expression())),
+            include_trace: false,
+        },
+        &language_for("pl"),
+    )
+    .expect("negative assertion generation");
+    assert_eq!(generated.text, "nie Tomek widzi Izę");
 }
 
 #[test]
