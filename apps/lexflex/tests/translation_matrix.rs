@@ -47,6 +47,8 @@ fn a2_assertion_translation_preserves_semantic_hash() {
         ),
         ("en", "pl", "Who sees Tom?", "Kto widzi Tomka?"),
         ("pl", "en", "Kto widzi Tomka?", "Who sees Tom?"),
+        ("en", "pl", "Tom sees who?", "Tomek widzi Kogo?"),
+        ("pl", "en", "Tomek widzi Kogo?", "Tom sees who?"),
     ];
 
     for (index, (source, target, input, expected)) in cases.iter().enumerate() {

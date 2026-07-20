@@ -45,6 +45,8 @@ pub struct LanguageRealizationModel {
     #[serde(default)]
     pub question_argument_prefixes: BTreeMap<String, String>,
     #[serde(default)]
+    pub question_argument_suffixes: BTreeMap<String, String>,
+    #[serde(default)]
     pub predicate_prefix: String,
     #[serde(default)]
     pub argument_orders: BTreeMap<String, Vec<String>>,

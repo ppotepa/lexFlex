@@ -809,6 +809,24 @@ fn generate_question_predicate(
     )
 }
 
+fn generate_postverbal_question_predicate(
+    expression: &SemanticExpression,
+    query_variable: &VariableId,
+    include_trace: bool,
+    language: &LanguageModel,
+    style: &GenerationStyle,
+) -> Result<GeneratedText, GenerationError> {
+    generate_predicate_internal(
+        expression,
+        include_trace,
+        language,
+        style,
+        Some(query_variable),
+        &FeatureStructure::default(),
+        None,
+    )
+}
+
 fn generate_predicate_internal(
     expression: &SemanticExpression,
     include_trace: bool,
@@ -1001,6 +1019,23 @@ fn apply_question_realization(
                 matches!(expression, SemanticExpression::Variable(variable) if variable == query)
                     .then_some(parameter)
             }) {
+                if let Some(suffix) = language
+                    .realizations
+                    .question_argument_suffixes
+                    .get(parameter.as_str())
+                {
+                    if let Ok(value) = generate_postverbal_question_predicate(
+                        &request.expression,
+                        query,
+                        request.include_trace,
+                        language,
+                        &GenerationStyle::from_language(language),
+                    ) {
+                        result.text = format!("{} {}?", value.text, suffix);
+                        result.trace = value.trace;
+                        return result;
+                    }
+                }
                 if let Ok(value) = generate_question_predicate(
                     &request.expression,
                     query,

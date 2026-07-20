@@ -39,6 +39,8 @@ assertion and goal translations:
 | A2-010 | Jaka jest stolica Polski? | What is the capital of Poland? | goal projection + `CAPITAL` | PASS |
 | A2-011 | Who sees Tom? | Kto widzi Tomka? | goal projection + agent | PASS |
 | A2-012 | Kto widzi Tomka? | Who sees Tom? | goal projection + agent | PASS |
+| A2-013 | Tom sees who? | Tomek widzi Kogo? | goal projection + patient | PASS |
+| A2-014 | Tomek widzi Kogo? | Tom sees who? | goal projection + patient | PASS |
 
 ## Planned 200 + 200 Distribution
 

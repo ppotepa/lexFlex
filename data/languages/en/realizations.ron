@@ -12,6 +12,9 @@
         "agent": "Who ",
         "patient": "Who ",
     },
+    question_argument_suffixes: {
+        "patient": "who",
+    },
     predicate_prefix: "the ",
     argument_orders: {
         "SEE_EVENT": ["agent", "patient"],
