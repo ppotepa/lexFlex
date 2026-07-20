@@ -500,4 +500,34 @@
         valency: [],
         priority: 0,
     ),
+    (
+        id: "sense:pl:kogo:question",
+        lexeme_id: "lexeme:pl:kogo:question",
+        anchor: None,
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("PERSON"),
+            ),
+            features: (
+                values: {
+                    "case": "accusative",
+                },
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:kogo:question",
+            expression: QueryVariable(
+                "template:answer",
+            ),
+            query_variables: {
+                "template:answer": Concrete(
+                    EntityOf("PERSON"),
+                ),
+            },
+        ),
+        features: (values: { "interrogative": "true" }),
+        valency: [],
+        priority: 0,
+    ),
 ]

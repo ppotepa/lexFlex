@@ -66,6 +66,10 @@ pub enum RuntimeInitError {
 }
 
 impl LexFlexRuntime {
+    pub fn catalog(&self) -> &Arc<lexflex_model::ConceptCatalog> {
+        self.lingua.catalog()
+    }
+
     pub fn language_model(
         &self,
         language: &lexflex_model::LanguageId,

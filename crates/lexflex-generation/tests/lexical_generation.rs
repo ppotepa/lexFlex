@@ -317,7 +317,7 @@ fn goal_realization_uses_language_question_contract() {
     )
     .expect("goal realization");
 
-    assert_eq!(result.text, "what is true?");
+    assert_eq!(result.text, "What is true?");
 }
 
 #[test]
@@ -333,7 +333,7 @@ fn polish_goal_realization_uses_polish_question_contract() {
     )
     .expect("goal realization");
 
-    assert_eq!(result.text, "co to jest true?");
+    assert_eq!(result.text, "Jaka jest true?");
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn goal_realization_preserves_query_variable_in_expression() {
     )
     .expect("query realization");
 
-    assert_eq!(result.text, "what is France?");
+    assert_eq!(result.text, "What is France?");
 }
 
 #[test]

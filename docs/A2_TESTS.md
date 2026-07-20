@@ -22,8 +22,8 @@ Expected output text alone is insufficient evidence.
 ## Current Seed
 
 The first executable seed is in
-`apps/lexflex/tests/translation_matrix.rs`. It covers eight distinct
-assertion translations:
+`apps/lexflex/tests/translation_matrix.rs`. It covers twelve distinct
+assertion and goal translations:
 
 | ID | Source | Target | Construction | Status |
 | --- | --- | --- | --- | --- |
@@ -35,6 +35,10 @@ assertion translations:
 | A2-006 | Tomek widzi Izę. | Tom sees Iza | `SEE_EVENT` agent/patient | PASS |
 | A2-007 | Iza sees Tom. | Iza widzi Tomka | `SEE_EVENT` object inflection | PASS |
 | A2-008 | Iza widzi Tomka. | Iza sees Tom | `SEE_EVENT` object inflection | PASS |
+| A2-009 | What is the capital of Poland? | Jaka jest stolica Polski? | goal projection + `CAPITAL` | PASS |
+| A2-010 | Jaka jest stolica Polski? | What is the capital of Poland? | goal projection + `CAPITAL` | PASS |
+| A2-011 | Who sees Tom? | Kto widzi Tomka? | goal projection + agent | PASS |
+| A2-012 | Kto widzi Tomka? | Who sees Tom? | goal projection + agent | PASS |
 
 ## Planned 200-Case Distribution
 
@@ -83,4 +87,3 @@ rtk cargo run -p lexflex-app -- text-translate-text \
   --language pl --target-language en \
   --text 'Paryż jest stolicą Francji.'
 ```
-

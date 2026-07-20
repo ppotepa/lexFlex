@@ -65,4 +65,10 @@
         lemma: "kto",
         normalized_lemma: "kto",
     ),
+    (
+        id: "lexeme:pl:kogo:question",
+        language: "pl",
+        lemma: "kogo",
+        normalized_lemma: "kogo",
+    ),
 ]

@@ -780,6 +780,44 @@ fn generate_predicate(
     language: &LanguageModel,
     style: &GenerationStyle,
 ) -> Result<GeneratedText, GenerationError> {
+    generate_predicate_internal(
+        expression,
+        include_trace,
+        language,
+        style,
+        None,
+        &language.realizations.predicate_features,
+        None,
+    )
+}
+
+fn generate_question_predicate(
+    expression: &SemanticExpression,
+    query_variable: &VariableId,
+    include_trace: bool,
+    language: &LanguageModel,
+    style: &GenerationStyle,
+) -> Result<GeneratedText, GenerationError> {
+    generate_predicate_internal(
+        expression,
+        include_trace,
+        language,
+        style,
+        Some(query_variable),
+        &FeatureStructure::default(),
+        Some(0),
+    )
+}
+
+fn generate_predicate_internal(
+    expression: &SemanticExpression,
+    include_trace: bool,
+    language: &LanguageModel,
+    style: &GenerationStyle,
+    omitted_variable: Option<&VariableId>,
+    predicate_features: &FeatureStructure,
+    head_position_override: Option<usize>,
+) -> Result<GeneratedText, GenerationError> {
     let SemanticExpression::Apply { concept, bindings } = expression else {
         return generate_with_style_unchecked(
             &GenerationRequest {
@@ -793,13 +831,21 @@ fn generate_predicate(
     valency::validate_apply(concept, bindings, language)?;
     let head = generate_anchor_with_features(
         &SemanticAnchor::Concept(concept.clone()),
-        &language.realizations.predicate_features,
+        predicate_features,
         include_trace,
         language,
     )?;
     let mut trace = head.trace;
     let mut arguments = Vec::with_capacity(bindings.len());
     for binding in valency::ordered_bindings(concept, bindings, language) {
+        if omitted_variable.is_some_and(|variable| {
+            matches!(
+                binding.expression,
+                SemanticExpression::Variable(candidate) if candidate == variable
+            )
+        }) {
+            continue;
+        }
         let generated = generate_argument(
             binding.expression,
             binding.features,
@@ -819,11 +865,13 @@ fn generate_predicate(
         text: realize_apply_text(
             &head.text,
             arguments,
-            language
-                .realizations
-                .head_positions
-                .get(concept.as_str())
-                .copied(),
+            head_position_override.or_else(|| {
+                language
+                    .realizations
+                    .head_positions
+                    .get(concept.as_str())
+                    .copied()
+            }),
         ),
         trace,
     })
@@ -897,8 +945,96 @@ fn apply_question_realization(
         }
     }
 
+    if let SemanticExpression::Satisfies { subject, predicate } = &request.expression {
+        if let Some(query) = request.projection.first() {
+            if matches!(subject.as_ref(), SemanticExpression::Variable(variable) if variable == query)
+            {
+                if let SemanticExpression::Apply { .. } = predicate.as_ref() {
+                    let prefix = if predicate_is_sentence(predicate, language) {
+                        &language.realizations.question_subject_prefix
+                    } else {
+                        &language.realizations.question_prefix
+                    };
+                    if let Ok(value) = generate_question_predicate(
+                        predicate,
+                        query,
+                        request.include_trace,
+                        language,
+                        &GenerationStyle::from_language(language),
+                    ) {
+                        result.text = format!(
+                            "{}{}{}?",
+                            prefix, language.realizations.predicate_prefix, value.text
+                        );
+                        result.trace = value.trace;
+                        return result;
+                    }
+                }
+            }
+            if let SemanticExpression::Apply { bindings, .. } = predicate.as_ref() {
+                let queried_binding = bindings.values().any(|expression| {
+                    matches!(expression, SemanticExpression::Variable(variable) if variable == query)
+                });
+                if queried_binding {
+                    if let Ok(value) = generate_question_predicate(
+                        predicate,
+                        query,
+                        request.include_trace,
+                        language,
+                        &GenerationStyle::from_language(language),
+                    ) {
+                        result.text = format!(
+                            "{}{}?",
+                            language.realizations.question_object_prefix, value.text
+                        );
+                        result.trace = value.trace;
+                        return result;
+                    }
+                }
+            }
+        }
+    }
+
+    if let SemanticExpression::Apply { bindings, .. } = &request.expression {
+        if let Some(query) = request.projection.first() {
+            if let Some(parameter) = bindings.iter().find_map(|(parameter, expression)| {
+                matches!(expression, SemanticExpression::Variable(variable) if variable == query)
+                    .then_some(parameter)
+            }) {
+                if let Ok(value) = generate_question_predicate(
+                    &request.expression,
+                    query,
+                    request.include_trace,
+                    language,
+                    &GenerationStyle::from_language(language),
+                ) {
+                    let prefix = language
+                        .realizations
+                        .question_argument_prefixes
+                        .get(parameter.as_str())
+                        .unwrap_or(&language.realizations.question_subject_prefix);
+                    result.text = format!("{}{}?", prefix, value.text);
+                    result.trace = value.trace;
+                    return result;
+                }
+            }
+        }
+    }
+
     result.text = format!("{}{}?", language.realizations.question_prefix, result.text);
     result
+}
+
+fn predicate_is_sentence(expression: &SemanticExpression, language: &LanguageModel) -> bool {
+    let SemanticExpression::Apply { concept, .. } = expression else {
+        return false;
+    };
+    language
+        .compiled_senses
+        .values()
+        .filter(|sense| sense.anchor == Some(SemanticAnchor::Concept(concept.clone())))
+        .min_by_key(|sense| (sense.priority, sense.id.clone()))
+        .is_some_and(|sense| sense.category.is_sentence())
 }
 
 pub fn generate_concept(

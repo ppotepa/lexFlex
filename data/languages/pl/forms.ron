@@ -142,4 +142,11 @@
         normalized: "kto",
         features: (values: { "interrogative": "true", "case": "nominative" }),
     ),
+    (
+        id: "form:pl:Kogo",
+        lexeme_id: "lexeme:pl:kogo:question",
+        surface: "Kogo",
+        normalized: "kogo",
+        features: (values: { "interrogative": "true", "case": "accusative" }),
+    ),
 ]

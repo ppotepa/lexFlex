@@ -5,7 +5,13 @@
     existential_prefix: "istnieje ",
     universal_prefix: "dla każdego ",
     equality_separator: " jest ",
-    question_prefix: "co to jest ",
+    question_prefix: "Jaka jest ",
+    question_subject_prefix: "Kto ",
+    question_object_prefix: "Kogo ",
+    question_argument_prefixes: {
+        "agent": "Kto ",
+        "patient": "Kogo ",
+    },
     predicate_prefix: "",
     argument_orders: {
         "SEE_EVENT": ["agent", "patient"],

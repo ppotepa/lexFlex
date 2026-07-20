@@ -5,7 +5,13 @@
     existential_prefix: "there exists ",
     universal_prefix: "for all ",
     equality_separator: " is ",
-    question_prefix: "what is ",
+    question_prefix: "What is ",
+    question_subject_prefix: "Who ",
+    question_object_prefix: "Who ",
+    question_argument_prefixes: {
+        "agent": "Who ",
+        "patient": "Who ",
+    },
     predicate_prefix: "the ",
     argument_orders: {
         "SEE_EVENT": ["agent", "patient"],

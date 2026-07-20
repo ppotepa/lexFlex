@@ -29,6 +29,29 @@ fn load_expression(path: &Path) -> Result<SemanticExpression, CliExit> {
     })
 }
 
+fn translation_semantic_hash(
+    runtime: &LexFlexRuntime,
+    analysis: &lexflex_engine::api::text::TextAnalysis,
+) -> Result<String, CliExit> {
+    if analysis.kind() == lexflex_engine::api::text::TextAnalysisKind::Goal {
+        let goal = lexflex_lingua::LinguaGoal {
+            expression: analysis.canonical_expression().clone(),
+            variables: analysis.variables().clone(),
+            projection: analysis.projection().to_vec(),
+            evidence_policy: lexflex_lingua::EvidencePolicy::Ignore,
+            world: None,
+            limit: None,
+        };
+        return lexflex_lingua::canonical_goal_semantic_hash(&goal, runtime.catalog())
+            .map(|hash| hash.to_string())
+            .map_err(|error| CliExit::Engine {
+                code: lexflex_engine::error::EngineErrorCode::InternalInvariant,
+                message: error.to_string(),
+            });
+    }
+    Ok(analysis.canonical_hash().to_string())
+}
+
 fn run_semantic_text(
     expression_path: PathBuf,
     language: String,
@@ -159,13 +182,14 @@ pub fn translate_text(
             message: "translation changed assertion/goal kind".into(),
         });
     }
-    if target_analysis.canonical_hash() != analysis.canonical_hash() {
+    let source_semantic_hash = translation_semantic_hash(runtime, &analysis)?;
+    let target_semantic_hash = translation_semantic_hash(runtime, &target_analysis)?;
+    if source_semantic_hash != target_semantic_hash {
         return Err(CliExit::Engine {
             code: lexflex_engine::error::EngineErrorCode::InternalInvariant,
             message: format!(
                 "translation semantic hash mismatch: source={}, target={}",
-                analysis.canonical_hash(),
-                target_analysis.canonical_hash()
+                source_semantic_hash, target_semantic_hash
             ),
         });
     }
@@ -176,8 +200,8 @@ pub fn translate_text(
         source_language: analysis.language().clone(),
         target_language: target_id,
         kind: analysis.kind(),
-        source_semantic_hash: analysis.canonical_hash().to_string(),
-        target_semantic_hash: target_analysis.canonical_hash().to_string(),
+        source_semantic_hash,
+        target_semantic_hash,
     })
     .map_err(CliExit::Internal)?;
     Ok(())

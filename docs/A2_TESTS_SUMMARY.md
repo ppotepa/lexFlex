@@ -4,12 +4,12 @@
 
 | Metric | Result |
 | --- | ---: |
-| Executable cases | 8 |
-| Passing cases | 8 |
-| Semantic round-trips | 8 |
-| Pending cases | 192 |
+| Executable cases | 12 |
+| Passing cases | 12 |
+| Semantic round-trips | 12 |
+| Pending cases | 188 |
 | Languages | EN, PL |
-| Covered kinds | Assertion |
+| Covered kinds | Assertion, Goal |
 | Covered constructions | `Satisfies`, `Apply`, `CAPITAL`, `SEE_EVENT` |
 
 ## Verified Properties
@@ -27,7 +27,7 @@
 The following cases are deliberately pending and must become executable
 failures before being marked `PASS`:
 
-- English and Polish question generation;
+- object-question syntax (`Who does Tom see?`, `Kogo widzi Tomek?`);
 - `Kogo` and other missing Polish query forms;
 - projection-variable substitution in generated questions;
 - semantic round-trip for goals;
@@ -51,4 +51,3 @@ For every batch:
 
 The summary must never claim a case is complete because a fixture or test
 name exists. Completion requires semantic round-trip evidence.
-

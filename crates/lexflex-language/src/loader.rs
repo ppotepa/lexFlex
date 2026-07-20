@@ -39,6 +39,12 @@ pub struct LanguageRealizationModel {
     pub equality_separator: String,
     pub question_prefix: String,
     #[serde(default)]
+    pub question_subject_prefix: String,
+    #[serde(default)]
+    pub question_object_prefix: String,
+    #[serde(default)]
+    pub question_argument_prefixes: BTreeMap<String, String>,
+    #[serde(default)]
     pub predicate_prefix: String,
     #[serde(default)]
     pub argument_orders: BTreeMap<String, Vec<String>>,

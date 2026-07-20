@@ -2,21 +2,6 @@
 #[allow(dead_code)]
 mod command_support;
 
-fn analyze_hash(language: &str, text: &str) -> String {
-    let output = command_support::run(&["text-analyze", "--language", language, "--text", text]);
-    assert_eq!(
-        output.code,
-        Some(0),
-        "analysis failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).expect("analysis JSON");
-    payload["TextAnalyzed"]["analysis"]["canonical_hash"]
-        .as_str()
-        .expect("canonical hash")
-        .to_owned()
-}
-
 #[test]
 fn a2_assertion_translation_preserves_semantic_hash() {
     let cases = [
@@ -48,6 +33,20 @@ fn a2_assertion_translation_preserves_semantic_hash() {
         ("pl", "en", "Tomek widzi Izę.", "Tom sees Iza"),
         ("en", "pl", "Iza sees Tom.", "Iza widzi Tomka"),
         ("pl", "en", "Iza widzi Tomka.", "Iza sees Tom"),
+        (
+            "en",
+            "pl",
+            "What is the capital of Poland?",
+            "Jaka jest stolica Polski?",
+        ),
+        (
+            "pl",
+            "en",
+            "Jaka jest stolica Polski?",
+            "What is the capital of Poland?",
+        ),
+        ("en", "pl", "Who sees Tom?", "Kto widzi Tomka?"),
+        ("pl", "en", "Kto widzi Tomka?", "Who sees Tom?"),
     ];
 
     for (index, (source, target, input, expected)) in cases.iter().enumerate() {
@@ -65,10 +64,8 @@ fn a2_assertion_translation_preserves_semantic_hash() {
             serde_json::from_slice(&output.stdout).expect("translation JSON");
         assert_eq!(payload["text"], *expected, "translation {index} mismatch");
 
-        let source_hash = analyze_hash(source, input);
-        let target_hash = analyze_hash(target, expected);
         assert_eq!(
-            source_hash, target_hash,
+            payload["source_semantic_hash"], payload["target_semantic_hash"],
             "semantic round-trip {index} mismatch"
         );
     }
