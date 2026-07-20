@@ -134,6 +134,13 @@
         features: (values: { "part_of_speech": "auxiliary", "tense": "present" }),
     ),
     (
+        id: "form:en:not",
+        lexeme_id: "lexeme:en:not:negation",
+        surface: "not",
+        normalized: "not",
+        features: (values: { "part_of_speech": "particle" }),
+    ),
+    (
         id: "form:en:and",
         lexeme_id: "lexeme:en:and:conjunction",
         surface: "and",

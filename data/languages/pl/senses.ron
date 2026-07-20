@@ -596,6 +596,43 @@
         priority: 0,
     ),
     (
+        id: "sense:pl:nie:negation",
+        lexeme_id: "lexeme:pl:nie:negation",
+        anchor: None,
+        base_category: Function(
+            result: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "value",
+            features: (values: { "negation": "true" }),
+        ),
+        meaning: (
+            id: "meaning:pl:nie:negation",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "value",
+                        parameter_id: "value",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Not(Variable("value")),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "particle" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
         id: "sense:pl:i:conjunction",
         lexeme_id: "lexeme:pl:i:conjunction",
         anchor: None,

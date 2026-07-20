@@ -206,6 +206,13 @@
         features: (values: { "part_of_speech": "noun", "proper": "true", "case": "accusative" }),
     ),
     (
+        id: "form:pl:nie",
+        lexeme_id: "lexeme:pl:nie:negation",
+        surface: "nie",
+        normalized: "nie",
+        features: (values: { "part_of_speech": "particle" }),
+    ),
+    (
         id: "form:pl:i",
         lexeme_id: "lexeme:pl:i:conjunction",
         surface: "i",

@@ -96,6 +96,12 @@
         normalized_lemma: "izka",
     ),
     (
+        id: "lexeme:pl:nie:negation",
+        language: "pl",
+        lemma: "nie",
+        normalized_lemma: "nie",
+    ),
+    (
         id: "lexeme:pl:i:conjunction",
         language: "pl",
         lemma: "i",

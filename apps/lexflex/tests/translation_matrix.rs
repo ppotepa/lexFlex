@@ -488,6 +488,28 @@ fn coordination_or_preserves_canonical_order_in_both_languages() {
     command_support::assert_level_passed("coordination-or", &results);
 }
 
+#[test]
+fn negated_assertions_preserve_semantics_in_both_languages() {
+    let results = vec![
+        assert_b1_translation(
+            0,
+            "en",
+            "pl",
+            "Not Tom sees Iza.",
+            "nie Tomek widzi Izę",
+        ),
+        assert_b1_translation(
+            0,
+            "pl",
+            "en",
+            "Nie Tomek widzi Izę.",
+            "not Tom sees Iza",
+        ),
+    ];
+    command_support::write_level_report("negation", &results);
+    command_support::assert_level_passed("negation", &results);
+}
+
 fn canonical_english_subject(source: &str) -> &str {
     match source {
         "Thomas" | "Tommy" => "Tom",

@@ -108,6 +108,12 @@
         normalized_lemma: "does",
     ),
     (
+        id: "lexeme:en:not:negation",
+        language: "en",
+        lemma: "not",
+        normalized_lemma: "not",
+    ),
+    (
         id: "lexeme:en:and:conjunction",
         language: "en",
         lemma: "and",
