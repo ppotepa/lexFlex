@@ -1,0 +1,13 @@
+[package]
+name = "lexflex-model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Canonical concept-expression semantic kernel for lexFlex"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "session_id": "strict-event",
+  "payload": {
+    "schema": 1,
+    "session_id": "strict-event",
+    "knowledge": {
+      "assertions": {
+        "assertion:8e67bfd1d75ee627b8a6d6e1659869eabdffdb58cd58b1ef54df8b772414929c": {
+          "id": "assertion:8e67bfd1d75ee627b8a6d6e1659869eabdffdb58cd58b1ef54df8b772414929c",
+          "expression": {
+            "Apply": {
+              "concept": "SEE_EVENT",
+              "bindings": {
+                "agent": {
+                  "Entity": "TOM"
+                },
+                "patient": {
+                  "Entity": "IZA"
+                }
+              }
+            }
+          },
+          "evidence": [
+            {
+              "id": "evidence:48545d7dadfa27925762b8336f44b270961b71d91754c5a5926db4be936acef0",
+              "source_id": "source:test:event-en",
+              "span": {
+                "start": 0,
+                "end": 13
+              },
+              "source_hash": "48545d7dadfa27925762b8336f44b270961b71d91754c5a5926db4be936acef0"
+            }
+          ],
+          "world": "actual",
+          "canonical_hash": "8e67bfd1d75ee627b8a6d6e1659869eabdffdb58cd58b1ef54df8b772414929c"
+        }
+      },
+      "snapshot_hash": "a8898dfc2d0c5f25a80573f7c8ae7258168fdf2c0076e394f818bb915d3d03e5"
+    },
+    "model_hash": "a7ce6e7def0b2de599d7c77bc980d67f6dbfcdee927eb2d2117129ba41841534"
+  }
+}

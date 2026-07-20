@@ -1,0 +1,2 @@
+pub const SESSION_RECORD_SCHEMA: u32 = 3;
+pub const ENGINE_SESSION_SCHEMA: u32 = 3;

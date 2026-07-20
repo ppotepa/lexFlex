@@ -1,0 +1,10 @@
+(
+    schema: 1,
+    package_id: "lexflex:language:en:composition-v1",
+    language: "en",
+    lexemes: "lexemes.ron",
+    senses: "senses.ron",
+    forms: "forms.ron",
+    paradigms: "paradigms.ron",
+    realizations: Some("realizations.ron"),
+)

@@ -1,1 +1,0 @@
-The rendering engine handles the scene. The rendering engine saves the result. The rendering engine is stable.

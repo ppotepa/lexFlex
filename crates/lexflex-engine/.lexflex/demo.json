@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "session_id": "demo",
+  "payload": {
+    "schema": 1,
+    "session_id": "demo",
+    "request_counter": 39,
+    "assertions": [
+      {
+        "id": "assertion:8cf6d482711ad8d100faac424c495c36ea99b9e6217e91f910935e3dc7878296",
+        "expression": {
+          "Satisfies": {
+            "subject": {
+              "Entity": "PARIS"
+            },
+            "predicate": {
+              "Apply": {
+                "concept": "CAPITAL",
+                "bindings": {
+                  "scope": {
+                    "Entity": "FRANCE"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "evidence": [
+          {
+            "id": "evidence:c3af6564a14d4654d783e2b5e549c274c356e301dd1e0e2b712b6e97ac37bf7c",
+            "source_id": "source:en:capital",
+            "span": {
+              "start": 0,
+              "end": 31
+            },
+            "source_hash": "c3af6564a14d4654d783e2b5e549c274c356e301dd1e0e2b712b6e97ac37bf7c"
+          }
+        ],
+        "world": "actual",
+        "canonical_hash": "8cf6d482711ad8d100faac424c495c36ea99b9e6217e91f910935e3dc7878296"
+      }
+    ],
+    "snapshot_hash": "25edd4f18522a683f86acb6314d4312d145eacb694f556d81c292d25ac30cd64",
+    "model_hash": "3aedb8f6cbe3ddb1b9256382a75112a62efd6cdcb968274f79ac04fc8fa01837"
+  }
+}

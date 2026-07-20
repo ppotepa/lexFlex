@@ -1,0 +1,853 @@
+[
+    (
+        id: "sense:pl:paryz:entity",
+        lexeme_id: "lexeme:pl:paryz:proper",
+        anchor: Some(
+            Entity(
+                "PARIS",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("CITY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:paryz:entity",
+            expression: Entity(
+                "PARIS",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:francja:entity",
+        lexeme_id: "lexeme:pl:francja:proper",
+        anchor: Some(
+            Entity(
+                "FRANCE",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("COUNTRY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:francja:entity",
+            expression: Entity(
+                "FRANCE",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:warszawa:entity",
+        lexeme_id: "lexeme:pl:warszawa:proper",
+        anchor: Some(
+            Entity(
+                "WARSAW",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("CITY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:warszawa:entity",
+            expression: Entity(
+                "WARSAW",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:polska:entity",
+        lexeme_id: "lexeme:pl:polska:proper",
+        anchor: Some(
+            Entity(
+                "POLAND",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("COUNTRY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:polska:entity",
+            expression: Entity(
+                "POLAND",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:stolica:city",
+        lexeme_id: "lexeme:pl:stolica:noun",
+        anchor: Some(
+            Concept(
+                "CAPITAL",
+            ),
+        ),
+        base_category: Atom(
+            kind: Predicate,
+            semantic_type: Concrete(
+                EntityOf("CITY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:stolica:city",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "scope",
+                        parameter_id: "scope",
+                        value_type: EntityOf("POLITY"),
+                    ),
+                ],
+                body: ApplyConcept(
+                    concept: "CAPITAL",
+                    bindings: {
+                        "scope": Variable("scope"),
+                    },
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+            },
+        ),
+        valency: [
+            (
+                id: "valency:pl:capital:argument",
+                parameter: "scope",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(
+                        EntityOf("COUNTRY"),
+                    ),
+                    features: (
+                        values: {
+                            "case": "genitive",
+                        },
+                    ),
+                ),
+                surface_relation: None,
+                direction: Forward,
+                application_rank: 0,
+                required: true,
+            ),
+        ],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:byc:copula",
+        lexeme_id: "lexeme:pl:byc:verb",
+        anchor: Some(
+            Concept(
+                "ENTITY",
+            ),
+        ),
+        base_category: Function(
+            result: Function(
+                result: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(
+                        Boolean,
+                    ),
+                    features: (
+                        values: {},
+                    ),
+                ),
+                argument: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Variable(
+                        "T",
+                    ),
+                    features: (
+                        values: {},
+                    ),
+                ),
+                direction: Backward,
+                semantic_parameter: "subject",
+                features: (
+                    values: {},
+                ),
+            ),
+            argument: Atom(
+                kind: Predicate,
+                semantic_type: Variable(
+                    "T",
+                ),
+                features: (
+                    values: {},
+                ),
+            ),
+            direction: Forward,
+            semantic_parameter: "predicate",
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:byc:copula",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "predicate",
+                        parameter_id: "predicate",
+                        value_type: Predicate(
+                            Entity,
+                        ),
+                    ),
+                    (
+                        name: "subject",
+                        parameter_id: "subject",
+                        value_type: Entity,
+                    ),
+                ],
+                body: Satisfies(
+                    subject: Variable("subject"),
+                    concept: Variable("predicate"),
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "tense": "present",
+                "person": "third",
+                "number": "singular",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:czy:yes-no-question",
+        lexeme_id: "lexeme:pl:czy:question",
+        anchor: None,
+        base_category: Function(
+            result: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "value",
+            features: (values: { "interrogative": "true" }),
+        ),
+        meaning: (
+            id: "meaning:pl:czy:yes-no-question",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "value",
+                        parameter_id: "value",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Equals(
+                    left: QueryVariable("answer"),
+                    right: Variable("value"),
+                ),
+            ),
+            query_variables: {
+                "answer": Concrete(Boolean),
+            },
+        ),
+        features: (values: { "part_of_speech": "interrogative" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:jaki:question",
+        lexeme_id: "lexeme:pl:jaki:question",
+        anchor: None,
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("CITY"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:jaki:question",
+            expression: QueryVariable(
+                "template:answer",
+            ),
+            query_variables: {
+                "template:answer": Concrete(
+                    EntityOf("CITY"),
+                ),
+            },
+        ),
+        features: (
+            values: {
+                "interrogative": "true",
+                "case": "nominative",
+                "number": "singular",
+                "gender": "feminine",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:tomek:entity",
+        lexeme_id: "lexeme:pl:tomek:proper",
+        anchor: Some(
+            Entity(
+                "TOM",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("PERSON"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:tomek:entity",
+            expression: Entity(
+                "TOM",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:iza:entity",
+        lexeme_id: "lexeme:pl:iza:proper",
+        anchor: Some(
+            Entity(
+                "IZA",
+            ),
+        ),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("PERSON"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:iza:entity",
+            expression: Entity(
+                "IZA",
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "part_of_speech": "noun",
+                "proper": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:widzi:event",
+        lexeme_id: "lexeme:pl:widziec:verb",
+        anchor: Some(
+            Concept(
+                "SEE_EVENT",
+            ),
+        ),
+        base_category: Atom(
+            kind: Sentence,
+            semantic_type: Concrete(
+                Boolean,
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:widzi:event",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "patient",
+                        parameter_id: "patient",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                    (
+                        name: "agent",
+                        parameter_id: "agent",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                ],
+                body: ApplyConcept(
+                    concept: "SEE_EVENT",
+                    bindings: {
+                        "agent": Variable("agent"),
+                        "patient": Variable("patient"),
+                    },
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (
+            values: {
+                "tense": "present",
+            },
+        ),
+        valency: [
+            (
+                id: "valency:pl:see:patient",
+                parameter: "patient",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(
+                        EntityOf("PERSON"),
+                    ),
+                    features: (
+                        values: {
+                            "case": "accusative",
+                        },
+                    ),
+                ),
+                surface_relation: None,
+                direction: Forward,
+                application_rank: 0,
+                required: true,
+            ),
+            (
+                id: "valency:pl:see:agent",
+                parameter: "agent",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(
+                        EntityOf("PERSON"),
+                    ),
+                    features: (
+                        values: {
+                            "case": "nominative",
+                        },
+                    ),
+                ),
+                surface_relation: None,
+                direction: Backward,
+                application_rank: 1,
+                required: true,
+            ),
+        ],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:widzi:fronted-event",
+        lexeme_id: "lexeme:pl:widziec:verb",
+        anchor: Some(Concept("SEE_EVENT")),
+        base_category: Atom(
+            kind: Sentence,
+            semantic_type: Concrete(Boolean),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:widzi:fronted-event",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "patient",
+                        parameter_id: "patient",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                    (
+                        name: "agent",
+                        parameter_id: "agent",
+                        value_type: EntityOf("PERSON"),
+                    ),
+                ],
+                body: ApplyConcept(
+                    concept: "SEE_EVENT",
+                    bindings: {
+                        "agent": Variable("agent"),
+                        "patient": Variable("patient"),
+                    },
+                ),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "tense": "present", "fronted_patient": "true" }),
+        valency: [
+            (
+                id: "valency:pl:see:fronted:agent",
+                parameter: "agent",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: { "case": "nominative" }),
+                ),
+                surface_relation: None,
+                direction: Forward,
+                application_rank: 0,
+                required: true,
+            ),
+            (
+                id: "valency:pl:see:fronted:patient",
+                parameter: "patient",
+                argument_category: Atom(
+                    kind: NounPhrase,
+                    semantic_type: Concrete(EntityOf("PERSON")),
+                    features: (values: { "case": "accusative" }),
+                ),
+                surface_relation: None,
+                direction: Backward,
+                application_rank: 1,
+                required: true,
+            ),
+        ],
+        priority: 1,
+    ),
+    (
+        id: "sense:pl:kto:question",
+        lexeme_id: "lexeme:pl:kto:question",
+        anchor: None,
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("PERSON"),
+            ),
+            features: (
+                values: {},
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:kto:question",
+            expression: QueryVariable(
+                "template:answer",
+            ),
+            query_variables: {
+                "template:answer": Concrete(
+                    EntityOf("PERSON"),
+                ),
+            },
+        ),
+        features: (
+            values: {
+                "interrogative": "true",
+            },
+        ),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:kogo:question",
+        lexeme_id: "lexeme:pl:kogo:question",
+        anchor: None,
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(
+                EntityOf("PERSON"),
+            ),
+            features: (
+                values: {
+                    "case": "accusative",
+                },
+            ),
+        ),
+        meaning: (
+            id: "meaning:pl:kogo:question",
+            expression: QueryVariable(
+                "template:answer",
+            ),
+            query_variables: {
+                "template:answer": Concrete(
+                    EntityOf("PERSON"),
+                ),
+            },
+        ),
+        features: (values: { "interrogative": "true" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:nie:negation",
+        lexeme_id: "lexeme:pl:nie:negation",
+        anchor: None,
+        base_category: Function(
+            result: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "value",
+            features: (values: { "negation": "true" }),
+        ),
+        meaning: (
+            id: "meaning:pl:nie:negation",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "value",
+                        parameter_id: "value",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Not(Variable("value")),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "particle" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:i:conjunction",
+        lexeme_id: "lexeme:pl:i:conjunction",
+        anchor: None,
+        base_category: Function(
+            result: Function(
+                result: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                argument: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                direction: Backward,
+                semantic_parameter: "left",
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "right",
+            features: (values: { "coordination": "and" }),
+        ),
+        meaning: (
+            id: "meaning:pl:i:conjunction",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "right",
+                        parameter_id: "right",
+                        value_type: Boolean,
+                    ),
+                    (
+                        name: "left",
+                        parameter_id: "left",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: And([Variable("left"), Variable("right")]),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "conjunction" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:albo:conjunction",
+        lexeme_id: "lexeme:pl:albo:conjunction",
+        anchor: None,
+        base_category: Function(
+            result: Function(
+                result: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                argument: Atom(
+                    kind: Sentence,
+                    semantic_type: Concrete(Boolean),
+                    features: (values: {}),
+                ),
+                direction: Backward,
+                semantic_parameter: "left",
+                features: (values: {}),
+            ),
+            argument: Atom(
+                kind: Sentence,
+                semantic_type: Concrete(Boolean),
+                features: (values: {}),
+            ),
+            direction: Forward,
+            semantic_parameter: "right",
+            features: (values: { "coordination": "or" }),
+        ),
+        meaning: (
+            id: "meaning:pl:albo:conjunction",
+            expression: Lambda(
+                parameters: [
+                    (
+                        name: "right",
+                        parameter_id: "right",
+                        value_type: Boolean,
+                    ),
+                    (
+                        name: "left",
+                        parameter_id: "left",
+                        value_type: Boolean,
+                    ),
+                ],
+                body: Or([Variable("left"), Variable("right")]),
+            ),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "conjunction" }),
+        valency: [],
+        priority: 0,
+    ),
+    (
+        id: "sense:pl:tomasz:entity",
+        lexeme_id: "lexeme:pl:tomasz:proper",
+        anchor: Some(Entity("TOM")),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(EntityOf("PERSON")),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:tomasz:entity",
+            expression: Entity("TOM"),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+        valency: [],
+        priority: 10,
+    ),
+    (
+        id: "sense:pl:tomcio:entity",
+        lexeme_id: "lexeme:pl:tomcio:proper",
+        anchor: Some(Entity("TOM")),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(EntityOf("PERSON")),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:tomcio:entity",
+            expression: Entity("TOM"),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+        valency: [],
+        priority: 10,
+    ),
+    (
+        id: "sense:pl:izabela:entity",
+        lexeme_id: "lexeme:pl:izabela:proper",
+        anchor: Some(Entity("IZA")),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(EntityOf("PERSON")),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:izabela:entity",
+            expression: Entity("IZA"),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+        valency: [],
+        priority: 10,
+    ),
+    (
+        id: "sense:pl:izka:entity",
+        lexeme_id: "lexeme:pl:izka:proper",
+        anchor: Some(Entity("IZA")),
+        base_category: Atom(
+            kind: NounPhrase,
+            semantic_type: Concrete(EntityOf("PERSON")),
+            features: (values: {}),
+        ),
+        meaning: (
+            id: "meaning:pl:izka:entity",
+            expression: Entity("IZA"),
+            query_variables: {},
+        ),
+        features: (values: { "part_of_speech": "noun", "proper": "true" }),
+        valency: [],
+        priority: 10,
+    ),
+]

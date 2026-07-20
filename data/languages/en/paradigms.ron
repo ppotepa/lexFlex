@@ -1,0 +1,9 @@
+[
+    (
+        id: "paradigm:en:copula",
+        language: "en",
+        form_ids: [
+            "form:en:is",
+        ],
+    ),
+]

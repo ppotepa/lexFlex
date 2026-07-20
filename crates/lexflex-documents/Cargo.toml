@@ -1,0 +1,19 @@
+[package]
+name = "lexflex-documents"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Verified document provenance and deterministic segmentation for lexFlex"
+
+[dependencies]
+lexflex-model = { path = "../lexflex-model" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+lexflex-engine = { path = "../lexflex-engine" }
+ron.workspace = true
+serde_json.workspace = true

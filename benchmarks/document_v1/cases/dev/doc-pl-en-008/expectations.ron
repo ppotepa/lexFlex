@@ -1,8 +1,0 @@
-(
-    expected_paragraph_count: Some(1),
-    expected_min_sentence_count: Some(2),
-    invariants: [
-    RequireFrame(frame_type: "Motion", verb_concept: Some("GO"), minimum_occurrences: 1),
-    ],
-    allowed_failures: [],
-)

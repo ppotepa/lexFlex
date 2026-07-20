@@ -1,0 +1,7 @@
+(
+    schema: 1,
+    package_id: "lexflex:model:core",
+    concepts: "concepts.ron",
+    entities: "entities.ron",
+    programs: "concept_programs.ron",
+)

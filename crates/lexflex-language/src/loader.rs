@@ -1,0 +1,267 @@
+use crate::validation::{LanguageModelValidator, LanguageValidationIssue};
+use crate::{
+    compile_lexical_sense, CompiledLexicalSense, FeatureStructure, Form, FormId, FormIndex,
+    LanguageCompileError, Lexeme, LexemeId, LexicalSense, LexicalSenseId, SenseIndex,
+};
+use lexflex_model::{
+    canonical_hash, CanonicalDigest, CanonicalHashError, ConceptCatalog, LanguageId,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fs;
+use std::io::Read;
+use std::path::{Component, Path, PathBuf};
+use thiserror::Error;
+
+const SUPPORTED_MANIFEST_SCHEMA: u32 = 1;
+const MAX_PACKAGE_FILE_BYTES: usize = 32 * 1024 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LanguagePackageManifest {
+    pub schema: u32,
+    pub package_id: String,
+    pub language: LanguageId,
+    pub lexemes: String,
+    pub senses: String,
+    pub forms: String,
+    pub paradigms: String,
+    #[serde(default)]
+    pub realizations: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LanguageRealizationModel {
+    pub conjunction: String,
+    pub disjunction: String,
+    pub negation_prefix: String,
+    pub existential_prefix: String,
+    pub universal_prefix: String,
+    pub equality_separator: String,
+    pub question_prefix: String,
+    #[serde(default)]
+    pub boolean_question_prefix: String,
+    #[serde(default)]
+    pub boolean_question_separator: String,
+    #[serde(default)]
+    pub question_subject_prefix: String,
+    #[serde(default)]
+    pub question_object_prefix: String,
+    #[serde(default)]
+    pub question_argument_prefixes: BTreeMap<String, String>,
+    #[serde(default)]
+    pub question_argument_suffixes: BTreeMap<String, String>,
+    #[serde(default)]
+    pub predicate_prefix: String,
+    #[serde(default)]
+    pub argument_orders: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub head_positions: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub predicate_features: FeatureStructure,
+    #[serde(default)]
+    pub surface_relations: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LanguageModel {
+    pub manifest: LanguagePackageManifest,
+    pub lexemes: BTreeMap<LexemeId, Lexeme>,
+    pub senses: BTreeMap<LexicalSenseId, LexicalSense>,
+    pub compiled_senses: BTreeMap<LexicalSenseId, CompiledLexicalSense>,
+    pub forms: BTreeMap<FormId, Form>,
+    pub paradigms: BTreeMap<crate::ParadigmId, MorphologyParadigm>,
+    pub form_index: FormIndex,
+    pub sense_index: SenseIndex,
+    pub model_hash: CanonicalDigest,
+    pub realizations: LanguageRealizationModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MorphologyParadigm {
+    pub id: crate::ParadigmId,
+    pub language: LanguageId,
+    #[serde(default)]
+    pub form_ids: Vec<FormId>,
+}
+
+impl LanguageModel {
+    pub fn lexeme(&self, id: &LexemeId) -> Option<&Lexeme> {
+        self.lexemes.get(id)
+    }
+
+    pub fn sense(&self, id: &LexicalSenseId) -> Option<&LexicalSense> {
+        self.senses.get(id)
+    }
+
+    pub fn compiled_sense(&self, id: &LexicalSenseId) -> Option<&CompiledLexicalSense> {
+        self.compiled_senses.get(id)
+    }
+
+    pub fn form(&self, id: &FormId) -> Option<&Form> {
+        self.forms.get(id)
+    }
+
+    pub fn paradigm(&self, id: &crate::ParadigmId) -> Option<&MorphologyParadigm> {
+        self.paradigms.get(id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum LanguageLoadError {
+    #[error("io error reading {path}: {kind:?}")]
+    Io {
+        path: PathBuf,
+        kind: std::io::ErrorKind,
+    },
+    #[error("parse error reading {path}: {message}")]
+    Parse { path: PathBuf, message: String },
+    #[error("unsupported language manifest schema: {schema}")]
+    UnsupportedSchema { schema: u32 },
+    #[error("validation error: {0}")]
+    Validation(LanguageValidationIssue),
+    #[error("duplicate {kind} id: {id}")]
+    DuplicateId { kind: &'static str, id: String },
+    #[error("unsafe package path: {relative}")]
+    UnsafePath { relative: PathBuf },
+    #[error("language compile error: {0}")]
+    Compile(#[from] LanguageCompileError),
+    #[error("canonical hash error: {0}")]
+    CanonicalHash(#[from] CanonicalHashError),
+    #[error("language package file exceeds resource limit")]
+    ResourceLimit,
+}
+
+pub struct LanguagePackageLoader;
+
+impl LanguagePackageLoader {
+    pub fn load(
+        &self,
+        root: &Path,
+        catalog: &ConceptCatalog,
+    ) -> Result<LanguageModel, LanguageLoadError> {
+        let manifest: LanguagePackageManifest = read_ron(&root.join("manifest.ron"))?;
+        if manifest.schema != SUPPORTED_MANIFEST_SCHEMA {
+            return Err(LanguageLoadError::UnsupportedSchema {
+                schema: manifest.schema,
+            });
+        }
+        let lexemes: Vec<Lexeme> = read_ron(&safe_package_path(root, &manifest.lexemes)?)?;
+        let senses: Vec<LexicalSense> = read_ron(&safe_package_path(root, &manifest.senses)?)?;
+        let forms: Vec<Form> = read_ron(&safe_package_path(root, &manifest.forms)?)?;
+        let paradigms: Vec<MorphologyParadigm> =
+            read_ron(&safe_package_path(root, &manifest.paradigms)?)?;
+        let realizations = manifest
+            .realizations
+            .as_deref()
+            .map(|path| safe_package_path(root, path))
+            .transpose()?
+            .map(|path| read_ron(&path))
+            .transpose()?
+            .unwrap_or_default();
+        let lexemes = collect_unique("lexeme", lexemes, |lexeme| lexeme.id.clone())?;
+        let senses = collect_unique("sense", senses, |sense| sense.id.clone())?;
+        let forms = collect_unique("form", forms, |form| form.id.clone())?;
+        let paradigms = collect_unique("paradigm", paradigms, |paradigm| paradigm.id.clone())?;
+        let form_index = FormIndex::build(forms.values().cloned());
+        let sense_index = SenseIndex::build(senses.values().cloned());
+        let model_hash = canonical_hash(&(
+            &manifest,
+            &lexemes,
+            &senses,
+            &forms,
+            &paradigms,
+            &realizations,
+        ))?;
+        let mut model = LanguageModel {
+            manifest,
+            lexemes,
+            senses,
+            compiled_senses: BTreeMap::new(),
+            forms,
+            paradigms,
+            form_index,
+            sense_index,
+            model_hash,
+            realizations,
+        };
+        LanguageModelValidator
+            .validate(&model, catalog)
+            .map_err(|error| match error {
+                crate::validation::LanguageValidationError::Issue(issue) => {
+                    LanguageLoadError::Validation(issue)
+                }
+            })?;
+        model.compiled_senses = model
+            .senses
+            .values()
+            .map(|sense| {
+                let compiled = compile_lexical_sense(sense, catalog)?;
+                Ok((compiled.id.clone(), compiled))
+            })
+            .collect::<Result<BTreeMap<_, _>, LanguageCompileError>>()?;
+        Ok(model)
+    }
+}
+
+fn safe_package_path(root: &Path, relative: &str) -> Result<PathBuf, LanguageLoadError> {
+    let relative = Path::new(relative);
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(LanguageLoadError::UnsafePath {
+            relative: relative.to_path_buf(),
+        });
+    }
+    Ok(root.join(relative))
+}
+
+fn collect_unique<K, V>(
+    kind: &'static str,
+    values: impl IntoIterator<Item = V>,
+    key: impl Fn(&V) -> K,
+) -> Result<BTreeMap<K, V>, LanguageLoadError>
+where
+    K: Ord + Clone + ToString,
+{
+    let mut output = BTreeMap::new();
+    for value in values {
+        let id = key(&value);
+        if output.insert(id.clone(), value).is_some() {
+            return Err(LanguageLoadError::DuplicateId {
+                kind,
+                id: id.to_string(),
+            });
+        }
+    }
+    Ok(output)
+}
+
+fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, LanguageLoadError> {
+    let file = fs::File::open(path).map_err(|error| LanguageLoadError::Io {
+        path: path.to_path_buf(),
+        kind: error.kind(),
+    })?;
+    let mut bytes = Vec::new();
+    file.take((MAX_PACKAGE_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| LanguageLoadError::Io {
+            path: path.to_path_buf(),
+            kind: error.kind(),
+        })?;
+    if bytes.len() > MAX_PACKAGE_FILE_BYTES {
+        return Err(LanguageLoadError::ResourceLimit);
+    }
+    let source = String::from_utf8(bytes).map_err(|error| LanguageLoadError::Parse {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })?;
+    ron::from_str(&source).map_err(|error| LanguageLoadError::Parse {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })
+}

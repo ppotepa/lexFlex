@@ -1,38 +1,33 @@
-[package]
-name = "lexflex"
-version = "0.1.0"
-edition = "2021"
-description = "Universal meaning representation framework using Interlingua"
-default-run = "lexflex"
-
 [workspace]
-members = [".", "lexflex-learner", "tools/document-benchmark"]
+resolver = "2"
 
-[dependencies]
+members = [
+    "crates/lexflex-model",
+    "crates/lexflex-lingua",
+    "crates/lexflex-language",
+    "crates/lexflex-parser",
+    "crates/lexflex-store",
+    "crates/lexflex-engine",
+    "crates/lexflex-learning",
+    "crates/lexflex-provider-llm",
+    "crates/lexflex-generation",
+    "crates/lexflex-conversation",
+    "crates/lexflex-documents",
+    "apps/lexflex",
+    "tools/lexflex-benchmark",
+    "tools/lexflex-model-inspect",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+publish = false
+license = "MIT"
+
+[workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
-ron = "0.8"
-thiserror = "1"
-clap = { version = "4", features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-serde_json = "1.0"
-crossterm = "0.27"
-ratatui = "0.27"
+serde_json = "1"
+thiserror = "2"
 sha2 = "0.10"
-unicode-width = "0.1"
-
-# Pull in the lexical deduction service so lexflex can automatically
-# learn concepts for unknown words using the same clean, data-driven
-# logic (LocalKnowledge + is_a mapping + scoped context) instead of
-# ad-hoc word hacks.
-lexflex-learner = { path = "lexflex-learner" }
-
-# Pin to keep builds working across the two crates (rustc 1.85 compat)
-idna = "=0.5.0"
-idna_adapter = "=1.0.0"
-tokio = { version = "1.39", features = ["rt-multi-thread"] }
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
-urlencoding = "2.1"
-
-[dev-dependencies]
-insta = "1"
+ron = "0.8"
+clap = { version = "4", features = ["derive"] }

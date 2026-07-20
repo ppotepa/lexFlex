@@ -1,0 +1,95 @@
+(
+    concepts: {
+        "ENTITY": (
+            id: "ENTITY",
+            kind: EntityType,
+            parameters: {},
+            result_type: Predicate(Entity),
+        ),
+        "CITY": (
+            id: "CITY",
+            kind: EntityType,
+            parameters: {},
+            result_type: Predicate(EntityOf("CITY")),
+        ),
+        "PERSON": (
+            id: "PERSON",
+            kind: EntityType,
+            parameters: {},
+            result_type: Predicate(EntityOf("PERSON")),
+        ),
+        "POLITY": (
+            id: "POLITY",
+            kind: EntityType,
+            parameters: {},
+            result_type: Predicate(EntityOf("POLITY")),
+        ),
+        "COUNTRY": (
+            id: "COUNTRY",
+            kind: EntityType,
+            parameters: {},
+            result_type: Predicate(EntityOf("COUNTRY")),
+        ),
+        "CAPITAL_ROLE": (
+            id: "CAPITAL_ROLE",
+            kind: RoleType,
+            parameters: {},
+            result_type: ConceptOf(RoleType),
+        ),
+        "FILLS_ROLE": (
+            id: "FILLS_ROLE",
+            kind: RelationType,
+            parameters: {
+                "holder": (
+                    id: "holder",
+                    value_type: Entity,
+                    required: true,
+                ),
+                "role": (
+                    id: "role",
+                    value_type: ConceptOf(RoleType),
+                    required: true,
+                ),
+                "scope": (
+                    id: "scope",
+                    value_type: Entity,
+                    required: true,
+                ),
+            },
+            result_type: Boolean,
+        ),
+        "CAPITAL": (
+            id: "CAPITAL",
+            kind: Predicate,
+            parameters: {
+                "scope": (
+                    id: "scope",
+                    value_type: EntityOf("POLITY"),
+                    required: true,
+                ),
+            },
+            result_type: Predicate(EntityOf("CITY")),
+        ),
+        "SEE_EVENT": (
+            id: "SEE_EVENT",
+            kind: EventType,
+            parameters: {
+                "agent": (
+                    id: "agent",
+                    value_type: EntityOf("PERSON"),
+                    required: true,
+                ),
+                "patient": (
+                    id: "patient",
+                    value_type: EntityOf("PERSON"),
+                    required: true,
+                ),
+            },
+            result_type: Boolean,
+        ),
+    },
+    entities: {},
+    parents: {
+        "COUNTRY": ["POLITY"],
+    },
+)

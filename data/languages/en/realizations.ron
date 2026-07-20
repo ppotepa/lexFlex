@@ -1,0 +1,31 @@
+(
+    conjunction: " and ",
+    disjunction: " or ",
+    negation_prefix: "not ",
+    existential_prefix: "there exists ",
+    universal_prefix: "for all ",
+    equality_separator: " is ",
+    question_prefix: "What is ",
+    boolean_question_prefix: "Is ",
+    boolean_question_separator: " ",
+    question_subject_prefix: "Who ",
+    question_object_prefix: "Who ",
+    question_argument_prefixes: {
+        "agent": "Who ",
+        "patient": "Who ",
+    },
+    question_argument_suffixes: {
+        "patient": "who",
+    },
+    predicate_prefix: "the ",
+    argument_orders: {
+        "SEE_EVENT": ["agent", "patient"],
+    },
+    head_positions: {
+        "SEE_EVENT": 1,
+    },
+    predicate_features: (values: {}),
+    surface_relations: {
+        "of-complement": " of ",
+    },
+)

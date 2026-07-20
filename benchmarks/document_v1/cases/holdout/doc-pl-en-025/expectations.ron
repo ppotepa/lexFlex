@@ -1,8 +1,0 @@
-(
-    expected_paragraph_count: Some(3),
-    expected_min_sentence_count: Some(2),
-    invariants: [
-    RequireOutputContains(any_of: ["document"], case_sensitive: false),
-    ],
-    allowed_failures: [],
-)
