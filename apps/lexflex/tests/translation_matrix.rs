@@ -556,6 +556,198 @@ fn boolean_questions_preserve_kind_and_semantics_in_both_languages() {
     command_support::assert_level_passed("boolean-questions", &results);
 }
 
+#[test]
+fn b1_next_fifty_per_language_cover_compositional_variants() {
+    let people = [
+        ("Tom", "Tomek", "Tomka", "Tom"),
+        ("Iza", "Iza", "Izę", "Iza"),
+        ("Thomas", "Tomasz", "Tomasza", "Tom"),
+        ("Tommy", "Tomcio", "Tomcia", "Tom"),
+        ("Isabelle", "Izabela", "Izabelę", "Iza"),
+        ("Izzy", "Izka", "Izkę", "Iza"),
+    ];
+    let mut results = Vec::new();
+    let mut en_index = 0;
+    let mut pl_index = 0;
+
+    for (index, (en, pl, object, canonical)) in people.iter().take(5).enumerate() {
+        results.push(assert_b1_translation(
+            en_index,
+            "en",
+            "pl",
+            &format!("Not {en} sees {en}."),
+            &format!(
+                "nie {} widzi {}",
+                canonical_polish_subject(pl),
+                canonical_polish_object(object)
+            ),
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index,
+            "pl",
+            "en",
+            &format!("Nie {pl} widzi {object}."),
+            &format!("not {canonical} sees {canonical}"),
+        ));
+        pl_index += 1;
+        let _ = index;
+    }
+
+    for (index, (en, _pl, object, canonical)) in people.iter().take(5).enumerate() {
+        results.push(assert_b1_translation(
+            en_index,
+            "en",
+            "pl",
+            &format!("Who sees {en}?"),
+            &format!("Kto widzi {}?", canonical_polish_object(object)),
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index,
+            "pl",
+            "en",
+            &format!("Kto widzi {object}?"),
+            &format!("Who sees {canonical}?"),
+        ));
+        pl_index += 1;
+        let _ = index;
+    }
+
+    for (index, (en, pl, _, canonical)) in people.iter().take(5).enumerate() {
+        results.push(assert_b1_translation(
+            en_index,
+            "en",
+            "pl",
+            &format!("{en} sees who?"),
+            &format!("{} widzi Kogo?", canonical_polish_subject(pl)),
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index,
+            "pl",
+            "en",
+            &format!("{pl} widzi Kogo?"),
+            &format!("{canonical} sees who?"),
+        ));
+        pl_index += 1;
+        let _ = index;
+    }
+
+    for (index, (en, pl)) in [
+        ("Tom", "Tomek"),
+        ("Iza", "Iza"),
+        ("Thomas", "Tomasz"),
+        ("Tommy", "Tomcio"),
+        ("Isabelle", "Izabela"),
+        ("Izzy", "Izka"),
+    ]
+    .iter()
+    .take(5)
+    .enumerate()
+    {
+        results.push(assert_b1_translation(
+            en_index,
+            "en",
+            "pl",
+            &format!("Who does {en} see?"),
+            &format!("{} widzi Kogo?", canonical_polish_subject(pl)),
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index,
+            "pl",
+            "en",
+            &format!("Kogo widzi {pl}?"),
+            &format!("{} sees who?", canonical_english_subject(en)),
+        ));
+        pl_index += 1;
+        let _ = index;
+    }
+
+    for (en, pl) in [
+        (
+            "Is Paris the capital of France?",
+            "Czy Paryż jest stolicą Francji?",
+        ),
+        (
+            "Is Warsaw the capital of Poland?",
+            "Czy Warszawa jest stolicą Polski?",
+        ),
+    ] {
+        results.push(assert_b1_translation(en_index, "en", "pl", en, pl));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index,
+            "pl",
+            "en",
+            pl,
+            if en.starts_with("Is Paris") {
+                "Is Paris the capital of France?"
+            } else {
+                "Is Warsaw the capital of Poland?"
+            },
+        ));
+        pl_index += 1;
+    }
+
+    let boolean_cases = [
+        (
+            "Tom sees Iza and Iza sees Tom.",
+            "Iza widzi Tomka i Tomek widzi Izę",
+            "Tomek widzi Izę i Iza widzi Tomka.",
+            "Iza sees Tom and Tom sees Iza",
+        ),
+        (
+            "Tom sees Iza or Iza sees Tom.",
+            "Iza widzi Tomka albo Tomek widzi Izę",
+            "Tomek widzi Izę albo Iza widzi Tomka.",
+            "Iza sees Tom or Tom sees Iza",
+        ),
+    ];
+    for (en_source, pl_target, pl_source, en_target) in boolean_cases {
+        results.push(assert_b1_translation(
+            en_index, "en", "pl", en_source, pl_target,
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index, "pl", "en", pl_source, en_target,
+        ));
+        pl_index += 1;
+    }
+
+    let scope_cases = [
+        (
+            "Not Tom sees Iza or Iza sees Tom.",
+            "Iza widzi Tomka albo nie Tomek widzi Izę",
+            "Nie Tomek widzi Izę albo Iza widzi Tomka.",
+            "Iza sees Tom or not Tom sees Iza",
+        ),
+        (
+            "Not Tom sees Iza and Iza sees Tom.",
+            "Iza widzi Tomka i nie Tomek widzi Izę",
+            "Nie Tomek widzi Izę i Iza widzi Tomka.",
+            "Iza sees Tom and not Tom sees Iza",
+        ),
+    ];
+    for (en_source, pl_target, pl_source, en_target) in scope_cases.iter().take(1) {
+        results.push(assert_b1_translation(
+            en_index, "en", "pl", en_source, pl_target,
+        ));
+        en_index += 1;
+        results.push(assert_b1_translation(
+            pl_index, "pl", "en", pl_source, en_target,
+        ));
+        pl_index += 1;
+    }
+
+    assert_eq!(en_index, 25);
+    assert_eq!(pl_index, 25);
+    assert_eq!(results.len(), 50);
+    command_support::write_level_report("b1-next-fifty", &results);
+    command_support::assert_level_passed("b1-next-fifty", &results);
+}
+
 fn canonical_english_subject(source: &str) -> &str {
     match source {
         "Thomas" | "Tommy" => "Tom",
@@ -568,6 +760,14 @@ fn canonical_polish_subject(source: &str) -> &str {
     match source {
         "Tomasz" | "Tomcio" => "Tomek",
         "Izabela" | "Izka" => "Iza",
+        value => value,
+    }
+}
+
+fn canonical_polish_object(source: &str) -> &str {
+    match source {
+        "Tomasza" | "Tomcia" => "Tomka",
+        "Izabelę" | "Izkę" => "Izę",
         value => value,
     }
 }
