@@ -59,6 +59,7 @@ fn a2_assertion_translation_preserves_semantic_hash() {
         })
         .collect::<Vec<_>>();
     command_support::write_level_report("a2-seed", &results);
+    command_support::assert_level_passed("a2-seed", &results);
 }
 
 #[derive(Clone, Copy)]
@@ -102,7 +103,7 @@ fn assert_translation(
             String::from_utf8_lossy(&output.stderr)
         )
     });
-    let result = command_support::LevelCaseResult {
+    command_support::LevelCaseResult {
         id: format!("A2-{}-{index:03}", source_language.to_uppercase()),
         source_language: source_language.to_owned(),
         target_language: target_language.to_owned(),
@@ -112,13 +113,7 @@ fn assert_translation(
         semantic_hash_equal,
         passed,
         error,
-    };
-    assert!(
-        result.passed,
-        "A2 case {} failed: {:?}",
-        result.id, result.error
-    );
-    result
+    }
 }
 
 fn assert_b1_translation(
@@ -282,6 +277,7 @@ fn a2_reaches_fifty_english_and_polish_source_sentences() {
     assert_eq!(polish_cases, 50);
     assert_eq!(results.len(), 100);
     command_support::write_level_report("a2", &results);
+    command_support::assert_level_passed("a2", &results);
 }
 
 #[test]
@@ -413,4 +409,5 @@ fn b1_reaches_fifty_english_and_polish_varied_sentences() {
     assert_eq!(english_cases, 50);
     assert_eq!(polish_cases, 50);
     command_support::write_level_report("b1", &results);
+    command_support::assert_level_passed("b1", &results);
 }

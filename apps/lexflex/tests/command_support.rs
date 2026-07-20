@@ -47,6 +47,27 @@ pub fn write_level_report(level: &str, results: &[LevelCaseResult]) {
 }
 
 #[allow(dead_code)]
+pub fn assert_level_passed(level: &str, results: &[LevelCaseResult]) {
+    let failures = results
+        .iter()
+        .filter(|result| !result.passed)
+        .map(|result| {
+            format!(
+                "{}: {}",
+                result.id,
+                result.error.as_deref().unwrap_or("unknown")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        failures.is_empty(),
+        "{level} has {} failed cases:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+#[allow(dead_code)]
 fn results_to_json(results: &[LevelCaseResult]) -> serde_json::Value {
     serde_json::json!({
         "cases": results.iter().map(|result| serde_json::json!({
