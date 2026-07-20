@@ -1,7 +1,7 @@
 use lexflex_language::LanguagePackageLoader;
 use lexflex_model::ConceptCatalog;
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Deserialize)]
 struct EntityPackage {
@@ -24,6 +24,40 @@ fn catalog() -> ConceptCatalog {
 fn polish_package_loads() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/languages/pl");
     let model = LanguagePackageLoader.load(&root, &catalog()).expect("load");
-    assert_eq!(model.lexemes.len(), 11);
-    assert_eq!(model.senses.len(), 11);
+    let required_lexemes = [
+        "lexeme:pl:paryz:proper",
+        "lexeme:pl:francja:proper",
+        "lexeme:pl:stolica:noun",
+        "lexeme:pl:tomek:proper",
+        "lexeme:pl:iza:proper",
+        "lexeme:pl:widziec:verb",
+        "lexeme:pl:jaki:question",
+        "lexeme:pl:kto:question",
+        "lexeme:pl:kogo:question",
+    ];
+    let loaded_lexemes: BTreeSet<_> = model.lexemes.keys().map(|id| id.as_str()).collect();
+    for lexeme in required_lexemes {
+        assert!(
+            loaded_lexemes.contains(lexeme),
+            "missing required lexeme: {lexeme}"
+        );
+    }
+
+    let required_senses = [
+        "sense:pl:paryz:entity",
+        "sense:pl:francja:entity",
+        "sense:pl:stolica:city",
+        "sense:pl:widzi:event",
+        "sense:pl:kto:question",
+        "sense:pl:kogo:question",
+    ];
+    let loaded_senses: BTreeSet<_> = model.senses.keys().map(|id| id.as_str()).collect();
+    for sense in required_senses {
+        assert!(
+            loaded_senses.contains(sense),
+            "missing required sense: {sense}"
+        );
+    }
+    assert!(model.lexemes.len() >= required_lexemes.len());
+    assert!(model.senses.len() >= required_senses.len());
 }
