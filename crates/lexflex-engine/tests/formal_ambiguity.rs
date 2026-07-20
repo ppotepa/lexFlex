@@ -35,3 +35,33 @@ fn capital_analysis_is_not_reported_as_ambiguous() {
     });
     assert!(matches!(response, EngineResponse::TextAnalyzed { .. }));
 }
+
+#[test]
+fn negation_and_or_scope_remains_explicitly_ambiguous() {
+    let mut runtime = test_runtime();
+    let response = runtime.handle(EngineRequest::AnalyzeText {
+        input: TextInput {
+            source_id: "source:formal:scope-or".into(),
+            language: LanguageId::new("en").expect("language"),
+            text: "Not Tom sees Iza or Iza sees Tom.".into(),
+        },
+        include_derivation: false,
+    });
+    assert!(matches!(response, EngineResponse::TextAmbiguous { alternatives, .. }
+        if alternatives.len() == 2));
+}
+
+#[test]
+fn negation_and_and_scope_remains_explicitly_ambiguous() {
+    let mut runtime = test_runtime();
+    let response = runtime.handle(EngineRequest::AnalyzeText {
+        input: TextInput {
+            source_id: "source:formal:scope-and".into(),
+            language: LanguageId::new("en").expect("language"),
+            text: "Not Tom sees Iza and Iza sees Tom.".into(),
+        },
+        include_derivation: false,
+    });
+    assert!(matches!(response, EngineResponse::TextAmbiguous { alternatives, .. }
+        if alternatives.len() == 2));
+}
