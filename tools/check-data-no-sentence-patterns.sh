@@ -6,7 +6,7 @@ test -d data/languages || {
   exit 1
 }
 
-if rg -n 'Paris is the|Paryż jest|What is the|Jaka jest|\{subject\}.*\{scope\}' data/languages; then
+if rg -n 'Paris is the capital of France|Paryż jest stolicą Francji|What is the capital of|Jaka jest stolica|\{subject\}.*\{scope\}' data/languages; then
   echo "Whole sentence patterns detected"
   exit 1
 fi

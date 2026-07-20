@@ -186,6 +186,71 @@ fn text_translate_text_uses_source_analysis_and_target_generation() {
 }
 
 #[test]
+fn text_translate_text_exposes_verified_analysis_metadata() {
+    let json = run_command(&[
+        "text-translate-text",
+        "--language",
+        "en",
+        "--target-language",
+        "pl",
+        "--text",
+        "Paris is the capital of France.",
+    ]);
+    assert_eq!(json["source_language"], "en");
+    assert_eq!(json["target_language"], "pl");
+    assert_eq!(json["kind"], "Assertion");
+    assert_eq!(json["source_analysis"]["language"], "en");
+    assert_eq!(json["target_analysis"]["language"], "pl");
+    assert_eq!(json["source_analysis"]["kind"], "Assertion");
+    assert_eq!(json["target_analysis"]["kind"], "Assertion");
+    assert_eq!(
+        json["source_semantic_hash"],
+        json["source_analysis"]["canonical_hash"]
+    );
+    assert_eq!(
+        json["target_semantic_hash"],
+        json["target_analysis"]["canonical_hash"]
+    );
+    assert!(
+        json["source_analysis"]["parser_metrics"]["token_count"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0
+    );
+    assert!(
+        json["target_analysis"]["parser_metrics"]["token_count"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0
+    );
+}
+
+#[test]
+fn text_translate_text_metadata_preserves_goal_projection() {
+    let json = run_command(&[
+        "text-translate-text",
+        "--language",
+        "en",
+        "--target-language",
+        "pl",
+        "--text",
+        "Who sees Tom?",
+    ]);
+    assert_eq!(json["kind"], "Goal");
+    assert_eq!(json["source_analysis"]["kind"], "Goal");
+    assert_eq!(json["target_analysis"]["kind"], "Goal");
+    assert!(!json["source_analysis"]["projection"]
+        .as_array()
+        .expect("source projection")
+        .is_empty());
+    assert!(!json["target_analysis"]["projection"]
+        .as_array()
+        .expect("target projection")
+        .is_empty());
+    assert_eq!(json["source_semantic_hash"], json["target_semantic_hash"]);
+}
+
+#[test]
 fn text_translate_text_supports_polish_source() {
     let json = run_command(&[
         "text-translate-text",

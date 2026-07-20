@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod bounded;
+
+use bounded::read_bounded;
 use std::fs;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -270,25 +273,6 @@ where
     pub fn root(&self) -> &Path {
         &self.root
     }
-}
-
-fn read_bounded(path: &Path) -> Result<Vec<u8>, SessionStoreError> {
-    use std::io::Read;
-    let file = fs::File::open(path).map_err(|error| SessionStoreError::Io {
-        path: path.to_owned(),
-        kind: error.kind(),
-    })?;
-    let mut bytes = Vec::new();
-    file.take((MAX_SESSION_RECORD_BYTES + 1) as u64)
-        .read_to_end(&mut bytes)
-        .map_err(|error| SessionStoreError::Io {
-            path: path.to_owned(),
-            kind: error.kind(),
-        })?;
-    if bytes.len() > MAX_SESSION_RECORD_BYTES {
-        return Err(SessionStoreError::ResourceLimit);
-    }
-    Ok(bytes)
 }
 
 impl<T> SessionPersistence<T> for SessionStore<T>

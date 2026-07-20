@@ -3,10 +3,12 @@ use lexflex_model::{
     canonical_hash, CanonicalDigest, CanonicalHashError, SemanticExpression, SemanticType,
     SourceSpan, VariableId,
 };
-use lexflex_parser::{DerivationSet, ParseMetrics, ParseScore};
+use lexflex_parser::{DerivationSet, ParseScore};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
+
+pub use lexflex_parser::ParseMetrics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TextAnalysisKind {

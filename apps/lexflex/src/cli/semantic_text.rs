@@ -17,6 +17,42 @@ struct TranslationCliOutput {
     kind: lexflex_engine::api::text::TextAnalysisKind,
     source_semantic_hash: String,
     target_semantic_hash: String,
+    source_analysis: TranslationAnalysisMetadata,
+    target_analysis: TranslationAnalysisMetadata,
+}
+
+#[derive(Debug, Serialize)]
+struct TranslationAnalysisMetadata {
+    source_id: String,
+    language: LanguageId,
+    kind: lexflex_engine::api::text::TextAnalysisKind,
+    span: lexflex_model::SourceSpan,
+    canonical_hash: String,
+    variables: std::collections::BTreeMap<lexflex_model::VariableId, lexflex_model::SemanticType>,
+    projection: Vec<lexflex_model::VariableId>,
+    formal_steps: u64,
+    parser_metrics: lexflex_engine::api::text::ParseMetrics,
+    derivation_count: usize,
+}
+
+impl TranslationAnalysisMetadata {
+    fn from_analysis(analysis: &lexflex_engine::api::text::TextAnalysis) -> Self {
+        Self {
+            source_id: analysis.source_id().to_owned(),
+            language: analysis.language().clone(),
+            kind: analysis.kind(),
+            span: analysis.span().clone(),
+            canonical_hash: analysis.canonical_hash().to_string(),
+            variables: analysis.variables().clone(),
+            projection: analysis.projection().to_vec(),
+            formal_steps: analysis.formal_steps(),
+            parser_metrics: analysis.parser_metrics().clone(),
+            derivation_count: analysis
+                .derivations()
+                .map(|derivations| derivations.len())
+                .unwrap_or(0),
+        }
+    }
 }
 
 fn load_expression(path: &Path) -> Result<SemanticExpression, CliExit> {
@@ -202,6 +238,8 @@ pub fn translate_text(
         kind: analysis.kind(),
         source_semantic_hash,
         target_semantic_hash,
+        source_analysis: TranslationAnalysisMetadata::from_analysis(&analysis),
+        target_analysis: TranslationAnalysisMetadata::from_analysis(&target_analysis),
     })
     .map_err(CliExit::Internal)?;
     Ok(())
