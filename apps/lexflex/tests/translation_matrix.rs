@@ -444,6 +444,28 @@ fn fronted_object_questions_preserve_semantics_in_both_languages() {
     command_support::assert_level_passed("fronted-questions", &results);
 }
 
+#[test]
+fn coordination_and_preserves_canonical_order_in_both_languages() {
+    let results = vec![
+        assert_b1_translation(
+            0,
+            "en",
+            "pl",
+            "Tom sees Iza and Iza sees Tom.",
+            "Iza widzi Tomka i Tomek widzi Izę",
+        ),
+        assert_b1_translation(
+            0,
+            "pl",
+            "en",
+            "Tomek widzi Izę i Iza widzi Tomka.",
+            "Iza sees Tom and Tom sees Iza",
+        ),
+    ];
+    command_support::write_level_report("coordination-and", &results);
+    command_support::assert_level_passed("coordination-and", &results);
+}
+
 fn canonical_english_subject(source: &str) -> &str {
     match source {
         "Thomas" | "Tommy" => "Tom",

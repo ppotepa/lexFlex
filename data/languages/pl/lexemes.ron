@@ -95,4 +95,10 @@
         lemma: "Izka",
         normalized_lemma: "izka",
     ),
+    (
+        id: "lexeme:pl:i:conjunction",
+        language: "pl",
+        lemma: "i",
+        normalized_lemma: "i",
+    ),
 ]

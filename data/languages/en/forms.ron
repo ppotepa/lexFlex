@@ -133,4 +133,11 @@
         normalized: "does",
         features: (values: { "part_of_speech": "auxiliary", "tense": "present" }),
     ),
+    (
+        id: "form:en:and",
+        lexeme_id: "lexeme:en:and:conjunction",
+        surface: "and",
+        normalized: "and",
+        features: (values: { "part_of_speech": "conjunction" }),
+    ),
 ]

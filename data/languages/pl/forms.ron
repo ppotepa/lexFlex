@@ -205,4 +205,11 @@
         normalized: "izkę",
         features: (values: { "part_of_speech": "noun", "proper": "true", "case": "accusative" }),
     ),
+    (
+        id: "form:pl:i",
+        lexeme_id: "lexeme:pl:i:conjunction",
+        surface: "i",
+        normalized: "i",
+        features: (values: { "part_of_speech": "conjunction" }),
+    ),
 ]

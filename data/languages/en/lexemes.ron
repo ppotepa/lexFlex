@@ -107,4 +107,10 @@
         lemma: "does",
         normalized_lemma: "does",
     ),
+    (
+        id: "lexeme:en:and:conjunction",
+        language: "en",
+        lemma: "and",
+        normalized_lemma: "and",
+    ),
 ]
