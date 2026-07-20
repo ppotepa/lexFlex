@@ -29,11 +29,13 @@ pub fn lexical_stage(ctx: &mut ParseContext<'_>) -> Result<Vec<Vec<Candidate>>, 
                 let verb = lexflex_language::FeatureValue::new_unchecked("verb");
                 let case_sensitive_interrogative = form.features.get(&interrogative).is_some()
                     && form.features.get(&part_of_speech) == Some(&verb);
-                if (sense.category.features().get(&interrogative).is_some()
-                    || form.features.get(&interrogative).is_some())
-                    && (form.features.get(&interrogative).is_none()
-                        || ctx.tokenization.mode != ClauseMode::Interrogative
-                        || (case_sensitive_interrogative && form.surface != token.surface))
+                let interrogative_verb_sense =
+                    sense.category.features().get(&interrogative).is_some()
+                        && form.features.get(&part_of_speech) == Some(&verb);
+                if interrogative_verb_sense && form.features.get(&interrogative).is_none()
+                    || (case_sensitive_interrogative
+                        && (ctx.tokenization.mode != ClauseMode::Interrogative
+                            || form.surface != token.surface))
                 {
                     continue;
                 }
