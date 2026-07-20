@@ -1,6 +1,6 @@
 use lexflex_generation::{
     build_generation_plan, generate, generate_entity, generate_with_style, GenerationError,
-    GenerationNode, GenerationRequest, GenerationStyle, SemanticRealizationKind,
+    GenerationNode, GenerationRequest, GenerationResult, GenerationStyle, SemanticRealizationKind,
     SemanticRealizationRequest,
 };
 use lexflex_language::LanguagePackageLoader;
@@ -64,6 +64,70 @@ fn text_translation_request_preserves_language_and_ambiguity_policy() {
 fn entity_generation_uses_language_lexical_anchor() {
     let generated = generate_entity(&EntityId::new_unchecked("PARIS"), &language()).expect("text");
     assert_eq!(generated.text, "Paris");
+}
+
+#[test]
+fn equal_lexical_candidates_return_ambiguous_result() {
+    let mut language = language();
+    let base_sense = language
+        .compiled_senses
+        .values()
+        .find(|sense| {
+            sense.anchor.as_ref()
+                == Some(&lexflex_language::SemanticAnchor::Entity(
+                    EntityId::new_unchecked("PARIS"),
+                ))
+        })
+        .cloned()
+        .expect("Paris sense");
+    let base_lexeme = language
+        .lexemes
+        .get(&base_sense.lexeme_id)
+        .cloned()
+        .expect("Paris lexeme");
+    let base_form = language
+        .forms
+        .values()
+        .find(|form| form.lexeme_id == base_sense.lexeme_id)
+        .cloned()
+        .expect("Paris form");
+
+    let alternate_lexeme_id =
+        lexflex_language::LexemeId::new_unchecked("lexeme:en:paris:alternate");
+    let alternate_sense_id =
+        lexflex_language::LexicalSenseId::new_unchecked("sense:en:paris:alternate");
+    let alternate_form_id = lexflex_language::FormId::new_unchecked("form:en:Paris:alternate");
+
+    let mut alternate_lexeme = base_lexeme;
+    alternate_lexeme.id = alternate_lexeme_id.clone();
+    language
+        .lexemes
+        .insert(alternate_lexeme_id.clone(), alternate_lexeme);
+
+    let mut alternate_sense = base_sense;
+    alternate_sense.id = alternate_sense_id;
+    alternate_sense.lexeme_id = alternate_lexeme_id.clone();
+    language
+        .compiled_senses
+        .insert(alternate_sense.id.clone(), alternate_sense);
+
+    let mut alternate_form = base_form;
+    alternate_form.id = alternate_form_id;
+    alternate_form.lexeme_id = alternate_lexeme_id;
+    language
+        .forms
+        .insert(alternate_form.id.clone(), alternate_form);
+
+    let result = lexflex_generation::generate_result(
+        &GenerationRequest {
+            expression: SemanticExpression::Entity(EntityId::new_unchecked("PARIS")),
+            include_trace: false,
+        },
+        &language,
+    )
+    .expect("generation result");
+
+    assert!(matches!(result, GenerationResult::Ambiguous { .. }));
 }
 
 #[test]
